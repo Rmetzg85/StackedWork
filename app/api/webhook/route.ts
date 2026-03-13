@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: "2024-12-18.acacia",
+  apiVersion: "2025-02-24.acacia",
 });
 
 const supabase = createClient(
@@ -27,11 +27,12 @@ export async function POST(request) {
       case "customer.subscription.created":
       case "customer.subscription.updated": {
         const subscription = event.data.object;
-        const customer = await stripe.customers.retrieve(subscription.customer);
+        const customerRaw = await stripe.customers.retrieve(subscription.customer);
+        const email = customerRaw.deleted ? null : (customerRaw as Stripe.Customer).email;
         await supabase.from("subscriptions").upsert({
           stripe_customer_id: subscription.customer,
           stripe_subscription_id: subscription.id,
-          email: customer.email,
+          email,
           status: subscription.status,
           plan: "base",
           price_id: subscription.items.data[0]?.price.id,
