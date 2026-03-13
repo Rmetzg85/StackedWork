@@ -2,13 +2,6 @@ import { NextResponse } from "next/server";
 import Replicate from "replicate";
 import { createClient } from "@supabase/supabase-js";
 
-const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 const PROMPTS = {
   bathroom: {
     "Modern Minimalist": "Modern minimalist bathroom renovation, clean white tile, floating vanity, frameless glass shower, matte black fixtures, LED mirror, professional interior design photography, 4k, realistic",
@@ -51,6 +44,11 @@ const PROMPTS = {
 const NEG = "blurry, low quality, distorted, cartoon, anime, painting, drawing, sketch, unrealistic, watermark, text overlay, people, humans, faces";
 
 export async function POST(request) {
+  const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
   try {
     const formData = await request.formData();
     const imageFile = formData.get("image");
