@@ -3,29 +3,59 @@ import { useState, useEffect, useRef } from "react";
 
 const G = "#C8E64A";
 const GD = "#A8C435";
+const DARK = "#132440";
 
-const FEATURES = [
-  { icon: "🏗️", title: "AI-Powered CRM", desc: "Track every job, client, and dollar. Voice-to-job entry means you log work from the truck, not a desk." },
-  { icon: "🌐", title: "AI Website Service", desc: "Need a website built or updated? We offer AI-powered website services for contractors — inquire for pricing." },
-  { icon: "📸", title: "AI Photo Mockups", desc: "Snap a photo on-site, get a realistic rendering of the finished job in seconds. Close deals on the spot." },
-  { icon: "📊", title: "Revenue Dashboard", desc: "See what you've earned this week, this month, this year. Know which jobs are profitable and which aren't." },
-  { icon: "📲", title: "Lead Management", desc: "Track every lead, follow up on time, and never let a job slip through the cracks." },
-  { icon: "💬", title: "Text Us To Update Anything", desc: "Need your phone number changed on your site? New photo? Just text us. We handle it." },
+const MODES = {
+  meatloaf: {
+    emoji: "🍖",
+    label: "Meatloaf Mode",
+    hero: "You're 30. Mom's making meatloaf downstairs.",
+    sub: "You didn't plan to end up here. Rent got too high, the credit score was too low, and the basement was \"temporary\" — three years ago. 44% of adults 25–34 live at home or can't afford to rent alone. You're not failing. You're just missing the roadmap.",
+    callout: "The meatloaf hits different when you know you should have your own place by now.",
+    pains: [
+      { icon: "🏠", stat: "44%", label: "of adults 25–34 live at home or can't afford to rent alone" },
+      { icon: "📈", stat: "30%", label: "rent increase since 2020 — your paycheck didn't follow" },
+      { icon: "😓", stat: "71%", label: "of Millennials & Gen Z feel behind on homeownership" },
+    ],
+    cta: "Get Out of the Basement",
+    accent: "#E8A87C",
+  },
+  mimosa: {
+    emoji: "🥂",
+    label: "Mimosa Mode",
+    hero: "Hungover in your childhood bedroom. Dad's already awake.",
+    sub: "Brunch was great. Four mimosas, his credit card, a little too much fun. Now you're 24, staring at a statement on your dresser, and the disappointment coming from downstairs is louder than your headache. One in three young adults is right there with you.",
+    callout: "The mimosa was $18. Living rent-free at 24 costs more than you think.",
+    pains: [
+      { icon: "💳", stat: "1 in 3", label: "adults under 35 moved back home between 2020–2024" },
+      { icon: "🎓", stat: "$28K", label: "average student loan debt for adults under 30" },
+      { icon: "📉", stat: "26%", label: "of adults under 35 own a home — down from 40% a generation ago" },
+    ],
+    cta: "Start the Glow-Up",
+    accent: "#F5C6D0",
+  },
+} as const;
+
+type ModeKey = keyof typeof MODES;
+
+const WHY_NOW = [
+  { icon: "🤖", t: "AI is reshaping the job market", d: "Automation is eliminating middle-income jobs faster than any generation has seen. The people who own assets — real estate, equity — will build wealth. The people who rent will pay someone else's mortgage. The window to get in is right now." },
+  { icon: "🎓", t: "Higher ed isn't the guarantee it was", d: "A diploma doesn't buy a house anymore. But a 720 credit score, 3.5% down FHA loan, and a first-gen homeowner program? That still works. Always has. We show you exactly how to get there." },
+  { icon: "🎮", t: "Your credit score is a game — play it", d: "We gamify the roadmap. Daily streaks, milestone unlocks, score projections. Watching your credit climb from 580 to 720 hits like leveling up. Because it is leveling up — just with real-world consequences." },
+  { icon: "🗝️", t: "Homeownership by 22 is real", d: "House hacking. FHA loans at 3.5% down. First-gen buyer programs. USDA zero-down rural loans. We map every available path to keys in your hand — whether you're 22 or 32, starting now beats starting later." },
 ];
 
-const COMPARISONS = [
-  { item: "CRM software", them: "$50-100/mo", us: "Included" },
-  { item: "AI design mockup tools", them: "$30-50/mo", us: "Included" },
-  { item: "Lead management", them: "$30/mo plugin", us: "Included" },
-  { item: "Revenue tracking", them: "$20-40/mo", us: "Included" },
-  { item: "AI website build/updates", them: "$75/hr freelancer", us: "Add-on" },
-  { item: "Total", them: "$200+/mo", us: "$49.99/mo" },
+const STEPS = [
+  { n: "1", t: "Build Credit", d: "Connect your accounts and start building your credit profile today. Gamified milestones, real progress. No judgment on where you start — only on where you're going." },
+  { n: "2", t: "Level Up", d: "Hit score milestones and unlock better rates, higher limits, and real financial tools. Every point is XP toward your own front door. We show you exactly what moves the needle." },
+  { n: "3", t: "Buy a House", d: "We map your exact path to a mortgage you can actually afford — AI-powered, personalized to your income and credit. Keys in hand. Done paying someone else's mortgage." },
 ];
 
-const TESTIMONIALS = [
-  { quote: "I went from juggling three different apps to one. StackedWork just gets how contractors work.", name: "Marcus T.", role: "General Contractor" },
-  { quote: "The AI mockups are a game changer. I show customers what their space will look like and close the deal same day.", name: "DeShawn P.", role: "HVAC Specialist" },
-  { quote: "I showed a customer what their bathroom would look like before I even started. Closed the deal on the spot.", name: "Kevin R.", role: "Roofing Contractor" },
+const STATS_BAR = [
+  { n: "44M+", l: "Americans renting" },
+  { n: "1 in 3", l: "young adults live at home" },
+  { n: "$412K", l: "median home price (2024)" },
+  { n: "26%", l: "of under-35s own a home" },
 ];
 
 const JOBS = [
@@ -67,6 +97,7 @@ const Divider = () => <div style={{ height:1, background:"linear-gradient(90deg,
 
 export default function StackedWork() {
   const [page, setPage] = useState("landing");
+  const [mode, setMode] = useState<ModeKey>("meatloaf");
   const [scrollY, setScrollY] = useState(0);
   const [af, setAf] = useState(0);
   const [vw, setVw] = useState("dashboard");
@@ -92,7 +123,7 @@ export default function StackedWork() {
   };
 
   useEffect(() => { const h = () => setScrollY(window.scrollY); window.addEventListener("scroll",h); return () => window.removeEventListener("scroll",h); }, []);
-  useEffect(() => { const i = setInterval(() => setAf(p=>(p+1)%FEATURES.length),4000); return () => clearInterval(i); }, []);
+  useEffect(() => { const i = setInterval(() => setAf(p=>(p+1)%WHY_NOW.length),4000); return () => clearInterval(i); }, []);
   useEffect(() => { if(page==="app"&&vw==="dashboard"&&!td){ const t=setTimeout(()=>setTst({name:"Chris Mitchell",msg:"Need a quote for bathroom remodel"}),3000); return()=>clearTimeout(t); }}, [page,vw,td]);
 
   const done = JOBS.filter(j=>j.status==="complete");
@@ -239,77 +270,169 @@ export default function StackedWork() {
     );
   }
 
+  const M = MODES[mode];
+
   return(
-    <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",color:"#F5F0EB",minHeight:"100vh"}}>
+    <div style={{fontFamily:"'DM Sans',sans-serif",background:DARK,color:"#F5F0EB",minHeight:"100vh"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Space+Mono:wght@400;700&display=swap');
         *{margin:0;padding:0;box-sizing:border-box}
         @keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes modeSwitch{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
         .sw-f0{animation:fadeUp .8s ease forwards}
         .sw-f1{animation:fadeUp .8s ease .1s forwards;opacity:0}
         .sw-f2{animation:fadeUp .8s ease .2s forwards;opacity:0}
         .sw-f3{animation:fadeUp .8s ease .3s forwards;opacity:0}
         .sw-f4{animation:fadeUp .8s ease .4s forwards;opacity:0}
-        @media(max-width:768px){.sw-price{font-size:56px !important}.sw-comp{grid-template-columns:1.5fr 1fr 1fr !important;padding:14px 16px !important;font-size:13px !important}}
+        .mode-content{animation:modeSwitch .35s ease forwards}
+        .mode-pill{display:flex;align-items:center;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:100px;padding:5px;gap:4px}
+        .mode-btn{padding:9px 22px;border-radius:100px;border:none;font-family:'DM Sans';font-size:14px;font-weight:600;cursor:pointer;transition:all .25s}
+        .mode-btn-active{background:${G};color:#132440}
+        .mode-btn-inactive{background:transparent;color:rgba(245,240,235,0.5)}
+        .mode-btn-inactive:hover{color:rgba(245,240,235,0.85)}
+        .stats-bar{display:grid;grid-template-columns:repeat(4,1fr)}
+        @media(max-width:640px){.stats-bar{grid-template-columns:repeat(2,1fr)}}
+        .why-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
       `}</style>
-      <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:100,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",background:scrollY>50?"rgba(19,36,64,0.92)":"transparent",backdropFilter:scrollY>50?"blur(20px)":"none",transition:"all .3s",borderBottom:scrollY>50?"1px solid rgba(255,255,255,0.05)":"none"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:34,height:34,background:"#4A82C4",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,color:"#fff",fontFamily:"'DM Sans'",letterSpacing:"-0.03em"}}>SW</div><span style={{fontWeight:700,fontSize:17,letterSpacing:"-0.02em"}}>StackedWork</span></div>
-        <div style={{display:"flex",alignItems:"center",gap:20}}><span onClick={()=>setPage("app")} style={{color:G,fontSize:14,fontWeight:500,cursor:"pointer"}}>Demo</span><button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"10px 20px",fontSize:13,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Get Started</button></div>
+
+      {/* NAV */}
+      <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:100,padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",background:scrollY>50?"rgba(19,36,64,0.95)":"transparent",backdropFilter:scrollY>50?"blur(20px)":"none",transition:"all .3s",borderBottom:scrollY>50?"1px solid rgba(255,255,255,0.05)":"none"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:34,height:34,background:"#4A82C4",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,color:"#fff",letterSpacing:"-0.03em"}}>SW</div>
+          <span style={{fontWeight:700,fontSize:17,letterSpacing:"-0.02em"}}>StackedWork</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          <span onClick={()=>setPage("app")} style={{color:G,fontSize:13,fontWeight:500,cursor:"pointer"}}>Demo</span>
+          <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"10px 20px",fontSize:13,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Get Started</button>
+        </div>
       </nav>
-      <section style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"120px 24px 80px",position:"relative",overflow:"hidden"}}><div style={{position:"absolute",inset:0,backgroundImage:"url(/contractor.jpg)",backgroundSize:"cover",backgroundPosition:"center",filter:"brightness(0.3)"}} /><div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(19,36,64,0.7) 0%,rgba(19,36,64,0.9) 70%,#132440 100%)"}} />
-        <div className="sw-f0" style={{position:"relative",zIndex:1}}><div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(200,230,74,0.15)",border:"1px solid rgba(200,230,74,0.35)",borderRadius:100,padding:"8px 20px",fontSize:13,fontWeight:500,color:G,fontFamily:"'Space Mono'",marginBottom:32}}>Built for contractors</div></div>
-        <h1 className="sw-f1" style={{position:"relative",zIndex:1,fontSize:"clamp(38px,6vw,72px)",fontWeight:700,lineHeight:1.05,letterSpacing:"-0.03em",maxWidth:800,marginBottom:24}}>Your CRM. <span style={{color:G}}>Your AI.</span><br/>One price.</h1>
-        <p className="sw-f2" style={{position:"relative",zIndex:1,fontSize:18,lineHeight:1.7,color:"rgba(245,240,235,0.6)",maxWidth:560,marginBottom:16}}>Stop juggling spreadsheets and apps you never open. StackedWork runs your contracting business in one place — CRM, AI mockups, lead tracking, and revenue dashboards.</p>
-        <div className="sw-f3" style={{position:"relative",zIndex:1,marginBottom:48}}><div className="sw-price" style={{fontFamily:"'Space Mono'",fontSize:72,fontWeight:700,color:G,lineHeight:1,marginBottom:4}}>$49.99<span style={{fontSize:24,color:"rgba(245,240,235,0.4)"}}>/mo</span></div><p style={{fontFamily:"'Space Mono'",fontSize:13,color:"rgba(245,240,235,0.4)",letterSpacing:"0.05em"}}>CRM + AI MOCKUPS + LEAD TRACKING. NO SETUP FEES.</p><p style={{fontFamily:"'DM Sans'",fontSize:13,color:"rgba(245,240,235,0.35)",marginTop:10}}>Need a website? Ask us about our AI website building services.</p></div>
-        <div className="sw-f4" style={{position:"relative",zIndex:1,display:"flex",gap:16,flexWrap:"wrap",justifyContent:"center"}}><button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"18px 40px",fontSize:17,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Start Free Trial</button><button onClick={()=>setPage("app")} style={{background:"transparent",color:G,border:"2px solid rgba(200,230,74,0.25)",padding:"16px 38px",fontSize:17,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>See Live Demo</button></div>
-      </section>
-      <section style={{padding:"100px 24px",maxWidth:1100,margin:"0 auto",position:"relative"}}>
-        <div style={{position:"absolute",top:0,right:0,width:"50%",height:"100%",backgroundImage:"url(/living.jpg)",backgroundSize:"cover",backgroundPosition:"center",opacity:0.1,maskImage:"linear-gradient(to left,rgba(0,0,0,0.5),transparent)",WebkitMaskImage:"linear-gradient(to left,rgba(0,0,0,0.5),transparent)"}} />
-        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>What you get</div>
-        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:56,maxWidth:500}}>Everything a contractor needs. <span style={{color:"rgba(245,240,235,0.3)"}}>Nothing you don&apos;t.</span></h2>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:20}}>
-          {FEATURES.map((f,i)=><div key={i} onMouseEnter={()=>setAf(i)} style={{background:i===af?"rgba(200,230,74,0.08)":"rgba(255,255,255,0.03)",border:i===af?"1px solid rgba(200,230,74,0.25)":"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:32,transition:"all .4s"}}><div style={{fontSize:30,marginBottom:14}}>{f.icon}</div><h3 style={{fontSize:18,fontWeight:600,marginBottom:8}}>{f.title}</h3><p style={{fontSize:14,lineHeight:1.7,color:"rgba(245,240,235,0.5)"}}>{f.desc}</p></div>)}
+
+      {/* HERO */}
+      <section style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"130px 24px 80px",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",inset:0,background:`radial-gradient(ellipse at 50% 60%,rgba(200,230,74,0.06) 0%,transparent 70%)`}}/>
+
+        {/* Mode toggle */}
+        <div className="sw-f0" style={{position:"relative",zIndex:1,marginBottom:40}}>
+          <div className="mode-pill">
+            {(Object.keys(MODES) as ModeKey[]).map(k=>(
+              <button key={k} className={`mode-btn ${mode===k?"mode-btn-active":"mode-btn-inactive"}`} onClick={()=>setMode(k)}>
+                {MODES[k].emoji} {MODES[k].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Hero copy — switches with mode */}
+        <div key={mode} className="mode-content" style={{position:"relative",zIndex:1,maxWidth:780}}>
+          <h1 style={{fontSize:"clamp(36px,6vw,70px)",fontWeight:700,lineHeight:1.05,letterSpacing:"-0.03em",marginBottom:24}}>
+            {M.hero.split(".")[0]}.<br/><span style={{color:G}}>{M.hero.split(".").slice(1).join(".").trim()}</span>
+          </h1>
+          <p style={{fontSize:18,lineHeight:1.75,color:"rgba(245,240,235,0.6)",maxWidth:600,margin:"0 auto 16px"}}>{M.sub}</p>
+          <p style={{fontSize:14,fontStyle:"italic",color:M.accent,marginBottom:44,fontFamily:"'Space Mono'"}}>&ldquo;{M.callout}&rdquo;</p>
+          <div style={{display:"flex",gap:16,flexWrap:"wrap",justifyContent:"center"}}>
+            <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"18px 40px",fontSize:17,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>{M.cta}</button>
+            <button onClick={()=>setPage("app")} style={{background:"transparent",color:G,border:"2px solid rgba(200,230,74,0.25)",padding:"16px 38px",fontSize:17,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>See How It Works</button>
+          </div>
         </div>
       </section>
-      <Divider/>
-      <section style={{padding:"100px 24px",maxWidth:800,margin:"0 auto"}}>
-        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>The math</div>
-        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:14}}>You are already overpaying.</h2>
-        <p style={{fontSize:16,color:"rgba(245,240,235,0.5)",marginBottom:44,maxWidth:500}}>What contractors pay cobbling together tools vs. StackedWork.</p>
-        <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,overflow:"hidden"}}>
-          <div className="sw-comp" style={{display:"grid",gridTemplateColumns:"2fr 1.2fr 1.2fr",padding:"18px 24px",background:"rgba(255,255,255,0.03)",fontFamily:"'Space Mono'",fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase",color:"rgba(245,240,235,0.4)",fontWeight:700}}><div></div><div>Without Us</div><div style={{color:G}}>StackedWork</div></div>
-          {COMPARISONS.map((c,i)=><div key={i} className="sw-comp" style={{display:"grid",gridTemplateColumns:"2fr 1.2fr 1.2fr",padding:"18px 24px",borderBottom:i<COMPARISONS.length-1?"1px solid rgba(255,255,255,0.06)":"none",...(i===COMPARISONS.length-1?{background:"rgba(200,230,74,0.08)",fontSize:17,fontWeight:700}:{})}}><div style={{fontWeight:i===COMPARISONS.length-1?700:400}}>{c.item}</div><div style={{color:"rgba(245,240,235,0.4)",textDecoration:i<COMPARISONS.length-1?"line-through":"none"}}>{c.them}</div><div style={{color:G,fontWeight:600}}>{c.us}</div></div>)}
+
+      {/* STATS BAR */}
+      <div style={{background:"rgba(255,255,255,0.03)",borderTop:"1px solid rgba(255,255,255,0.06)",borderBottom:"1px solid rgba(255,255,255,0.06)"}}>
+        <div className="stats-bar" style={{maxWidth:900,margin:"0 auto"}}>
+          {STATS_BAR.map((s,i)=>(
+            <div key={i} style={{padding:"32px 24px",textAlign:"center",borderRight:i<3?"1px solid rgba(255,255,255,0.06)":"none"}}>
+              <div style={{fontFamily:"'Space Mono'",fontSize:"clamp(22px,3vw,36px)",fontWeight:700,color:G,marginBottom:6}}>{s.n}</div>
+              <div style={{fontSize:12,color:"rgba(245,240,235,0.45)",lineHeight:1.5}}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* PAIN POINTS — mode specific */}
+      <section style={{padding:"90px 24px",maxWidth:1000,margin:"0 auto"}}>
+        <div key={`pain-${mode}`} className="mode-content">
+          <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:M.accent,marginBottom:16}}>The reality</div>
+          <h2 style={{fontSize:"clamp(28px,4vw,46px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:56,maxWidth:560}}>
+            {mode==="meatloaf" ? <>None of us planned to still be here.<br/><span style={{color:"rgba(245,240,235,0.3)"}}>But 44% of us are.</span></> : <>You&apos;re not broke. You&apos;re just<br/><span style={{color:"rgba(245,240,235,0.3)"}}>missing the roadmap.</span></>}
+          </h2>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:20}}>
+            {M.pains.map((p,i)=>(
+              <div key={i} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:32}}>
+                <div style={{fontSize:28,marginBottom:12}}>{p.icon}</div>
+                <div style={{fontFamily:"'Space Mono'",fontSize:"clamp(28px,3vw,42px)",fontWeight:700,color:M.accent,marginBottom:8}}>{p.stat}</div>
+                <p style={{fontSize:14,lineHeight:1.65,color:"rgba(245,240,235,0.55)"}}>{p.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
+
       <Divider/>
-      <section style={{padding:"100px 24px",maxWidth:1100,margin:"0 auto",position:"relative"}}>
-        <div style={{position:"absolute",top:0,left:0,width:"40%",height:"100%",backgroundImage:"url(/bathroom.jpg)",backgroundSize:"cover",backgroundPosition:"center",opacity:0.08,maskImage:"linear-gradient(to right,rgba(0,0,0,0.5),transparent)",WebkitMaskImage:"linear-gradient(to right,rgba(0,0,0,0.5),transparent)"}} />
-        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>From the field</div>
-        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:56}}>Contractors who switched.</h2>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:20}}>
-          {TESTIMONIALS.map((t,i)=><div key={i} style={{background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:36}}><div style={{fontSize:30,color:G,marginBottom:14,fontFamily:"Georgia,serif"}}>&ldquo;</div><p style={{fontSize:15,lineHeight:1.8,color:"rgba(245,240,235,0.7)",marginBottom:20}}>{t.quote}</p><div><div style={{fontWeight:600,fontSize:14}}>{t.name}</div><div style={{fontSize:12,color:"rgba(245,240,235,0.4)",fontFamily:"'Space Mono'"}}>{t.role}</div></div></div>)}
+
+      {/* WHY NOW */}
+      <section style={{padding:"90px 24px",maxWidth:1100,margin:"0 auto"}}>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>Why right now</div>
+        <h2 style={{fontSize:"clamp(28px,4vw,46px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:56,maxWidth:560}}>
+          The rules changed.<br/><span style={{color:"rgba(245,240,235,0.3)"}}>Most people don&apos;t know yet.</span>
+        </h2>
+        <div className="why-grid">
+          {WHY_NOW.map((w,i)=>(
+            <div key={i} onMouseEnter={()=>setAf(i)} style={{background:i===af?"rgba(200,230,74,0.07)":"rgba(255,255,255,0.03)",border:i===af?"1px solid rgba(200,230,74,0.22)":"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:32,transition:"all .4s",cursor:"default"}}>
+              <div style={{fontSize:28,marginBottom:14}}>{w.icon}</div>
+              <h3 style={{fontSize:17,fontWeight:600,marginBottom:8}}>{w.t}</h3>
+              <p style={{fontSize:13,lineHeight:1.75,color:"rgba(245,240,235,0.5)"}}>{w.d}</p>
+            </div>
+          ))}
         </div>
       </section>
+
       <Divider/>
-      <section style={{padding:"100px 24px",maxWidth:800,margin:"0 auto",textAlign:"center"}}>
+
+      {/* HOW IT WORKS — 1. Build Credit, 2. Level Up, 3. Buy a House */}
+      <section style={{padding:"90px 24px",maxWidth:800,margin:"0 auto",textAlign:"center"}}>
         <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>How it works</div>
-        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:56}}>Live in <span style={{color:G}}>48 hours.</span></h2>
-        <div style={{display:"flex",flexDirection:"column",gap:40,textAlign:"left"}}>
-          {[{s:"01",t:"Sign up in 5 minutes",d:"Your trade, service area, and business info. That's it."},{s:"02",t:"Your CRM is ready",d:"AI sets up your dashboard, job tracking, and lead management instantly."},{s:"03",t:"Start closing jobs",d:"CRM. AI mockups. Revenue tracking. Follow-up reminders. All live."}].map((x,i)=><div key={i} style={{display:"flex",gap:20,alignItems:"flex-start"}}><div style={{fontFamily:"'Space Mono'",fontSize:14,color:G,fontWeight:700,minWidth:36,paddingTop:3}}>{x.s}</div><div><h3 style={{fontSize:20,fontWeight:600,marginBottom:6}}>{x.t}</h3><p style={{fontSize:15,lineHeight:1.7,color:"rgba(245,240,235,0.5)"}}>{x.d}</p></div></div>)}
+        <h2 style={{fontSize:"clamp(28px,4vw,46px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:56}}>
+          Three steps.<br/><span style={{color:G}}>One front door.</span>
+        </h2>
+        <div style={{display:"flex",flexDirection:"column",gap:0,textAlign:"left"}}>
+          {STEPS.map((x,i)=>(
+            <div key={i} style={{display:"flex",gap:24,alignItems:"flex-start",padding:"36px 0",borderBottom:i<STEPS.length-1?"1px solid rgba(255,255,255,0.06)":"none"}}>
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:0,flexShrink:0}}>
+                <div style={{width:52,height:52,borderRadius:"50%",background:`linear-gradient(135deg,${G},${GD})`,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Space Mono'",fontSize:18,fontWeight:700,color:"#132440"}}>{x.n}</div>
+              </div>
+              <div style={{paddingTop:10}}>
+                <h3 style={{fontSize:22,fontWeight:700,marginBottom:8,letterSpacing:"-0.01em"}}>{x.t}</h3>
+                <p style={{fontSize:15,lineHeight:1.75,color:"rgba(245,240,235,0.55)"}}>{x.d}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
+
       <Divider/>
+
+      {/* FINAL CTA */}
       <section style={{padding:"100px 24px 140px",textAlign:"center",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",inset:0,backgroundImage:"url(/ladder.jpg)",backgroundSize:"cover",backgroundPosition:"center top",filter:"brightness(0.2)"}} />
-        <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,#132440 0%,rgba(19,36,64,0.85) 50%,#132440 100%)"}} />
-        <h2 style={{position:"relative",zIndex:1,fontSize:"clamp(34px,5vw,56px)",fontWeight:700,letterSpacing:"-0.03em",maxWidth:600,margin:"0 auto 16px"}}>Ready to stop hustling backwards?</h2>
-        <p style={{position:"relative",zIndex:1,fontSize:17,color:"rgba(245,240,235,0.5)",maxWidth:480,margin:"0 auto 44px"}}>$49.99/month. CRM + AI mockups + lead tracking. Cancel anytime. No contracts. No setup fees.</p>
-        <button onClick={handleSubscribe} style={{position:"relative",zIndex:1,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"20px 48px",fontSize:18,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Start Your Free Trial</button>
-        <p style={{position:"relative",zIndex:1,marginTop:22,fontSize:12,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>14-DAY FREE TRIAL - NO CREDIT CARD REQUIRED</p>
+        <div style={{position:"absolute",inset:0,background:`radial-gradient(ellipse at 50% 100%,rgba(200,230,74,0.08) 0%,transparent 60%)`}}/>
+        <div key={`cta-${mode}`} className="mode-content" style={{position:"relative",zIndex:1}}>
+          <div style={{fontSize:48,marginBottom:20}}>{M.emoji}</div>
+          <h2 style={{fontSize:"clamp(32px,5vw,54px)",fontWeight:700,letterSpacing:"-0.03em",maxWidth:620,margin:"0 auto 16px",lineHeight:1.1}}>
+            {mode==="meatloaf" ? "Stop eating meatloaf in the basement." : "Last brunch on his credit card."}
+          </h2>
+          <p style={{fontSize:17,color:"rgba(245,240,235,0.5)",maxWidth:480,margin:"0 auto 44px",lineHeight:1.7}}>
+            Build your credit. Level up your score. Buy your house.<br/>The roadmap is right here.
+          </p>
+          <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"20px 52px",fontSize:18,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>{M.cta}</button>
+          <p style={{marginTop:20,fontSize:12,color:"rgba(245,240,235,0.25)",fontFamily:"'Space Mono'"}}>FREE TO START — NO CREDIT CARD REQUIRED</p>
+        </div>
       </section>
+
       <footer style={{padding:"40px 24px",borderTop:"1px solid rgba(255,255,255,0.05)",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:16,maxWidth:1100,margin:"0 auto"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:26,height:26,background:"#4A82C4",borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:9,color:"#fff",fontFamily:"'DM Sans'",letterSpacing:"-0.03em"}}>SW</div><span style={{fontSize:13,color:"rgba(245,240,235,0.3)"}}>StackedWork - A <span style={{color:"rgba(245,240,235,0.5)"}}>REM Ventures</span> product</span></div>
-        <div style={{display:"flex",gap:20}}>{["Privacy","Terms","Contact"].map(l=><span key={l} style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer"}}>{l}</span>)}</div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:26,height:26,background:"#4A82C4",borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:9,color:"#fff",letterSpacing:"-0.03em"}}>SW</div>
+          <span style={{fontSize:13,color:"rgba(245,240,235,0.3)"}}>StackedWork — A <span style={{color:"rgba(245,240,235,0.5)"}}>REM Ventures</span> product</span>
+        </div>
+        <div style={{display:"flex",gap:20}}>{["Privacy","Terms","Contact"].map(l=><span key={l} style={{color:"rgba(245,240,235,0.5)",fontSize:12,cursor:"pointer"}}>{l}</span>)}</div>
       </footer>
     </div>
   );
