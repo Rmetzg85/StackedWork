@@ -27,7 +27,7 @@ export async function POST(request) {
       mode: "subscription",
       payment_method_types: ["card"],
       customer: customer?.id || undefined,
-      customer_email: customer ? undefined : email,
+      customer_email: customer ? undefined : (email || undefined),
       line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
       subscription_data: {
         trial_period_days: 14,
