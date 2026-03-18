@@ -81,14 +81,43 @@ export default function StackedWork() {
   const [tst, setTst] = useState<any>(null);
   const [td, setTd] = useState(false);
   const [mPh, setMPh] = useState<string|null>(null);
+  const [mFile, setMFile] = useState<File|null>(null);
+  const [mJt, setMJt] = useState<string>("other");
+  const [mErr, setMErr] = useState<string|null>(null);
+  const [mResult, setMResult] = useState<{beforeUrl:string,afterUrl:string}|null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleMockupFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setMFile(file);
     const reader = new FileReader();
     reader.onload = (ev) => setMPh(ev.target?.result as string);
     reader.readAsDataURL(file);
+  };
+
+  const handleGenerateMockup = async () => {
+    if (!mFile) return;
+    setMGn(true);
+    setMErr(null);
+    try {
+      const fd = new FormData();
+      fd.append("image", mFile);
+      fd.append("jobType", mJt);
+      fd.append("style", mSt || "Modern Minimalist");
+      const res = await fetch("/api/generate-mockup", { method: "POST", body: fd });
+      const data = await res.json();
+      if (data.success) {
+        setMResult({ beforeUrl: data.mockup.beforeUrl, afterUrl: data.mockup.afterUrl });
+        setMGn(false);
+        setMDn(true);
+      } else {
+        throw new Error(data.error || "Generation failed");
+      }
+    } catch {
+      setMGn(false);
+      setMErr("Generation failed. Please try again.");
+    }
   };
 
   useEffect(() => { const h = () => setScrollY(window.scrollY); window.addEventListener("scroll",h); return () => window.removeEventListener("scroll",h); }, []);
@@ -106,7 +135,7 @@ export default function StackedWork() {
     const res = await fetch("/api/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "", name: "" }),
+      body: JSON.stringify({}),
     });
     const data = await res.json();
     if (data.url) window.location.href = data.url;
@@ -204,7 +233,7 @@ export default function StackedWork() {
             {vw==="mockups"&&<>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10}}>
                 <div><h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:2}}>AI Photo Mockups</h1><p style={{fontSize:13,color:"#94A3B8"}}>Show customers the finished job before you start.</p></div>
-                <Btn onClick={()=>{setMs("upload");setMDn(false);setMSt(null);setMGn(false);setMPh(null)}}>+ New Mockup</Btn>
+                <Btn onClick={()=>{setMs("upload");setMDn(false);setMSt(null);setMGn(false);setMPh(null);setMFile(null);setMJt("other");setMErr(null);setMResult(null)}}>+ New Mockup</Btn>
               </div>
               {ms==="gallery"&&<Card style={{overflow:"hidden"}}>
                 <div style={{padding:"14px 18px",borderBottom:"2px solid #F1F5F9"}}><span style={{fontWeight:700,fontSize:14,color:"#0F172A"}}>Recent Mockups</span></div>
@@ -217,12 +246,13 @@ export default function StackedWork() {
               </Card>}
               {ms==="upload"&&!mGn&&!mDn&&<Card style={{padding:24}}>
                 <div onClick={()=>fileRef.current?.click()} style={{border:mPh?`2px solid ${G}`:"2px dashed #D1D5DB",borderRadius:16,padding:mPh?"12px":"40px 20px",textAlign:"center",marginBottom:20,background:mPh?"rgba(200,230,74,0.06)":"#FAFBFC",cursor:"pointer"}}><input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleMockupFile} style={{display:"none"}}/>{mPh?<div><img src={mPh} alt="Preview" style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:10,marginBottom:8}}/><div style={{fontSize:12,color:"#64748B",fontWeight:500}}>Photo uploaded — tap to change</div></div>:<><div style={{fontSize:44,marginBottom:10}}>📸</div><div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>Take a photo or upload</div><div style={{fontSize:12,color:"#94A3B8"}}>Snap a pic of the room or area</div></>}</div>
-                <div style={{marginBottom:20}}><div style={{fontWeight:600,fontSize:13,color:"#0F172A",marginBottom:10}}>Job type</div><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>{["🚿 Bath","🍳 Kitchen","🎨 Paint","🏡 Exterior","🪵 Deck","🔧 Other"].map((t,i)=><div key={i} style={{padding:"10px 6px",textAlign:"center",border:"1px solid #E2E8F0",borderRadius:8,fontSize:12,fontWeight:500,color:"#475569",background:"#fff"}}>{t}</div>)}</div></div>
+                <div style={{marginBottom:20}}><div style={{fontWeight:600,fontSize:13,color:"#0F172A",marginBottom:10}}>Job type</div><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>{[["🚿 Bath","bathroom"],["🍳 Kitchen","kitchen"],["🎨 Paint","paint"],["🏡 Exterior","exterior"],["🪵 Deck","deck"],["🔧 Other","other"]].map(([label,key],i)=><div key={i} onClick={()=>setMJt(key)} style={{padding:"10px 6px",textAlign:"center",border:mJt===key?`2px solid ${G}`:"1px solid #E2E8F0",borderRadius:8,fontSize:12,fontWeight:500,color:mJt===key?"#132440":"#475569",background:mJt===key?"rgba(200,230,74,0.1)":"#fff",cursor:"pointer"}}>{label}</div>)}</div></div>
                 <div style={{marginBottom:20}}><div style={{fontWeight:600,fontSize:13,color:"#0F172A",marginBottom:10}}>Style</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>{[{n:"Modern Minimalist",d:"Clean lines, neutral"},{n:"Classic Traditional",d:"Warm wood, timeless"},{n:"Industrial",d:"Exposed, dark metals"},{n:"Farmhouse",d:"Shiplap, rustic"}].map((x,i)=><div key={i} onClick={()=>setMSt(x.n)} style={{padding:12,border:mSt===x.n?`2px solid ${G}`:"1px solid #E2E8F0",borderRadius:10,cursor:"pointer",background:mSt===x.n?"rgba(200,230,74,0.08)":"#fff"}}><div style={{fontWeight:600,fontSize:12,color:"#0F172A",marginBottom:2}}>{x.n}</div><div style={{fontSize:11,color:"#94A3B8"}}>{x.d}</div></div>)}</div></div>
-                <Btn onClick={()=>{setMGn(true);setTimeout(()=>{setMGn(false);setMDn(true)},3500)}} style={{width:"100%",padding:14,fontSize:15}}>Generate Mockup</Btn>
+                {mErr&&<div style={{marginBottom:12,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:12,color:"#991B1B"}}>{mErr}</div>}
+                <Btn onClick={handleGenerateMockup} style={{width:"100%",padding:14,fontSize:15,opacity:mFile?1:0.5,cursor:mFile?"pointer":"not-allowed"}}>Generate Mockup</Btn>
               </Card>}
               {mGn&&<Card style={{padding:48,textAlign:"center"}}><div style={{fontSize:44,marginBottom:14,animation:"pulseMk 1.5s infinite"}}>🎨</div><div style={{fontWeight:700,fontSize:18,color:"#0F172A",marginBottom:6}}>Generating mockup...</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>AI is rendering a realistic preview</div><div style={{width:"100%",maxWidth:280,margin:"0 auto",height:6,background:"#E2E8F0",borderRadius:100,overflow:"hidden"}}><div style={{height:"100%",background:`linear-gradient(90deg,${G},${GD})`,borderRadius:100,animation:"barLoad 3s ease forwards"}}/></div></Card>}
-              {mDn&&<Card style={{overflow:"hidden"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",minHeight:200}}><div style={{background:"linear-gradient(135deg,#94A3B8,#CBD5E1)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:mPh?0:20,borderRight:"2px solid #fff",position:"relative",overflow:"hidden"}}>{mPh?<><img src={mPh} alt="Before" style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0,filter:"brightness(0.85)"}}/><div style={{position:"relative",zIndex:2,fontWeight:700,fontSize:13,color:"#fff",textShadow:"0 1px 6px rgba(0,0,0,0.5)",background:"rgba(0,0,0,0.4)",padding:"4px 14px",borderRadius:100}}>BEFORE</div></>:<><div style={{fontSize:36,marginBottom:6}}>🏚️</div><div style={{fontWeight:700,fontSize:13,color:"#fff",textShadow:"0 1px 3px rgba(0,0,0,0.3)"}}>BEFORE</div></>}</div><div style={{background:`linear-gradient(135deg,${GD},${G})`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:mPh?0:20,position:"relative",overflow:"hidden"}}>{mPh?<><img src={mPh} alt="After" style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0,filter:"brightness(1.15) contrast(1.1) saturate(1.3) hue-rotate(15deg)"}}/><div style={{position:"absolute",inset:0,background:"linear-gradient(135deg,rgba(200,230,74,0.25),rgba(168,196,53,0.15))",mixBlendMode:"overlay"}}/><div style={{position:"relative",zIndex:2,fontWeight:700,fontSize:13,color:"#132440",background:`${G}dd`,padding:"4px 14px",borderRadius:100}}>AFTER ✨</div></>:<><div style={{fontSize:36,marginBottom:6}}>✨</div><div style={{fontWeight:700,fontSize:13,color:"#132440"}}>AFTER</div></>}</div></div><div style={{padding:18}}><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:3}}>Mockup - {mSt||"Modern Minimalist"}</div><div style={{fontSize:12,color:"#94A3B8",marginBottom:14}}>Generated just now</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn style={{fontSize:12}}>Send to Customer</Btn><BtnO style={{fontSize:12}}>Save to Job</BtnO><BtnO onClick={()=>{setMs("gallery");setMDn(false);setMPh(null)}} style={{fontSize:12}}>Gallery</BtnO></div></div></Card>}
+              {mDn&&<Card style={{overflow:"hidden"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",minHeight:200}}><div style={{background:"linear-gradient(135deg,#94A3B8,#CBD5E1)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:0,borderRight:"2px solid #fff",position:"relative",overflow:"hidden"}}>{(mResult?.beforeUrl||mPh)?<><img src={mResult?.beforeUrl||mPh!} alt="Before" style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0}}/><div style={{position:"relative",zIndex:2,fontWeight:700,fontSize:13,color:"#fff",textShadow:"0 1px 6px rgba(0,0,0,0.5)",background:"rgba(0,0,0,0.4)",padding:"4px 14px",borderRadius:100}}>BEFORE</div></>:<><div style={{fontSize:36,marginBottom:6}}>🏚️</div><div style={{fontWeight:700,fontSize:13,color:"#fff",textShadow:"0 1px 3px rgba(0,0,0,0.3)"}}>BEFORE</div></>}</div><div style={{background:`linear-gradient(135deg,${GD},${G})`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:0,position:"relative",overflow:"hidden"}}>{mResult?.afterUrl?<><img src={mResult.afterUrl} alt="After" style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0}}/><div style={{position:"relative",zIndex:2,fontWeight:700,fontSize:13,color:"#132440",background:`${G}dd`,padding:"4px 14px",borderRadius:100}}>AFTER ✨</div></>:mPh?<><img src={mPh} alt="After" style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0,filter:"brightness(1.15) contrast(1.1) saturate(1.3) hue-rotate(15deg)"}}/><div style={{position:"absolute",inset:0,background:"linear-gradient(135deg,rgba(200,230,74,0.25),rgba(168,196,53,0.15))",mixBlendMode:"overlay"}}/><div style={{position:"relative",zIndex:2,fontWeight:700,fontSize:13,color:"#132440",background:`${G}dd`,padding:"4px 14px",borderRadius:100}}>AFTER ✨</div></>:<><div style={{fontSize:36,marginBottom:6}}>✨</div><div style={{fontWeight:700,fontSize:13,color:"#132440"}}>AFTER</div></>}</div></div><div style={{padding:18}}><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:3}}>Mockup - {mSt||"Modern Minimalist"}</div><div style={{fontSize:12,color:"#94A3B8",marginBottom:14}}>Generated just now</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn style={{fontSize:12}}>Send to Customer</Btn><BtnO style={{fontSize:12}}>Save to Job</BtnO><BtnO onClick={()=>{setMs("gallery");setMDn(false);setMPh(null);setMResult(null)}} style={{fontSize:12}}>Gallery</BtnO></div></div></Card>}
             </>}
             {vw==="customers"&&<>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Customers</h1><Btn>+ Add</Btn></div>
