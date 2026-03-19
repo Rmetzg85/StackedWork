@@ -7,7 +7,7 @@ const FEATURES = [
   { icon: "🌐", title: "AI Website Service", desc: "Need a website built or updated? We offer AI-powered website services for contractors — inquire for pricing.", link: "dashboard" },
   { icon: "📸", title: "AI Photo Mockups", desc: "Snap a photo on-site, get a realistic rendering of the finished job in seconds. Close deals on the spot.", link: "mockups" },
   { icon: "📊", title: "Revenue Dashboard", desc: "See what you've earned this week, this month, this year. Know which jobs are profitable and which aren't.", link: "dashboard" },
-  { icon: "📲", title: "Lead Management", desc: "Track every lead, follow up on time, and never let a job slip through the cracks.", link: "jobs" },
+  { icon: "📲", title: "Lead Management", deshc: "Track every lead, follow up on time, and never let a job slip through the cracks.", link: "jobs" },
   { icon: "💬", title: "Text Us To Update Anything", desc: "Need your phone number changed on your site? New photo? Just text us. We handle it.", link: "dashboard" },
 ];
 const COMPARISONS = [
@@ -333,7 +333,7 @@ export default function StackedWork() {
         </div>
       </nav>
       <section style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"120px 24px 80px",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",inset:0,backgroundImage:"url(/contractor.jpg)",backgroundSize:"cover",backgroundPosition:"center",filter:"brightness(0.3)"}} />
+        <div style={{position:"absolute",inset:0,backgroundImage:"url(/https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1400&q=80)",backgroundSize:"cover",backgroundPosition:"center",filter:"brightness(0.3)"}} />
         <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(19,36,64,0.7) 0%,rgba(19,36,64,0.9) 70%,#132440 100%)"}} />
         <div className="sw-f0" style={{position:"relative",zIndex:1}}><div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(200,230,74,0.15)",border:"1px solid rgba(200,230,74,0.35)",borderRadius:100,padding:"8px 20px",fontSize:13,fontWeight:500,color:G,fontFamily:"'Space Mono'",marginBottom:32}}>Built for contractors</div></div>
         <h1 className="sw-f1" style={{position:"relative",zIndex:1,fontSize:"clamp(38px,6vw,72px)",fontWeight:700,lineHeight:1.05,letterSpacing:"-0.03em",maxWidth:800,marginBottom:24}}>Your CRM. <span style={{color:G}}>Your AI.</span><br/>One price.</h1>
@@ -379,7 +379,7 @@ export default function StackedWork() {
         <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>From the field</div>
         <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:40}}>Built for the trades.</h2>
         <div style={{borderRadius:16,overflow:"hidden",maxHeight:500,position:"relative"}}>
-          <img src="/LADDER.jpg" alt="Contractor on the job" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} />
+          <img src="/https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80" alt="Contractor on the job" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} />
           <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,transparent 50%,rgba(19,36,64,0.85) 100%)"}}/>
           <div style={{position:"absolute",bottom:32,left:32,right:32}}>
             <p style={{fontSize:"clamp(16px,2.5vw,22px)",fontWeight:600,color:"#fff",lineHeight:1.5,maxWidth:600,textShadow:"0 2px 8px rgba(0,0,0,0.5)"}}>The tools built for how you actually work — from the truck, on the job, closing deals on the spot.</p>
@@ -401,7 +401,7 @@ export default function StackedWork() {
       </section>
       <Divider/>
       <section style={{padding:"100px 24px 140px",textAlign:"center",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",inset:0,backgroundImage:"url(/ladder.jpg)",backgroundSize:"cover",backgroundPosition:"center top",filter:"brightness(0.2)"}} />
+        <div style={{position:"absolute",inset:0,backgroundImage:"url(/https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80)",backgroundSize:"cover",backgroundPosition:"center top",filter:"brightness(0.2)"}} />
         <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,#132440 0%,rgba(19,36,64,0.85) 50%,#132440 100%)"}} />
         <h2 style={{position:"relative",zIndex:1,fontSize:"clamp(34px,5vw,56px)",fontWeight:700,letterSpacing:"-0.03em",maxWidth:600,margin:"0 auto 16px"}}>Ready to stop hustling backwards?</h2>
         <p style={{position:"relative",zIndex:1,fontSize:17,color:"rgba(245,240,235,0.5)",maxWidth:480,margin:"0 auto 44px"}}>$49.99/month. CRM + AI mockups + lead tracking. Cancel anytime. No contracts. No setup fees.</p>
