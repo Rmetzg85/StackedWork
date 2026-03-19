@@ -131,22 +131,8 @@ export default function StackedWork() {
   const gl = 12000;
   const fJ = jf==="all"?JOBS:JOBS.filter(j=>j.status===jf);
 
-  const handleSubscribe = async () => {
-    try {
-      const res = await fetch("/api/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        alert("Checkout error: " + (data.error || "No URL returned. Check Vercel logs."));
-      }
-    } catch (err: any) {
-      alert("Checkout failed: " + err.message);
-    }
+  const handleSubscribe = () => {
+    window.location.href = "/login";
   };
 
   if(page==="app"){
