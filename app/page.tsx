@@ -59,6 +59,8 @@ export default function StackedWork() {
   const [mJt, setMJt] = useState<string>("other");
   const [mErr, setMErr] = useState<string|null>(null);
   const [mResult, setMResult] = useState<{beforeUrl:string,afterUrl:string}|null>(null);
+  const [userId, setUserId] = useState<string|null>(null);
+  const [dbLeads, setDbLeads] = useState<any[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleMockupFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,8 +100,9 @@ export default function StackedWork() {
         if (error) throw error;
         setAuthSuccess("Account created! Check your email to verify your account.");
       } else {
-        const { error } = await withTimeout(supabase.auth.signInWithPassword({ email: authEmail, password: authPassword }));
+        const { data: signInData, error } = await withTimeout(supabase.auth.signInWithPassword({ email: authEmail, password: authPassword }));
         if (error) throw error;
+        if (signInData?.user) setUserId(signInData.user.id);
         setAuthMode(null); setPage("app");
       }
     } catch (err: any) { setAuthError(err.message || "Something went wrong. Please try again."); }
@@ -110,8 +113,19 @@ export default function StackedWork() {
   useEffect(() => { const i = setInterval(() => setAf(p=>(p+1)%FEATURES.length),4000); return () => clearInterval(i); }, []);
   useEffect(() => { if(page==="app"&&vw==="dashboard"&&!td){ const t=setTimeout(()=>setTst({name:"Chris Mitchell",msg:"Need a quote for bathroom remodel"}),3000); return()=>clearTimeout(t); }}, [page,vw,td]);
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => { if (session) setPage("app"); });
+    supabase.auth.getSession().then(({ data: { session } }) => { if (session) { setPage("app"); setUserId(session.user.id); } });
   }, []);
+  useEffect(() => {
+    if (!userId) return;
+    supabase.from("leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbLeads(data); });
+    const ch = supabase.channel("leads_" + userId)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads", filter: `contractor_id=eq.${userId}` }, (payload) => {
+        setDbLeads(prev => [payload.new as any, ...prev]);
+        setTst({ name: (payload.new as any).name, msg: (payload.new as any).message || "New lead received" });
+        setTd(false);
+      }).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [userId]);
 
   const done = JOBS.filter(j=>j.status==="complete");
   const moR = done.filter(j=>{const d=new Date(j.completed!);return d.getMonth()===1&&d.getFullYear()===2026}).reduce((a,j)=>a+j.value,0);
@@ -119,12 +133,19 @@ export default function StackedWork() {
   const ytd = done.reduce((a,j)=>a+j.value,0);
   const gl = 12000;
   const fJ = jf==="all"?JOBS:JOBS.filter(j=>j.status===jf);
+  const activeLeads = userId ? dbLeads : LEADS;
+  const lMsg = (l: any) => l.msg || l.message || "";
+  const lTs = (l: any) => l.ts || (l.created_at ? new Date(l.created_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "");
+  const markRead = async (id: any) => {
+    if (userId) await supabase.from("leads").update({ read: true }).eq("id", id);
+    setDbLeads(prev => prev.map(l => l.id === id ? { ...l, read: true } : l));
+  };
 
   const handleSubscribe = () => {
     window.location.href = "/login";
   };
   if(page==="app"){
-    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"mockups",ic:"📸",lb:"Mockups"},{id:"customers",ic:"👥",lb:"Clients"},{id:"followups",ic:"🔔",lb:"Alerts"}];
+    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"leads",ic:"📥",lb:"Leads"},{id:"mockups",ic:"📸",lb:"Mockups"},{id:"customers",ic:"👥",lb:"Clients"},{id:"followups",ic:"🔔",lb:"Alerts"}];
     return(
       <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh"}}>
         <style>{`
@@ -156,12 +177,12 @@ export default function StackedWork() {
           </div>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{position:"relative"}}>
-              <button onClick={()=>setNtf(!ntf)} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>🔔<span style={{position:"absolute",top:-4,right:-4,width:18,height:18,background:"#EF4444",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",border:"2px solid #0F1D32"}}>{LEADS.length}</span></button>
+              <button onClick={()=>setNtf(!ntf)} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>🔔<span style={{position:"absolute",top:-4,right:-4,width:18,height:18,background:"#EF4444",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",border:"2px solid #0F1D32"}}>{activeLeads.filter((l:any)=>!l.read).length||activeLeads.length}</span></button>
               {ntf&&<div style={{position:"absolute",top:50,right:0,width:360,maxWidth:"calc(100vw - 32px)",background:"#fff",border:"1px solid #E2E8F0",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.15)",zIndex:60,overflow:"hidden"}}>
-                <div style={{padding:"12px 16px",borderBottom:"2px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:700,fontSize:14,color:"#0F172A"}}>New Leads</span><span style={{fontSize:12,color:GD,fontWeight:600,cursor:"pointer"}} onClick={()=>{setNtf(false)}}>View All</span></div>
-                {LEADS.slice(0,3).map((l,i)=><div key={i} style={{padding:"14px 16px",borderBottom:i<2?"1px solid #F1F5F9":"none",cursor:"pointer"}} onClick={()=>{setNtf(false)}}>
-                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{l.name}</span><span style={{fontSize:11,color:"#94A3B8"}}>{l.ts}</span></div>
-                  <div style={{fontSize:12,color:"#64748B"}}>{l.msg.slice(0,55)}...</div>
+                <div style={{padding:"12px 16px",borderBottom:"2px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:700,fontSize:14,color:"#0F172A"}}>New Leads</span><span style={{fontSize:12,color:GD,fontWeight:600,cursor:"pointer"}} onClick={()=>{setNtf(false);setVw("leads")}}>View All</span></div>
+                {activeLeads.slice(0,3).map((l:any,i:number)=><div key={i} style={{padding:"14px 16px",borderBottom:i<2?"1px solid #F1F5F9":"none",cursor:"pointer"}} onClick={()=>{setNtf(false);setVw("leads")}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{l.name}</span><span style={{fontSize:11,color:"#94A3B8"}}>{lTs(l)}</span></div>
+                  <div style={{fontSize:12,color:"#64748B"}}>{lMsg(l).slice(0,55)}{lMsg(l).length>55?"...":""}</div>
                   {l.urgent&&<span style={{display:"inline-block",marginTop:4,fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEE2E2",padding:"2px 8px",borderRadius:100}}>URGENT</span>}
                 </div>)}
               </div>}
@@ -173,7 +194,7 @@ export default function StackedWork() {
         {tst&&!td&&<div style={{position:"fixed",top:70,right:16,zIndex:60,background:"#fff",border:"1px solid #E2E8F0",borderLeft:`4px solid ${G}`,borderRadius:12,padding:16,boxShadow:"0 8px 30px rgba(0,0,0,0.12)",maxWidth:340,width:"calc(100% - 32px)",animation:"toastSlide .5s ease forwards"}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:G}}/><span style={{fontWeight:700,fontSize:14,color:"#0F172A"}}>New Lead!</span></div><button onClick={()=>{setTd(true);setTst(null)}} style={{background:"none",border:"none",color:"#94A3B8",cursor:"pointer",fontSize:18,padding:0}}>x</button></div>
           <div style={{fontWeight:600,fontSize:13,color:"#0F172A",marginBottom:2}}>{tst.name}</div><div style={{fontSize:12,color:"#64748B",marginBottom:10}}>{tst.msg}</div>
-          <div style={{display:"flex",gap:8}}><Btn onClick={()=>{setTd(true);setTst(null)}} style={{flex:1,fontSize:11,padding:6}}>View Lead</Btn><BtnO onClick={()=>{setTd(true);setSms(true)}} style={{flex:1,fontSize:11,padding:6}}>SMS Alert</BtnO></div>
+          <div style={{display:"flex",gap:8}}><Btn onClick={()=>{setTd(true);setTst(null);setVw("leads")}} style={{flex:1,fontSize:11,padding:6}}>View Lead</Btn><BtnO onClick={()=>{setTd(true);setSms(true)}} style={{flex:1,fontSize:11,padding:6}}>SMS Alert</BtnO></div>
         </div>}
         {sms&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setSms(false)}>
           <div style={{background:"#1A1A1A",borderRadius:32,padding:12,maxWidth:320,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}} onClick={(e: React.MouseEvent)=>e.stopPropagation()}>
@@ -239,6 +260,35 @@ export default function StackedWork() {
             {vw==="customers"&&<>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Customers</h1><Btn>+ Add</Btn></div>
               <Card style={{overflow:"hidden"}}>{[...new Map(JOBS.map(j=>[j.customer,j])).values()].map((job,i)=>{const cj=JOBS.filter(j=>j.customer===job.customer);const tot=cj.reduce((a,j)=>a+j.value,0);return<div key={i} style={{padding:"14px 18px",borderBottom:"1px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:36,height:36,borderRadius:"50%",background:`hsl(${i*45},60%,90%)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:`hsl(${i*45},60%,35%)`}}>{job.customer.charAt(0)}</div><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{job.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{job.phone}</div></div></div><div style={{textAlign:"right"}}><div style={{fontWeight:600,fontSize:13}}>${tot.toLocaleString()}</div><div style={{fontSize:11,color:"#94A3B8"}}>{cj.length} job{cj.length!==1?"s":""}</div></div></div>})}</Card>
+            </>}
+            {vw==="leads"&&<>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Leads</h1>
+              </div>
+              <p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{activeLeads.filter((l:any)=>!l.read).length} unread</p>
+              {activeLeads.length===0?<Card style={{padding:40,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>📥</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No leads yet</div><div style={{fontSize:13,color:"#94A3B8"}}>Leads submitted through your website will appear here in real time.</div></Card>
+              :<div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {activeLeads.map((l:any,i:number)=>(
+                  <Card key={l.id||i} style={{padding:16,borderLeft:l.urgent?`4px solid #EF4444`:`4px solid ${G}`,opacity:l.read?0.6:1}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>{l.name}</div>
+                        <div style={{fontSize:12,color:"#64748B",marginTop:2}}>{[l.phone,l.email].filter(Boolean).join(" · ")}</div>
+                      </div>
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+                        <span style={{fontSize:11,color:"#94A3B8"}}>{lTs(l)}</span>
+                        {l.urgent&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEE2E2",padding:"2px 8px",borderRadius:100}}>URGENT</span>}
+                      </div>
+                    </div>
+                    {lMsg(l)&&<div style={{fontSize:13,color:"#475569",lineHeight:1.6,marginBottom:12,background:"#F8FAFC",borderRadius:8,padding:"8px 12px"}}>{lMsg(l)}</div>}
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {l.phone&&<a href={`tel:${l.phone}`} style={{textDecoration:"none"}}><Btn style={{fontSize:12,padding:"7px 16px"}}>Call</Btn></a>}
+                      {l.email&&<a href={`mailto:${l.email}`} style={{textDecoration:"none"}}><BtnO style={{fontSize:12,padding:"7px 16px"}}>Email</BtnO></a>}
+                      {!l.read&&<BtnO onClick={()=>markRead(l.id)} style={{fontSize:12,padding:"7px 16px"}}>Mark Read</BtnO>}
+                    </div>
+                  </Card>
+                ))}
+              </div>}
             </>}
             {vw==="followups"&&<>
               <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Follow-up Reminders</h1><p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Don&apos;t leave money on the table.</p>
