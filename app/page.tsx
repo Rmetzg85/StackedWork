@@ -84,24 +84,27 @@ export default function StackedWork() {
     } catch { setMGn(false); setMErr("Generation failed. Please try again."); }
   };
 
+  const withTimeout = <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
+    Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Request timed out. Check your connection and try again.")), ms))]);
+
   const handleAuth = async () => {
     setAuthLoading(true); setAuthError(null); setAuthSuccess(null);
     try {
       if (authMode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(authEmail, { redirectTo: window.location.origin + "/reset-password" });
+        const { error } = await withTimeout(supabase.auth.resetPasswordForEmail(authEmail, { redirectTo: window.location.origin + "/reset-password" }));
         if (error) throw error;
         setAuthSuccess("Password reset email sent! Check your inbox.");
       } else if (authMode === "signup") {
-        const { error } = await supabase.auth.signUp({ email: authEmail, password: authPassword, options: { data: { username: authUsername } } });
+        const { error } = await withTimeout(supabase.auth.signUp({ email: authEmail, password: authPassword, options: { data: { username: authUsername } } }));
         if (error) throw error;
         setAuthSuccess("Account created! Check your email to verify your account.");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword });
+        const { error } = await withTimeout(supabase.auth.signInWithPassword({ email: authEmail, password: authPassword }));
         if (error) throw error;
         setAuthMode(null); setPage("app");
       }
-    } catch (err: any) { setAuthError(err.message || "Something went wrong"); }
-    setAuthLoading(false);
+    } catch (err: any) { setAuthError(err.message || "Something went wrong. Please try again."); }
+    finally { setAuthLoading(false); }
   };
 
   useEffect(() => { const h = () => setScrollY(window.scrollY); window.addEventListener("scroll",h); return () => window.removeEventListener("scroll",h); }, []);
