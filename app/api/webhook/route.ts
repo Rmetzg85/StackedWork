@@ -24,6 +24,20 @@ export async function POST(request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
+  const notifyOwner = async (subject: string, html: string) => {
+    if (!process.env.RESEND_API_KEY) return;
+    await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+      body: JSON.stringify({
+        from: "StackedWork <notifications@stackedwork.com>",
+        to: "Rmetzgar@REMVentures.Tech",
+        subject,
+        html,
+      }),
+    }).catch(() => {}); // never block webhook response
+  };
+
   try {
     switch (event.type) {
       case "customer.subscription.created":
@@ -31,6 +45,23 @@ export async function POST(request) {
         const subscription = event.data.object;
         const customerRaw = await stripe.customers.retrieve(subscription.customer);
         const email = customerRaw.deleted ? null : (customerRaw as Stripe.Customer).email;
+
+        if (event.type === "customer.subscription.created") {
+          const trialEnd = subscription.trial_end
+            ? new Date(subscription.trial_end * 1000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+            : null;
+          await notifyOwner(
+            `🎉 New StackedWork subscriber — ${email}`,
+            `<div style="font-family:sans-serif;max-width:500px">
+              <h2 style="color:#132440">New Subscriber!</h2>
+              <p><strong>Email:</strong> ${email}</p>
+              <p><strong>Status:</strong> ${subscription.status}</p>
+              ${trialEnd ? `<p><strong>Trial ends:</strong> ${trialEnd}</p>` : ""}
+              <p style="margin-top:24px;color:#666">Reach out within 24 hours to get them set up.</p>
+            </div>`
+          );
+        }
+
         await supabase.from("subscriptions").upsert({
           stripe_customer_id: subscription.customer,
           stripe_subscription_id: subscription.id,
@@ -61,6 +92,15 @@ export async function POST(request) {
           status: "past_due",
           updated_at: new Date().toISOString(),
         }).eq("stripe_customer_id", invoice.customer);
+        await notifyOwner(
+          `⚠️ Payment failed — ${invoice.customer_email}`,
+          `<div style="font-family:sans-serif;max-width:500px">
+            <h2 style="color:#c0392b">Payment Failed</h2>
+            <p><strong>Customer:</strong> ${invoice.customer_email}</p>
+            <p><strong>Amount:</strong> $${((invoice.amount_due ?? 0) / 100).toFixed(2)}</p>
+            <p style="margin-top:24px;color:#666">Their account has been marked past due. Stripe will retry automatically.</p>
+          </div>`
+        );
         break;
       }
       case "invoice.payment_succeeded": {
