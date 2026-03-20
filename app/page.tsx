@@ -61,6 +61,17 @@ export default function StackedWork() {
   const [mResult, setMResult] = useState<{beforeUrl:string,afterUrl:string}|null>(null);
   const [userId, setUserId] = useState<string|null>(null);
   const [dbLeads, setDbLeads] = useState<any[]>([]);
+  const [dbJobs, setDbJobs] = useState<any[]>([]);
+  const [newJobOpen, setNewJobOpen] = useState(false);
+  const [njCustomer, setNjCustomer] = useState("");
+  const [njPhone, setNjPhone] = useState("");
+  const [njType, setNjType] = useState("General");
+  const [njValue, setNjValue] = useState("");
+  const [njStatus, setNjStatus] = useState("quoted");
+  const [njDate, setNjDate] = useState(new Date().toISOString().split("T")[0]);
+  const [njNotes, setNjNotes] = useState("");
+  const [njLoading, setNjLoading] = useState(false);
+  const [njError, setNjError] = useState<string|null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleMockupFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,9 +126,37 @@ export default function StackedWork() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { if (session) { setPage("app"); setUserId(session.user.id); } });
   }, []);
+  const handleNewJob = async () => {
+    if (!userId || !njCustomer.trim() || !njValue) return;
+    setNjLoading(true); setNjError(null);
+    const { data, error } = await supabase.from("jobs").insert({
+      contractor_id: userId,
+      customer: njCustomer.trim(),
+      phone: njPhone.trim() || null,
+      type: njType,
+      value: parseFloat(njValue),
+      status: njStatus,
+      date: njDate,
+      notes: njNotes.trim() || null,
+    }).select().single();
+    setNjLoading(false);
+    if (error) { setNjError(error.message); return; }
+    setDbJobs(prev => [data, ...prev]);
+    setNewJobOpen(false);
+    setNjCustomer(""); setNjPhone(""); setNjType("General"); setNjValue(""); setNjStatus("quoted"); setNjDate(new Date().toISOString().split("T")[0]); setNjNotes(""); setNjError(null);
+  };
+
+  const updateJobStatus = async (id: string, status: string) => {
+    const updates: any = { status };
+    if (status === "complete") updates.completed = new Date().toISOString().split("T")[0];
+    await supabase.from("jobs").update(updates).eq("id", id);
+    setDbJobs(prev => prev.map(j => j.id === id ? { ...j, ...updates } : j));
+  };
+
   useEffect(() => {
     if (!userId) return;
     supabase.from("leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbLeads(data); });
+    supabase.from("jobs").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data }) => { if (data) setDbJobs(data); });
     const ch = supabase.channel("leads_" + userId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads", filter: `contractor_id=eq.${userId}` }, (payload) => {
         setDbLeads(prev => [payload.new as any, ...prev]);
@@ -127,12 +166,15 @@ export default function StackedWork() {
     return () => { supabase.removeChannel(ch); };
   }, [userId]);
 
-  const done = JOBS.filter(j=>j.status==="complete");
-  const moR = done.filter(j=>{const d=new Date(j.completed!);return d.getMonth()===1&&d.getFullYear()===2026}).reduce((a,j)=>a+j.value,0);
-  const wkR = done.filter(j=>new Date(j.completed!)>=new Date("2026-02-20")).reduce((a,j)=>a+j.value,0);
-  const ytd = done.reduce((a,j)=>a+j.value,0);
+  const activeJobs = userId ? dbJobs : JOBS;
+  const now = new Date();
+  const done = activeJobs.filter((j:any)=>j.status==="complete");
+  const moR = done.filter((j:any)=>{if(!j.completed)return false;const d=new Date(j.completed);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()}).reduce((a:number,j:any)=>a+Number(j.value),0);
+  const wkAgo = new Date(now.getTime()-7*24*60*60*1000);
+  const wkR = done.filter((j:any)=>j.completed&&new Date(j.completed)>=wkAgo).reduce((a:number,j:any)=>a+Number(j.value),0);
+  const ytd = done.filter((j:any)=>j.completed&&new Date(j.completed).getFullYear()===now.getFullYear()).reduce((a:number,j:any)=>a+Number(j.value),0);
   const gl = 12000;
-  const fJ = jf==="all"?JOBS:JOBS.filter(j=>j.status===jf);
+  const fJ = jf==="all"?activeJobs:activeJobs.filter((j:any)=>j.status===jf);
   const activeLeads = userId ? dbLeads : LEADS;
   const lMsg = (l: any) => l.msg || l.message || "";
   const lTs = (l: any) => l.ts || (l.created_at ? new Date(l.created_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "");
@@ -196,6 +238,26 @@ export default function StackedWork() {
           <div style={{fontWeight:600,fontSize:13,color:"#0F172A",marginBottom:2}}>{tst.name}</div><div style={{fontSize:12,color:"#64748B",marginBottom:10}}>{tst.msg}</div>
           <div style={{display:"flex",gap:8}}><Btn onClick={()=>{setTd(true);setTst(null);setVw("leads")}} style={{flex:1,fontSize:11,padding:6}}>View Lead</Btn><BtnO onClick={()=>{setTd(true);setSms(true)}} style={{flex:1,fontSize:11,padding:6}}>SMS Alert</BtnO></div>
         </div>}
+        {newJobOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setNewJobOpen(false)}>
+          <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h2 style={{fontSize:18,fontWeight:700,color:"#0F172A"}}>New Job</h2><button onClick={()=>setNewJobOpen(false)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button></div>
+            {[
+              {label:"Customer Name *",val:njCustomer,set:setNjCustomer,placeholder:"John Smith",type:"text"},
+              {label:"Phone",val:njPhone,set:setNjPhone,placeholder:"(410) 555-0100",type:"tel"},
+            ].map((f,i)=><div key={i} style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>{f.label}</label><input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.placeholder} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>)}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Job Type</label><select value={njType} onChange={e=>setNjType(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>{["General","Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","Other"].map(t=><option key={t}>{t}</option>)}</select></div>
+              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Status</label><select value={njStatus} onChange={e=>setNjStatus(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}><option value="quoted">Quoted</option><option value="scheduled">Scheduled</option><option value="in-progress">In Progress</option><option value="complete">Complete</option></select></div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Job Value ($) *</label><input type="number" min="0" step="0.01" value={njValue} onChange={e=>setNjValue(e.target.value)} placeholder="0.00" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Date</label><input type="date" value={njDate} onChange={e=>setNjDate(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+            </div>
+            <div style={{marginBottom:20}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Notes</label><textarea value={njNotes} onChange={e=>setNjNotes(e.target.value)} placeholder="Job details..." rows={3} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",resize:"vertical",boxSizing:"border-box"}}/></div>
+            {njError&&<div style={{marginBottom:14,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:13,color:"#991B1B"}}>{njError}</div>}
+            <button onClick={handleNewJob} disabled={njLoading||!njCustomer.trim()||!njValue} style={{width:"100%",padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:njLoading||!njCustomer.trim()||!njValue?"not-allowed":"pointer",opacity:njLoading||!njCustomer.trim()||!njValue?0.6:1,fontFamily:"'DM Sans'"}}>{njLoading?"Saving...":"Save Job"}</button>
+          </div>
+        </div>}
         {sms&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setSms(false)}>
           <div style={{background:"#1A1A1A",borderRadius:32,padding:12,maxWidth:320,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}} onClick={(e: React.MouseEvent)=>e.stopPropagation()}>
             <div style={{background:"#fff",borderRadius:24,overflow:"hidden"}}>
@@ -225,13 +287,14 @@ export default function StackedWork() {
               </Card>
               <Card style={{overflow:"hidden",marginBottom:20}}>
                 <div style={{padding:"14px 18px",borderBottom:"1px solid #E2E8F0",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:14,fontWeight:600,color:"#0F172A"}}>Recent Jobs</span><Btn onClick={()=>setVw("jobs")} style={{fontSize:11,padding:"5px 12px"}}>View All</Btn></div>
-                {JOBS.slice(0,4).map((j,i)=><div key={i} style={{padding:"12px 18px",borderBottom:i<3?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} - {j.date}</div></div><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontWeight:600,fontSize:13}}>${j.value.toLocaleString()}</span><Badge s={j.status}/></div></div>)}
+                {activeJobs.length===0?<div style={{padding:"28px 18px",textAlign:"center",color:"#94A3B8",fontSize:13}}>No jobs yet — <span style={{color:GD,cursor:"pointer",fontWeight:600}} onClick={()=>setVw("jobs")}>add your first job</span></div>:activeJobs.slice(0,4).map((j:any,i:number)=><div key={j.id||i} style={{padding:"12px 18px",borderBottom:i<3?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.date}</div></div><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontWeight:600,fontSize:13}}>${Number(j.value).toLocaleString()}</span><Badge s={j.status}/></div></div>)}
               </Card>
             </>}
             {vw==="jobs"&&<>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Jobs</h1><Btn>+ New Job</Btn></div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Jobs</h1><Btn onClick={()=>userId?setNewJobOpen(true):setAuthMode("login")}>+ New Job</Btn></div>
               <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{["all","quoted","scheduled","in-progress","complete"].map(f=><button key={f} className={`sw-fb ${jf===f?"sw-a":""}`} onClick={()=>setJf(f)}>{f==="all"?"All":STC[f]?.label||f}</button>)}</div>
-              <Card style={{overflow:"hidden"}}>{fJ.map(j=><div key={j.id} className="sw-jm"><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><div><div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} - {j.date}</div></div><div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>${j.value.toLocaleString()}</div></div><Badge s={j.status}/></div>)}</Card>
+              {fJ.length===0?<Card style={{padding:40,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🔨</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No jobs yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Add your first job to start tracking revenue.</div><Btn onClick={()=>userId?setNewJobOpen(true):setAuthMode("login")}>+ Add First Job</Btn></Card>
+              :<Card style={{overflow:"hidden"}}>{fJ.map((j:any)=><div key={j.id} className="sw-jm"><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><div><div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.date}{j.phone?` · ${j.phone}`:""}</div></div><div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>${Number(j.value).toLocaleString()}</div></div><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge s={j.status}/>{userId&&j.status!=="complete"&&<select value={j.status} onChange={e=>updateJobStatus(j.id,e.target.value)} style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"'DM Sans'"}}><option value="quoted">→ Quoted</option><option value="scheduled">→ Scheduled</option><option value="in-progress">→ In Progress</option><option value="complete">→ Complete</option></select>}</div></div>)}</Card>}
             </>}
             {vw==="mockups"&&<>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10}}>
