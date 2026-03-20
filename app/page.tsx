@@ -1,5 +1,11 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 const G = "#C8E64A";
 const GD = "#A8C435";
 const FEATURES = [
@@ -82,20 +88,14 @@ export default function StackedWork() {
     setAuthLoading(true); setAuthError(null); setAuthSuccess(null);
     try {
       if (authMode === "forgot") {
-        const { createClient } = await import("@supabase/supabase-js");
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
         const { error } = await supabase.auth.resetPasswordForEmail(authEmail, { redirectTo: window.location.origin + "/reset-password" });
         if (error) throw error;
         setAuthSuccess("Password reset email sent! Check your inbox.");
       } else if (authMode === "signup") {
-        const { createClient } = await import("@supabase/supabase-js");
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
         const { error } = await supabase.auth.signUp({ email: authEmail, password: authPassword, options: { data: { username: authUsername } } });
         if (error) throw error;
         setAuthSuccess("Account created! Check your email to verify your account.");
       } else {
-        const { createClient } = await import("@supabase/supabase-js");
-        const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
         const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password: authPassword });
         if (error) throw error;
         setAuthMode(null); setPage("app");
@@ -108,10 +108,7 @@ export default function StackedWork() {
   useEffect(() => { const i = setInterval(() => setAf(p=>(p+1)%FEATURES.length),4000); return () => clearInterval(i); }, []);
   useEffect(() => { if(page==="app"&&vw==="dashboard"&&!td){ const t=setTimeout(()=>setTst({name:"Chris Mitchell",msg:"Need a quote for bathroom remodel"}),3000); return()=>clearTimeout(t); }}, [page,vw,td]);
   useEffect(() => {
-    import("@supabase/supabase-js").then(({ createClient }) => {
-      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-      supabase.auth.getSession().then(({ data: { session } }) => { if (session) setPage("app"); });
-    });
+    supabase.auth.getSession().then(({ data: { session } }) => { if (session) setPage("app"); });
   }, []);
 
   const done = JOBS.filter(j=>j.status==="complete");
