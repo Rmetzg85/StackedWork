@@ -107,6 +107,12 @@ export default function StackedWork() {
   useEffect(() => { const h = () => setScrollY(window.scrollY); window.addEventListener("scroll",h); return () => window.removeEventListener("scroll",h); }, []);
   useEffect(() => { const i = setInterval(() => setAf(p=>(p+1)%FEATURES.length),4000); return () => clearInterval(i); }, []);
   useEffect(() => { if(page==="app"&&vw==="dashboard"&&!td){ const t=setTimeout(()=>setTst({name:"Chris Mitchell",msg:"Need a quote for bathroom remodel"}),3000); return()=>clearTimeout(t); }}, [page,vw,td]);
+  useEffect(() => {
+    import("@supabase/supabase-js").then(({ createClient }) => {
+      const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+      supabase.auth.getSession().then(({ data: { session } }) => { if (session) setPage("app"); });
+    });
+  }, []);
 
   const done = JOBS.filter(j=>j.status==="complete");
   const moR = done.filter(j=>{const d=new Date(j.completed!);return d.getMonth()===1&&d.getFullYear()===2026}).reduce((a,j)=>a+j.value,0);
@@ -122,64 +128,6 @@ export default function StackedWork() {
       if (data.url) { window.location.href = data.url; }
       else { alert("Checkout error: " + (data.error || "No URL returned.")); }
     } catch (err: any) { alert("Checkout failed: " + err.message); }
-  };
-  // Auth Modal
-  const AuthModal = () => {
-    if (!authMode) return null;
-    return (
-      <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>{setAuthMode(null);setAuthError(null);setAuthSuccess(null)}}>
-        <div style={{background:"#fff",borderRadius:16,padding:36,maxWidth:400,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
-          <div style={{textAlign:"center",marginBottom:24}}>
-            <div style={{width:40,height:40,background:"#4A82C4",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,color:"#fff",margin:"0 auto 12px"}}>SW</div>
-            <h2 style={{fontSize:22,fontWeight:700,color:"#0F172A",marginBottom:4}}>
-              {authMode==="login"?"Welcome back":authMode==="signup"?"Create your account":"Reset your password"}
-            </h2>
-            <p style={{fontSize:13,color:"#64748B"}}>
-              {authMode==="login"?"Sign in to your StackedWork account":authMode==="signup"?"Start your 14-day free trial today":"Enter your email and we'll send a reset link"}
-            </p>
-          </div>
-          {authSuccess ? (
-            <div style={{background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:10,padding:16,textAlign:"center",marginBottom:16}}>
-              <div style={{fontSize:24,marginBottom:8}}>✅</div>
-              <p style={{fontSize:14,color:"#065F46",fontWeight:500}}>{authSuccess}</p>
-            </div>
-          ) : (
-            <>
-              {authMode==="signup"&&(
-                <div style={{marginBottom:14}}>
-                  <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Username</label>
-                  <input value={authUsername} onChange={e=>setAuthUsername(e.target.value)} placeholder="yourname" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
-                </div>
-              )}
-              <div style={{marginBottom:14}}>
-                <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Email address</label>
-                <input type="email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="you@example.com" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
-              </div>
-              {authMode!=="forgot"&&(
-                <div style={{marginBottom:authMode==="login"?8:20}}>
-                  <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Password</label>
-                  <input type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} placeholder="••••••••" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
-                </div>
-              )}
-              {authMode==="login"&&(
-                <div style={{textAlign:"right",marginBottom:20}}>
-                  <span onClick={()=>{setAuthMode("forgot");setAuthError(null);}} style={{fontSize:12,color:"#4A82C4",cursor:"pointer",fontWeight:500}}>Forgot password?</span>
-                </div>
-              )}
-              {authError&&<div style={{background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:"#991B1B"}}>{authError}</div>}
-              <button onClick={handleAuth} disabled={authLoading} style={{width:"100%",padding:"12px",background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:authLoading?"not-allowed":"pointer",fontFamily:"'DM Sans'",opacity:authLoading?0.7:1}}>
-                {authLoading?"Please wait...":(authMode==="login"?"Sign In":authMode==="signup"?"Create Account":"Send Reset Link")}
-              </button>
-            </>
-          )}
-          <div style={{textAlign:"center",marginTop:20,fontSize:13,color:"#64748B"}}>
-            {authMode==="login"&&<>Don&apos;t have an account? <span onClick={()=>{setAuthMode("signup");setAuthError(null);setAuthSuccess(null);}} style={{color:"#4A82C4",cursor:"pointer",fontWeight:600}}>Sign up</span></>}
-            {authMode==="signup"&&<>Already have an account? <span onClick={()=>{setAuthMode("login");setAuthError(null);setAuthSuccess(null);}} style={{color:"#4A82C4",cursor:"pointer",fontWeight:600}}>Sign in</span></>}
-            {authMode==="forgot"&&<><span onClick={()=>{setAuthMode("login");setAuthError(null);setAuthSuccess(null);}} style={{color:"#4A82C4",cursor:"pointer",fontWeight:600}}>Back to sign in</span></>}
-          </div>
-        </div>
-      </div>
-    );
   };
   if(page==="app"){
     const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"mockups",ic:"📸",lb:"Mockups"},{id:"customers",ic:"👥",lb:"Clients"},{id:"followups",ic:"🔔",lb:"Alerts"}];
@@ -323,7 +271,58 @@ export default function StackedWork() {
         .feature-box{cursor:pointer;transition:all .3s;} 
         .feature-box:hover{transform:translateY(-4px);box-shadow:0 8px 30px rgba(200,230,74,0.15);}
       `}</style>
-      <AuthModal />
+      {authMode&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>{setAuthMode(null);setAuthError(null);setAuthSuccess(null)}}>
+        <div style={{background:"#fff",borderRadius:16,padding:36,maxWidth:400,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+          <div style={{textAlign:"center",marginBottom:24}}>
+            <div style={{width:40,height:40,background:"#4A82C4",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,color:"#fff",margin:"0 auto 12px"}}>SW</div>
+            <h2 style={{fontSize:22,fontWeight:700,color:"#0F172A",marginBottom:4}}>
+              {authMode==="login"?"Welcome back":authMode==="signup"?"Create your account":"Reset your password"}
+            </h2>
+            <p style={{fontSize:13,color:"#64748B"}}>
+              {authMode==="login"?"Sign in to your StackedWork account":authMode==="signup"?"Start your 14-day free trial today":"Enter your email and we'll send a reset link"}
+            </p>
+          </div>
+          {authSuccess ? (
+            <div style={{background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:10,padding:16,textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:24,marginBottom:8}}>✅</div>
+              <p style={{fontSize:14,color:"#065F46",fontWeight:500}}>{authSuccess}</p>
+            </div>
+          ) : (
+            <>
+              {authMode==="signup"&&(
+                <div style={{marginBottom:14}}>
+                  <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Username</label>
+                  <input value={authUsername} onChange={e=>setAuthUsername(e.target.value)} placeholder="yourname" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                </div>
+              )}
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Email address</label>
+                <input type="email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="you@example.com" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+              </div>
+              {authMode!=="forgot"&&(
+                <div style={{marginBottom:authMode==="login"?8:20}}>
+                  <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Password</label>
+                  <input type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} placeholder="••••••••" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                </div>
+              )}
+              {authMode==="login"&&(
+                <div style={{textAlign:"right",marginBottom:20}}>
+                  <span onClick={()=>{setAuthMode("forgot");setAuthError(null);}} style={{fontSize:12,color:"#4A82C4",cursor:"pointer",fontWeight:500}}>Forgot password?</span>
+                </div>
+              )}
+              {authError&&<div style={{background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:"#991B1B"}}>{authError}</div>}
+              <button onClick={handleAuth} disabled={authLoading} style={{width:"100%",padding:"12px",background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:authLoading?"not-allowed":"pointer",fontFamily:"'DM Sans'",opacity:authLoading?0.7:1}}>
+                {authLoading?"Please wait...":(authMode==="login"?"Sign In":authMode==="signup"?"Create Account":"Send Reset Link")}
+              </button>
+            </>
+          )}
+          <div style={{textAlign:"center",marginTop:20,fontSize:13,color:"#64748B"}}>
+            {authMode==="login"&&<>Don&apos;t have an account? <span onClick={()=>{setAuthMode("signup");setAuthError(null);setAuthSuccess(null);}} style={{color:"#4A82C4",cursor:"pointer",fontWeight:600}}>Sign up</span></>}
+            {authMode==="signup"&&<>Already have an account? <span onClick={()=>{setAuthMode("login");setAuthError(null);setAuthSuccess(null);}} style={{color:"#4A82C4",cursor:"pointer",fontWeight:600}}>Sign in</span></>}
+            {authMode==="forgot"&&<><span onClick={()=>{setAuthMode("login");setAuthError(null);setAuthSuccess(null);}} style={{color:"#4A82C4",cursor:"pointer",fontWeight:600}}>Back to sign in</span></>}
+          </div>
+        </div>
+      </div>}
       <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:100,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",background:scrollY>50?"rgba(19,36,64,0.92)":"transparent",backdropFilter:scrollY>50?"blur(20px)":"none",transition:"all .3s",borderBottom:scrollY>50?"1px solid rgba(255,255,255,0.05)":"none"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:34,height:34,background:"#4A82C4",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,color:"#fff",fontFamily:"'DM Sans'",letterSpacing:"-0.03em"}}>SW</div><span style={{fontWeight:700,fontSize:17,letterSpacing:"-0.02em"}}>StackedWork</span></div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
