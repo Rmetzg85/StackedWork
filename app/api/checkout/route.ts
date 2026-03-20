@@ -33,7 +33,7 @@ export async function POST(request) {
         trial_period_days: 14,
         metadata: { product: "stackedwork", tier: "base" },
       },
-      payment_method_collection: "if_required",
+      payment_method_collection: "always",
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/welcome?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/?cancelled=true`,
       allow_promotion_codes: true,

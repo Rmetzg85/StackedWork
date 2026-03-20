@@ -161,7 +161,7 @@ export default function LoginPage() {
           </h1>
           <p style={{ fontSize: 13, color: "rgba(245,240,235,0.45)", marginBottom: 24 }}>
             {mode === "signup"
-              ? "14 days free. No credit card required."
+              ? "14-day free trial. Credit card required."
               : "Sign in to access your StackedWork dashboard."}
           </p>
 

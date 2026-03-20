@@ -60,6 +60,8 @@ export default function StackedWork() {
   const [mErr, setMErr] = useState<string|null>(null);
   const [mResult, setMResult] = useState<{beforeUrl:string,afterUrl:string}|null>(null);
   const [userId, setUserId] = useState<string|null>(null);
+  const [userEmail, setUserEmail] = useState<string|null>(null);
+  const [subStatus, setSubStatus] = useState<string|null>(null);
   const [dbLeads, setDbLeads] = useState<any[]>([]);
   const [dbJobs, setDbJobs] = useState<any[]>([]);
   const [newJobOpen, setNewJobOpen] = useState(false);
@@ -96,6 +98,11 @@ export default function StackedWork() {
     } catch { setMGn(false); setMErr("Generation failed. Please try again."); }
   };
 
+  const checkSub = async (email: string) => {
+    const { data } = await supabase.from("subscriptions").select("status").eq("email", email).maybeSingle();
+    setSubStatus(data?.status ?? "none");
+  };
+
   const withTimeout = <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
     Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Request timed out. Check your connection and try again.")), ms))]);
 
@@ -113,7 +120,7 @@ export default function StackedWork() {
       } else {
         const { data: signInData, error } = await withTimeout(supabase.auth.signInWithPassword({ email: authEmail, password: authPassword }));
         if (error) throw error;
-        if (signInData?.user) setUserId(signInData.user.id);
+        if (signInData?.user) { setUserId(signInData.user.id); setUserEmail(signInData.user.email ?? null); await checkSub(signInData.user.email!); }
         setAuthMode(null); setPage("app");
       }
     } catch (err: any) { setAuthError(err.message || "Something went wrong. Please try again."); }
@@ -124,7 +131,14 @@ export default function StackedWork() {
   useEffect(() => { const i = setInterval(() => setAf(p=>(p+1)%FEATURES.length),4000); return () => clearInterval(i); }, []);
   useEffect(() => { if(page==="app"&&vw==="dashboard"&&!td){ const t=setTimeout(()=>setTst({name:"Chris Mitchell",msg:"Need a quote for bathroom remodel"}),3000); return()=>clearTimeout(t); }}, [page,vw,td]);
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => { if (session) { setPage("app"); setUserId(session.user.id); } });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setPage("app");
+        setUserId(session.user.id);
+        setUserEmail(session.user.email ?? null);
+        checkSub(session.user.email!);
+      }
+    });
   }, []);
   const handleNewJob = async () => {
     if (!userId || !njCustomer.trim() || !njValue) return;
@@ -186,6 +200,26 @@ export default function StackedWork() {
   const handleSubscribe = () => {
     window.location.href = "/login";
   };
+  const BLOCKED = ["cancelled","incomplete_expired","unpaid","past_due"];
+  if(page==="app" && subStatus && BLOCKED.includes(subStatus)){
+    return(
+      <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center",color:"#F5F0EB"}}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&display=swap');*{margin:0;padding:0;box-sizing:border-box}`}</style>
+        <div style={{fontSize:48,marginBottom:24}}>🔒</div>
+        <h1 style={{fontSize:28,fontWeight:700,marginBottom:12}}>Subscription {subStatus === "cancelled" ? "Cancelled" : "Inactive"}</h1>
+        <p style={{fontSize:15,color:"rgba(245,240,235,0.5)",maxWidth:420,marginBottom:32,lineHeight:1.7}}>
+          {subStatus === "past_due"
+            ? "Your last payment failed. Please update your billing info to continue."
+            : "Your StackedWork subscription is no longer active. Reactivate to get back in."}
+        </p>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center"}}>
+          <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 32px",fontSize:15,fontWeight:700,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'"}}>Reactivate Subscription</button>
+          <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);}} style={{background:"transparent",color:"rgba(245,240,235,0.5)",border:"1px solid rgba(255,255,255,0.15)",padding:"14px 32px",fontSize:15,fontWeight:600,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
+        </div>
+      </div>
+    );
+  }
+
   if(page==="app"){
     const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"leads",ic:"📥",lb:"Leads"},{id:"mockups",ic:"📸",lb:"Mockups"},{id:"customers",ic:"👥",lb:"Clients"},{id:"followups",ic:"🔔",lb:"Alerts"}];
     return(
@@ -512,7 +546,7 @@ export default function StackedWork() {
         <h2 style={{position:"relative",zIndex:1,fontSize:"clamp(34px,5vw,56px)",fontWeight:700,letterSpacing:"-0.03em",maxWidth:600,margin:"0 auto 16px"}}>Ready to stop hustling backwards?</h2>
         <p style={{position:"relative",zIndex:1,fontSize:17,color:"rgba(245,240,235,0.5)",maxWidth:480,margin:"0 auto 44px"}}>$49.99/month. CRM + AI mockups + lead tracking. Cancel anytime. No contracts. No setup fees.</p>
         <button onClick={handleSubscribe} style={{position:"relative",zIndex:1,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"20px 48px",fontSize:18,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Start Your Free Trial</button>
-        <p style={{position:"relative",zIndex:1,marginTop:22,fontSize:12,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>14-DAY FREE TRIAL — CREDIT CARD REQUIRED</p>
+        <p style={{position:"relative",zIndex:1,marginTop:22,fontSize:12,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>14-DAY FREE TRIAL — CREDIT CARD REQUIRED — CANCEL ANYTIME</p>
       </section>
       <footer style={{padding:"40px 24px",borderTop:"1px solid rgba(255,255,255,0.05)",maxWidth:1100,margin:"0 auto"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:20,marginBottom:24}}>
