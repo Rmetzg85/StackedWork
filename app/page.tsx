@@ -141,13 +141,8 @@ export default function StackedWork() {
     setDbLeads(prev => prev.map(l => l.id === id ? { ...l, read: true } : l));
   };
 
-  const handleSubscribe = async () => {
-    try {
-      const res = await fetch("/api/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
-      const data = await res.json();
-      if (data.url) { window.location.href = data.url; }
-      else { alert("Checkout error: " + (data.error || "No URL returned.")); }
-    } catch (err: any) { alert("Checkout failed: " + err.message); }
+  const handleSubscribe = () => {
+    window.location.href = "/login";
   };
   if(page==="app"){
     const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"leads",ic:"📥",lb:"Leads"},{id:"mockups",ic:"📸",lb:"Mockups"},{id:"customers",ic:"👥",lb:"Clients"},{id:"followups",ic:"🔔",lb:"Alerts"}];
