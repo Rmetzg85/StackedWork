@@ -86,7 +86,7 @@ export default function StackedWork() {
     reader.readAsDataURL(file);
   };
 
-  const handleGenerateMockup = async () => {
+  const handleGenerateMockup = async (retryCount = 0) => {
     if (!mFile) return;
     setMGn(true); setMErr(null);
     try {
@@ -112,7 +112,12 @@ export default function StackedWork() {
             setMGn(false); setMDn(true);
             if (userId && mockupId) setDbMockups(prev => [{ id: mockupId, beforeUrl, afterUrl: statusData.afterUrl, jobType: mJt, style: mSt, createdAt: new Date().toISOString() }, ...prev]);
           } else if (statusData.status === "failed") {
-            setMGn(false); setMErr(statusData.error || "Generation failed. Please try again.");
+            const isServerLoad = (statusData.error || "").toLowerCase().includes("server load");
+            if (isServerLoad && retryCount < 2) {
+              setTimeout(() => handleGenerateMockup(retryCount + 1), 3000);
+            } else {
+              setMGn(false); setMErr(statusData.error || "Generation failed. Please try again.");
+            }
           } else {
             setTimeout(poll, 3000);
           }
