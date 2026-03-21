@@ -98,13 +98,12 @@ export async function POST(request) {
         prompt: prompt,
         negative_prompt: NEG,
         prompt_strength: 0.65,
-        num_inference_steps: 30,
+        num_inference_steps: 25,
         guidance_scale: 7.5,
         scheduler: "K_EULER",
-        width: 1024,
-        height: 1024,
-        refine: "expert_ensemble_refiner",
-        high_noise_frac: 0.8,
+        width: 768,
+        height: 768,
+        refine: "no_refiner",
       },
     });
 

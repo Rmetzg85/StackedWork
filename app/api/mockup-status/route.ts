@@ -55,9 +55,13 @@ export async function GET(request: Request) {
       if (mockupId) {
         await supabase.from("mockups").update({ status: "failed" }).eq("id", mockupId);
       }
+      const rawError = String((prediction as any).error || "");
+      const isOOM = rawError.toLowerCase().includes("cuda") || rawError.toLowerCase().includes("out of memory");
       return NextResponse.json({
         status: "failed",
-        error: (prediction as any).error || "Generation failed",
+        error: isOOM
+          ? "Generation failed due to high server load. Please try again."
+          : "Generation failed. Please try again.",
       });
     }
 
