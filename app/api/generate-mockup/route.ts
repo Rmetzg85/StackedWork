@@ -98,7 +98,7 @@ export async function POST(request) {
         prompt: prompt,
         negative_prompt: NEG,
         prompt_strength: 0.6,
-        num_inference_steps: 15,
+        num_inference_steps: 10,
         guidance_scale: 7.5,
         scheduler: "K_EULER",
         width: 512,
