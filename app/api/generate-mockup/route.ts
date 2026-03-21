@@ -64,10 +64,30 @@ export async function POST(request) {
       return NextResponse.json({ error: "No image provided" }, { status: 400 });
     }
 
-    const bytes = await imageFile.arrayBuffer();
-    const base64 = Buffer.from(bytes).toString("base64");
-    const dataUri = `data:${imageFile.type};base64,${base64}`;
+    if (!process.env.REPLICATE_API_TOKEN) {
+      return NextResponse.json({ error: "REPLICATE_API_TOKEN not configured" }, { status: 500 });
+    }
 
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY not configured" }, { status: 500 });
+    }
+
+    const timestamp = Date.now();
+    const ext = imageFile.type.split("/")[1] || "jpeg";
+    const beforePath = `mockups/${timestamp}-before.${ext}`;
+
+    // Upload original image to Supabase first so we have a real URL for Replicate
+    const bytes = await imageFile.arrayBuffer();
+    const { error: uploadError } = await supabase.storage
+      .from("stackedwork-images")
+      .upload(beforePath, bytes, { contentType: imageFile.type });
+
+    if (uploadError) {
+      console.error("Upload error:", uploadError);
+      return NextResponse.json({ error: `Storage upload failed: ${uploadError.message}` }, { status: 500 });
+    }
+
+    const { data: beforeUrlData } = supabase.storage.from("stackedwork-images").getPublicUrl(beforePath);
     const typeKey = jobType.toLowerCase().replace(/[^a-z]/g, "");
     const prompt = PROMPTS[typeKey]?.[style] || PROMPTS["other"]["Modern Minimalist"];
 
@@ -75,7 +95,7 @@ export async function POST(request) {
       "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
       {
         input: {
-          image: dataUri,
+          image: beforeUrlData.publicUrl,
           prompt: prompt,
           negative_prompt: NEG,
           prompt_strength: 0.65,
@@ -92,22 +112,16 @@ export async function POST(request) {
 
     const generatedImageUrl = Array.isArray(output) ? output[0] : output;
     if (!generatedImageUrl) {
-      return NextResponse.json({ error: "Generation failed" }, { status: 500 });
+      return NextResponse.json({ error: "Replicate returned no output" }, { status: 500 });
     }
 
     const generatedResponse = await fetch(generatedImageUrl);
     const generatedBuffer = await generatedResponse.arrayBuffer();
-    const timestamp = Date.now();
-    const ext = imageFile.type.split("/")[1] || "jpeg";
-
-    const beforePath = `mockups/${timestamp}-before.${ext}`;
-    await supabase.storage.from("stackedwork-images").upload(beforePath, imageFile, { contentType: imageFile.type });
 
     const afterPath = `mockups/${timestamp}-after.webp`;
     await supabase.storage.from("stackedwork-images").upload(afterPath, generatedBuffer, { contentType: "image/webp" });
 
-    const { data: beforeUrl } = supabase.storage.from("stackedwork-images").getPublicUrl(beforePath);
-    const { data: afterUrl } = supabase.storage.from("stackedwork-images").getPublicUrl(afterPath);
+    const { data: afterUrlData } = supabase.storage.from("stackedwork-images").getPublicUrl(afterPath);
 
     const { data: mockupRecord } = await supabase.from("mockups").insert({
       contractor_id: contractorId || null,
@@ -115,8 +129,8 @@ export async function POST(request) {
       job_id: jobId || null,
       job_type: jobType,
       style: style,
-      before_url: beforeUrl.publicUrl,
-      after_url: afterUrl.publicUrl,
+      before_url: beforeUrlData.publicUrl,
+      after_url: afterUrlData.publicUrl,
       prompt_used: prompt,
       strength: 0.65,
       status: "completed",
@@ -127,14 +141,14 @@ export async function POST(request) {
       success: true,
       mockup: {
         id: mockupRecord?.id || timestamp,
-        beforeUrl: beforeUrl.publicUrl,
-        afterUrl: afterUrl.publicUrl,
+        beforeUrl: beforeUrlData.publicUrl,
+        afterUrl: afterUrlData.publicUrl,
         jobType, style,
         createdAt: new Date().toISOString(),
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Mockup error:", error);
-    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+    return NextResponse.json({ error: error?.message || "Something went wrong" }, { status: 500 });
   }
 }
