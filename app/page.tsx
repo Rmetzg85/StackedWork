@@ -130,7 +130,7 @@ export default function StackedWork() {
 
   useEffect(() => { const h = () => setScrollY(window.scrollY); window.addEventListener("scroll",h); return () => window.removeEventListener("scroll",h); }, []);
   useEffect(() => { const i = setInterval(() => setAf(p=>(p+1)%FEATURES.length),4000); return () => clearInterval(i); }, []);
-  useEffect(() => { if(page==="app"&&vw==="dashboard"&&!td){ const t=setTimeout(()=>setTst({name:"Chris Mitchell",msg:"Need a quote for bathroom remodel"}),3000); return()=>clearTimeout(t); }}, [page,vw,td]);
+  useEffect(() => { /* demo toast removed */ }, [page,vw,td]);
   useEffect(() => {
     // onAuthStateChange fires INITIAL_SESSION on mount and catches redirects from /login
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -305,9 +305,9 @@ export default function StackedWork() {
               <div style={{background:"#F2F2F7",padding:"12px 20px 8px",display:"flex",justifyContent:"space-between"}}><span style={{fontSize:13,fontWeight:600}}>9:41 AM</span><span style={{fontSize:12}}>📶 🔋</span></div>
               <div style={{background:"#F2F2F7",padding:"8px 20px 12px",borderBottom:"1px solid #D1D1D6",textAlign:"center"}}><div style={{fontWeight:700,fontSize:16}}>StackedWork</div><div style={{fontSize:11,color:"#8E8E93"}}>Text Message</div></div>
               <div style={{padding:16,minHeight:280,display:"flex",flexDirection:"column",gap:12}}>
-                <div style={{background:"#E9E9EB",borderRadius:18,padding:"10px 14px",maxWidth:"85%",fontSize:14,lineHeight:1.5}}><div style={{fontWeight:600,marginBottom:4}}>🔔 New Lead!</div><div><strong>Chris Mitchell</strong></div><div style={{marginTop:4}}>(410) 555-2211</div><div style={{marginTop:4}}>&quot;Bathroom remodel - 2 bath, gut job.&quot;</div><div style={{marginTop:8,fontSize:12,color:"#666"}}>Reply CALL to auto-schedule</div></div>
+                <div style={{background:"#E9E9EB",borderRadius:18,padding:"10px 14px",maxWidth:"85%",fontSize:14,lineHeight:1.5}}><div style={{fontWeight:600,marginBottom:4}}>🔔 New Lead!</div><div>When a new lead comes in, you&apos;ll get a text like this with their name, number, and message.</div><div style={{marginTop:8,fontSize:12,color:"#666"}}>Reply CALL to auto-schedule</div></div>
                 <div style={{background:"#34C759",color:"#fff",borderRadius:18,padding:"10px 14px",maxWidth:"85%",fontSize:14,marginLeft:"auto",textAlign:"right"}}>CALL</div>
-                <div style={{background:"#E9E9EB",borderRadius:18,padding:"10px 14px",maxWidth:"85%",fontSize:14,lineHeight:1.5}}>Callback scheduled for Chris Mitchell.</div>
+                <div style={{background:"#E9E9EB",borderRadius:18,padding:"10px 14px",maxWidth:"85%",fontSize:14,lineHeight:1.5}}>Callback scheduled!</div>
               </div>
               <div style={{padding:12,background:"#F2F2F7",textAlign:"center",borderTop:"1px solid #D1D1D6"}}><span style={{fontSize:12,color:"#8E8E93"}}>Tap outside to close</span></div>
             </div>
@@ -413,7 +413,7 @@ export default function StackedWork() {
             </>}
             {vw==="followups"&&<>
               <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Follow-up Reminders</h1><p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Don&apos;t leave money on the table.</p>
-              <div style={{display:"flex",flexDirection:"column",gap:10}}>{FOLLOW_UPS.map((f,i)=><Card key={i} style={{padding:16}}><div style={{marginBottom:10}}><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:3}}>{f.customer}</div><div style={{fontSize:12,color:"#64748B"}}>{f.lastJob}</div><div style={{fontSize:11,color:GD,fontWeight:500,marginTop:4}}>{f.months} months since last job</div></div><div style={{display:"flex",gap:8}}><BtnO style={{flex:1}}>Skip</BtnO><Btn style={{flex:1}}>Contacted</Btn></div></Card>)}</div>
+              <div style={{padding:"40px 20px",textAlign:"center",color:"#94A3B8"}}><div style={{fontSize:36,marginBottom:12}}>🔔</div><div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>No follow-ups yet</div><div style={{fontSize:12}}>Completed jobs will appear here as reminders to re-engage past clients.</div></div>
             </>}
           </main>
         </div>
