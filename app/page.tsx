@@ -114,9 +114,8 @@ export default function StackedWork() {
         if (error) throw error;
         setAuthSuccess("Password reset email sent! Check your inbox.");
       } else if (authMode === "signup") {
-        const { error } = await withTimeout(supabase.auth.signUp({ email: authEmail, password: authPassword, options: { data: { username: authUsername } } }));
-        if (error) throw error;
-        setAuthSuccess("Account created! Check your email to verify your account.");
+        window.location.href = "/login";
+        return;
       } else {
         const { data: signInData, error } = await withTimeout(supabase.auth.signInWithPassword({ email: authEmail, password: authPassword }));
         if (error) throw error;
@@ -249,7 +248,7 @@ export default function StackedWork() {
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{width:30,height:30,background:"#4A82C4",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:11,color:"#fff",fontFamily:"'DM Sans'",letterSpacing:"-0.03em"}}>SW</div>
             <span style={{fontWeight:700,fontSize:15,color:"#fff"}}>StackedWork</span>
-            <span style={{background:"#FEF3C7",color:"#92400E",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:100,fontFamily:"'Space Mono'"}}>DEMO</span>
+            {!userId&&<span style={{background:"#FEF3C7",color:"#92400E",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:100,fontFamily:"'Space Mono'"}}>DEMO</span>}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{position:"relative"}}>
@@ -264,7 +263,10 @@ export default function StackedWork() {
               </div>}
             </div>
             <button onClick={()=>setSms(true)} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>📱</button>
-            <button onClick={()=>setPage("landing")} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>Back</button>
+            {userId
+              ? <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);}} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
+              : <button onClick={()=>setPage("landing")} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>Back</button>
+            }
           </div>
         </div>
         {tst&&!td&&<div style={{position:"fixed",top:70,right:16,zIndex:60,background:"#fff",border:"1px solid #E2E8F0",borderLeft:`4px solid ${G}`,borderRadius:12,padding:16,boxShadow:"0 8px 30px rgba(0,0,0,0.12)",maxWidth:340,width:"calc(100% - 32px)",animation:"toastSlide .5s ease forwards"}}>
