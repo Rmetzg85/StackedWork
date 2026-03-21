@@ -6,43 +6,44 @@ export const maxDuration = 60;
 
 const PROMPTS = {
   bathroom: {
-    "Modern Minimalist": "renovate this bathroom in a modern minimalist style with clean white tile, floating vanity, frameless glass shower, and matte black fixtures",
-    "Classic Traditional": "renovate this bathroom in a classic traditional style with a warm wood vanity, subway tile, brushed nickel fixtures, framed mirror, and wainscoting",
-    "Industrial": "renovate this bathroom in an industrial style with exposed pipe fixtures, concrete countertop, and black metal accents",
-    "Farmhouse": "renovate this bathroom in a farmhouse style with shiplap walls, a vessel sink, rustic wood accents, and a vintage faucet",
+    "Modern Minimalist": "Modern minimalist bathroom renovation, clean white tile, floating vanity, frameless glass shower, matte black fixtures, LED mirror, professional interior design photography, 4k, realistic",
+    "Classic Traditional": "Classic traditional bathroom renovation, warm wood vanity, subway tile, brushed nickel fixtures, framed mirror, wainscoting, professional interior design photography, 4k, realistic",
+    "Industrial": "Industrial bathroom renovation, exposed pipe fixtures, concrete countertop, black metal accents, Edison bulb lighting, professional interior design photography, 4k, realistic",
+    "Farmhouse": "Farmhouse bathroom renovation, shiplap walls, vessel sink, rustic wood accents, vintage faucet, warm lighting, professional interior design photography, 4k, realistic",
   },
   kitchen: {
-    "Modern Minimalist": "renovate this kitchen in a modern minimalist style with white quartz countertops, handleless cabinets, pendant lighting, and a waterfall island",
-    "Classic Traditional": "renovate this kitchen in a classic traditional style with shaker cabinets, granite countertops, stainless steel appliances, and crown molding",
-    "Industrial": "renovate this kitchen in an industrial style with open shelving, stainless steel surfaces, exposed brick, and pendant cage lights",
-    "Farmhouse": "renovate this kitchen in a farmhouse style with open shelving, an apron sink, butcher block counters, and vintage hardware",
+    "Modern Minimalist": "Modern minimalist kitchen renovation, white quartz countertops, handleless cabinets, pendant lighting, waterfall island, professional interior design photography, 4k, realistic",
+    "Classic Traditional": "Classic traditional kitchen renovation, shaker cabinets, granite countertops, stainless steel appliances, crown molding, professional interior design photography, 4k, realistic",
+    "Industrial": "Industrial kitchen renovation, open shelving, stainless steel surfaces, exposed brick, pendant cage lights, butcher block island, professional interior design photography, 4k, realistic",
+    "Farmhouse": "Farmhouse kitchen renovation, open shelving, apron sink, butcher block counters, beadboard ceiling, vintage hardware, professional interior design photography, 4k, realistic",
   },
   paint: {
-    "Modern Minimalist": "repaint this room in a modern minimalist style with clean neutral tones and a smooth finish",
-    "Classic Traditional": "repaint this room in a classic traditional style with warm earth tones and elegant trim",
-    "Industrial": "repaint this room in an industrial style with a dark charcoal accent wall",
-    "Farmhouse": "repaint this room in a farmhouse style with soft white and sage green and a shiplap accent wall",
+    "Modern Minimalist": "Freshly painted modern interior, clean neutral tones, accent wall, smooth finish, bright natural light, professional interior design photography, 4k, realistic",
+    "Classic Traditional": "Freshly painted traditional interior, warm earth tones, crown molding, elegant finish, professional interior design photography, 4k, realistic",
+    "Industrial": "Freshly painted industrial loft interior, dark charcoal accent wall, exposed ceiling, professional interior design photography, 4k, realistic",
+    "Farmhouse": "Freshly painted farmhouse interior, soft white and sage green, shiplap accent wall, warm lighting, professional interior design photography, 4k, realistic",
   },
   exterior: {
-    "Modern Minimalist": "renovate this home exterior in a modern minimalist style with clean siding, contemporary landscaping, and a new front door",
-    "Classic Traditional": "renovate this home exterior in a classic traditional style with fresh paint, manicured landscaping, classic shutters, and a welcoming porch",
-    "Industrial": "renovate this home exterior in an industrial modern style with mixed materials and metal accents",
-    "Farmhouse": "renovate this home exterior in a farmhouse style with board and batten siding, a wraparound porch, black windows, and a landscaped garden",
+    "Modern Minimalist": "Modern home exterior renovation, clean siding, contemporary landscaping, new front door, pathway lighting, professional architectural photography, 4k, realistic",
+    "Classic Traditional": "Traditional home exterior renovation, fresh paint, manicured landscaping, classic shutters, welcoming porch, professional architectural photography, 4k, realistic",
+    "Industrial": "Industrial modern exterior renovation, mixed materials, metal accents, concrete pathway, professional architectural photography, 4k, realistic",
+    "Farmhouse": "Farmhouse exterior renovation, board and batten siding, wraparound porch, black windows, landscaped garden, professional architectural photography, 4k, realistic",
   },
   deck: {
-    "Modern Minimalist": "add a modern composite deck with clean lines, cable railing, and built-in lighting",
-    "Classic Traditional": "add a classic cedar wood deck with turned balusters, built-in seating, and a warm stain finish",
-    "Industrial": "add an industrial deck with metal railing and dark composite boards",
-    "Farmhouse": "add a farmhouse deck with whitewashed wood, X-pattern railing, and rocking chairs",
+    "Modern Minimalist": "Modern composite deck build, clean lines, cable railing, built-in lighting, professional exterior photography, 4k, realistic",
+    "Classic Traditional": "Classic wood deck build, cedar planks, turned balusters, built-in seating, warm stain finish, professional exterior photography, 4k, realistic",
+    "Industrial": "Industrial deck build, metal railing, dark composite boards, minimalist furniture, string lights, professional exterior photography, 4k, realistic",
+    "Farmhouse": "Farmhouse deck build, whitewashed wood, X-pattern railing, rocking chairs, hanging plants, professional exterior photography, 4k, realistic",
   },
   other: {
-    "Modern Minimalist": "renovate this space in a modern minimalist style with clean contemporary design and quality materials",
-    "Classic Traditional": "renovate this space in a classic traditional style with warm design and quality craftsmanship",
-    "Industrial": "renovate this space in an industrial style with raw materials and exposed elements",
-    "Farmhouse": "renovate this space in a farmhouse style with rustic charm and natural materials",
+    "Modern Minimalist": "Modern home renovation, clean contemporary design, quality materials, professional finish, interior design photography, 4k, realistic",
+    "Classic Traditional": "Traditional home renovation, warm classic design, quality craftsmanship, elegant finish, interior design photography, 4k, realistic",
+    "Industrial": "Industrial home renovation, raw materials, exposed elements, modern fixtures, interior design photography, 4k, realistic",
+    "Farmhouse": "Farmhouse home renovation, rustic charm, natural materials, warm inviting space, interior design photography, 4k, realistic",
   },
 };
 
+const NEG = "blurry, low quality, distorted, cartoon, anime, painting, drawing, sketch, unrealistic, watermark, text overlay, people, humans, faces";
 
 export async function POST(request) {
   const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
@@ -91,14 +92,20 @@ export async function POST(request) {
     const prompt = PROMPTS[typeKey]?.[style] || PROMPTS["other"]["Modern Minimalist"];
 
     const output = await replicate.run(
-      "timothybrooks/instruct-pix2pix:30c1d0b916a6f8efce20493f5d61ee27491ab2a60b7a6c9e0e4e1be87e5376b4",
+      "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
       {
         input: {
           image: beforeUrlData.publicUrl,
           prompt: prompt,
+          negative_prompt: NEG,
+          prompt_strength: 0.65,
           num_inference_steps: 30,
-          image_guidance_scale: 1.5,
           guidance_scale: 7.5,
+          scheduler: "K_EULER",
+          width: 1024,
+          height: 1024,
+          refine: "expert_ensemble_refiner",
+          high_noise_frac: 0.8,
         },
       }
     );
