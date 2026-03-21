@@ -91,37 +91,21 @@ export async function POST(request) {
     const typeKey = jobType.toLowerCase().replace(/[^a-z]/g, "");
     const prompt = PROMPTS[typeKey]?.[style] || PROMPTS["other"]["Modern Minimalist"];
 
-    const output = await replicate.run(
-      "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
-      {
-        input: {
-          image: beforeUrlData.publicUrl,
-          prompt: prompt,
-          negative_prompt: NEG,
-          prompt_strength: 0.65,
-          num_inference_steps: 30,
-          guidance_scale: 7.5,
-          scheduler: "K_EULER",
-          width: 1024,
-          height: 1024,
-          refine: "expert_ensemble_refiner",
-          high_noise_frac: 0.8,
-        },
-      }
-    );
-
-    const generatedImageUrl = Array.isArray(output) ? output[0] : output;
-    if (!generatedImageUrl) {
-      return NextResponse.json({ error: "Replicate returned no output" }, { status: 500 });
-    }
-
-    const generatedResponse = await fetch(generatedImageUrl);
-    const generatedBuffer = await generatedResponse.arrayBuffer();
-
-    const afterPath = `mockups/${timestamp}-after.webp`;
-    await supabase.storage.from("stackedwork-images").upload(afterPath, generatedBuffer, { contentType: "image/webp" });
-
-    const { data: afterUrlData } = supabase.storage.from("stackedwork-images").getPublicUrl(afterPath);
+    const prediction = await replicate.predictions.create({
+      version: "39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
+      input: {
+        image: beforeUrlData.publicUrl,
+        prompt: prompt,
+        negative_prompt: NEG,
+        prompt_strength: 0.65,
+        num_inference_steps: 25,
+        guidance_scale: 7.5,
+        scheduler: "K_EULER",
+        width: 768,
+        height: 768,
+        refine: "no_refiner",
+      },
+    });
 
     const { data: mockupRecord } = await supabase.from("mockups").insert({
       contractor_id: contractorId || null,
@@ -130,22 +114,20 @@ export async function POST(request) {
       job_type: jobType,
       style: style,
       before_url: beforeUrlData.publicUrl,
-      after_url: afterUrlData.publicUrl,
+      after_url: null,
       prompt_used: prompt,
       strength: 0.65,
-      status: "completed",
+      status: "pending",
       created_at: new Date().toISOString(),
     }).select().single();
 
     return NextResponse.json({
       success: true,
-      mockup: {
-        id: mockupRecord?.id || timestamp,
-        beforeUrl: beforeUrlData.publicUrl,
-        afterUrl: afterUrlData.publicUrl,
-        jobType, style,
-        createdAt: new Date().toISOString(),
-      },
+      predictionId: prediction.id,
+      mockupId: mockupRecord?.id || null,
+      beforeUrl: beforeUrlData.publicUrl,
+      jobType,
+      style,
     });
   } catch (error: any) {
     console.error("Mockup error:", error);

@@ -95,8 +95,30 @@ export default function StackedWork() {
       if (userId) fd.append("userId", userId);
       const res = await fetch("/api/generate-mockup", { method: "POST", body: fd });
       const data = await res.json();
-      if (data.success) { setMResult({ beforeUrl: data.mockup.beforeUrl, afterUrl: data.mockup.afterUrl }); setMGn(false); setMDn(true); if (userId) setDbMockups(prev => [data.mockup, ...prev]); }
-      else { throw new Error(data.error || "Generation failed"); }
+      if (!data.success) throw new Error(data.error || "Generation failed");
+
+      const { predictionId, mockupId, beforeUrl } = data;
+      let attempts = 0;
+      const maxAttempts = 40;
+
+      const poll = async () => {
+        if (attempts >= maxAttempts) { setMGn(false); setMErr("Generation timed out. Please try again."); return; }
+        attempts++;
+        try {
+          const statusRes = await fetch(`/api/mockup-status?predictionId=${predictionId}&mockupId=${mockupId || ""}`);
+          const statusData = await statusRes.json();
+          if (statusData.status === "succeeded") {
+            setMResult({ beforeUrl, afterUrl: statusData.afterUrl });
+            setMGn(false); setMDn(true);
+            if (userId && mockupId) setDbMockups(prev => [{ id: mockupId, beforeUrl, afterUrl: statusData.afterUrl, jobType: mJt, style: mSt, createdAt: new Date().toISOString() }, ...prev]);
+          } else if (statusData.status === "failed") {
+            setMGn(false); setMErr(statusData.error || "Generation failed. Please try again.");
+          } else {
+            setTimeout(poll, 3000);
+          }
+        } catch { setTimeout(poll, 3000); }
+      };
+      setTimeout(poll, 5000);
     } catch (err: any) { setMGn(false); setMErr(err?.message || "Generation failed. Please try again."); }
   };
 
@@ -121,7 +143,7 @@ export default function StackedWork() {
       } else {
         const { data: signInData, error } = await withTimeout(supabase.auth.signInWithPassword({ email: authEmail, password: authPassword }));
         if (error) throw error;
-        if (signInData?.user) { setUserId(signInData.user.id); setUserEmail(signInData.user.email ?? null); await checkSub(signInData.user.email!); }
+        if (signInData?.user) { setUserId(signInData.user.id); setUserEmail(signInData.user.email ?? null); checkSub(signInData.user.email!).catch(() => {}); }
         setAuthMode(null); setPage("app");
       }
     } catch (err: any) { setAuthError(err.message || "Something went wrong. Please try again."); }
