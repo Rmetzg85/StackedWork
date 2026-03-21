@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import Replicate from "replicate";
 import { createClient } from "@supabase/supabase-js";
 
+export const maxDuration = 60;
+
 const PROMPTS = {
   bathroom: {
     "Modern Minimalist": "Modern minimalist bathroom renovation, clean white tile, floating vanity, frameless glass shower, matte black fixtures, LED mirror, professional interior design photography, 4k, realistic",

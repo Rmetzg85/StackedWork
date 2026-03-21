@@ -97,7 +97,7 @@ export default function StackedWork() {
       const data = await res.json();
       if (data.success) { setMResult({ beforeUrl: data.mockup.beforeUrl, afterUrl: data.mockup.afterUrl }); setMGn(false); setMDn(true); if (userId) setDbMockups(prev => [data.mockup, ...prev]); }
       else { throw new Error(data.error || "Generation failed"); }
-    } catch { setMGn(false); setMErr("Generation failed. Please try again."); }
+    } catch (err: any) { setMGn(false); setMErr(err?.message || "Generation failed. Please try again."); }
   };
 
   const checkSub = async (email: string) => {
