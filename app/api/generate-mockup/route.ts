@@ -56,6 +56,7 @@ export async function POST(request) {
     const style = formData.get("style") || "Modern Minimalist";
     const customerId = formData.get("customerId");
     const jobId = formData.get("jobId");
+    const contractorId = formData.get("userId");
 
     if (!imageFile) {
       return NextResponse.json({ error: "No image provided" }, { status: 400 });
@@ -107,6 +108,7 @@ export async function POST(request) {
     const { data: afterUrl } = supabase.storage.from("stackedwork-images").getPublicUrl(afterPath);
 
     const { data: mockupRecord } = await supabase.from("mockups").insert({
+      contractor_id: contractorId || null,
       customer_id: customerId || null,
       job_id: jobId || null,
       job_type: jobType,
