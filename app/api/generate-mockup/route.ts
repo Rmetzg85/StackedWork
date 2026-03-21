@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Replicate from "replicate";
 import { createClient } from "@supabase/supabase-js";
+import sharp from "sharp";
 
 export const maxDuration = 60;
 
@@ -73,14 +74,18 @@ export async function POST(request) {
     }
 
     const timestamp = Date.now();
-    const ext = imageFile.type.split("/")[1] || "jpeg";
-    const beforePath = `mockups/${timestamp}-before.${ext}`;
+    const beforePath = `mockups/${timestamp}-before.jpg`;
 
-    // Upload original image to Supabase first so we have a real URL for Replicate
-    const bytes = await imageFile.arrayBuffer();
+    // Resize to max 768px before uploading — phone photos are 4K+ and cause GPU OOM on Replicate
+    const rawBytes = await imageFile.arrayBuffer();
+    const resized = await sharp(Buffer.from(rawBytes))
+      .resize(768, 768, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+
     const { error: uploadError } = await supabase.storage
       .from("stackedwork-images")
-      .upload(beforePath, bytes, { contentType: imageFile.type });
+      .upload(beforePath, resized, { contentType: "image/jpeg" });
 
     if (uploadError) {
       console.error("Upload error:", uploadError);
