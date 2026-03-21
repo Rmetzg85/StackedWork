@@ -97,18 +97,16 @@ export async function POST(request) {
     const prompt = PROMPTS[typeKey]?.[style] || PROMPTS["other"]["Modern Minimalist"];
 
     const prediction = await replicate.predictions.create({
-      version: "39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
+      model: "stability-ai/stable-diffusion-img2img",
       input: {
         image: beforeUrlData.publicUrl,
         prompt: prompt,
         negative_prompt: NEG,
         prompt_strength: 0.6,
-        num_inference_steps: 10,
+        num_inference_steps: 20,
         guidance_scale: 7.5,
         scheduler: "K_EULER",
-        width: 512,
-        height: 512,
-        refine: "no_refiner",
+        num_outputs: 1,
       },
     });
 
