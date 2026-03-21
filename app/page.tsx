@@ -13,7 +13,7 @@ const FEATURES = [
   { icon: "📸", title: "AI Photo Mockups", desc: "Snap a photo on-site, get a realistic rendering of the finished job in seconds. Close deals on the spot.", link: "mockups" },
   { icon: "📊", title: "Revenue Dashboard", desc: "See what you've earned this week, this month, this year. Know which jobs are profitable and which aren't.", link: "dashboard" },
   { icon: "📲", title: "Lead Management", deshc: "Track every lead, follow up on time, and never let a job slip through the cracks.", link: "jobs" },
-  { icon: "💬", title: "Text Us To Update Anything", desc: "Need your phone number changed on your site? New photo? Just text us. We handle it.", link: "dashboard" },
+  { icon: "💬", title: "Text Us To Update Anything", desc: "Need your phone number changed on your site? New photo? Just text us. We handle it.", link: "sms:+14105306456" },
 ];
 const COMPARISONS = [
   { item: "CRM software", them: "$50-100/mo", us: "Included" },
