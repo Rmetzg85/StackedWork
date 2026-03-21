@@ -132,7 +132,8 @@ export default function StackedWork() {
   useEffect(() => { const i = setInterval(() => setAf(p=>(p+1)%FEATURES.length),4000); return () => clearInterval(i); }, []);
   useEffect(() => { if(page==="app"&&vw==="dashboard"&&!td){ const t=setTimeout(()=>setTst({name:"Chris Mitchell",msg:"Need a quote for bathroom remodel"}),3000); return()=>clearTimeout(t); }}, [page,vw,td]);
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // onAuthStateChange fires INITIAL_SESSION on mount and catches redirects from /login
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         setPage("app");
         setUserId(session.user.id);
@@ -140,6 +141,7 @@ export default function StackedWork() {
         checkSub(session.user.email!);
       }
     });
+    return () => authSub.unsubscribe();
   }, []);
   const handleNewJob = async () => {
     if (!userId || !njCustomer.trim() || !njValue) return;
