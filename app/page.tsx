@@ -65,10 +65,75 @@ export default function StackedWork() {
   const [njNotes, setNjNotes] = useState("");
   const [njLoading, setNjLoading] = useState(false);
   const [njError, setNjError] = useState<string|null>(null);
+  const [dbPhotos, setDbPhotos] = useState<any[]>([]);
+  const [photoView, setPhotoView] = useState<"gallery"|"upload">("gallery");
+  const [phBefore, setPhBefore] = useState<string|null>(null);
+  const [phAfter, setPhAfter] = useState<string|null>(null);
+  const [phBeforeFile, setPhBeforeFile] = useState<File|null>(null);
+  const [phAfterFile, setPhAfterFile] = useState<File|null>(null);
+  const [phCaption, setPhCaption] = useState("");
+  const [phJobType, setPhJobType] = useState("other");
+  const [phUploading, setPhUploading] = useState(false);
+  const [phErr, setPhErr] = useState<string|null>(null);
+  const [sharePhoto, setSharePhoto] = useState<any|null>(null);
+  const beforeRef = useRef<HTMLInputElement>(null);
+  const afterRef = useRef<HTMLInputElement>(null);
 
   const checkSub = async (email: string) => {
     const { data } = await supabase.from("subscriptions").select("status").eq("email", email).maybeSingle();
     setSubStatus(data?.status ?? "none");
+  };
+
+  const handlePhotoFile = (file: File, side: "before"|"after") => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (side === "before") { setPhBefore(ev.target?.result as string); setPhBeforeFile(file); }
+      else { setPhAfter(ev.target?.result as string); setPhAfterFile(file); }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handlePhotoUpload = async () => {
+    if (!userId || !phBeforeFile || !phAfterFile) return;
+    setPhUploading(true); setPhErr(null);
+    try {
+      const ts = Date.now();
+      const up = async (file: File, path: string) => {
+        const bytes = await file.arrayBuffer();
+        const { error } = await supabase.storage.from("stackedwork-images").upload(path, bytes, { contentType: file.type, upsert: true });
+        if (error) throw error;
+        return supabase.storage.from("stackedwork-images").getPublicUrl(path).data.publicUrl;
+      };
+      const beforeUrl = await up(phBeforeFile, `portfolio/${ts}-before.jpg`);
+      const afterUrl = await up(phAfterFile, `portfolio/${ts}-after.jpg`);
+      const { data, error } = await supabase.from("portfolio").insert({ contractor_id: userId, before_url: beforeUrl, after_url: afterUrl, job_type: phJobType, caption: phCaption }).select().single();
+      if (error) throw error;
+      if (data) setDbPhotos(prev => [data, ...prev]);
+      setPhBefore(null); setPhAfter(null); setPhBeforeFile(null); setPhAfterFile(null); setPhCaption(""); setPhJobType("other");
+      setPhotoView("gallery");
+    } catch (err: any) { setPhErr(err.message || "Upload failed. Please try again."); }
+    finally { setPhUploading(false); }
+  };
+
+  const shareToSocial = async (platform: string, photo: any) => {
+    const url = photo.after_url || photo.before_url;
+    const caption = photo.caption || "Check out this project!";
+    if (platform === "facebook") {
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, "_blank");
+    } else {
+      // Instagram & TikTok: use Web Share API on mobile, else download
+      if (typeof navigator !== "undefined" && navigator.share) {
+        try {
+          const resp = await fetch(url);
+          const blob = await resp.blob();
+          const file = new File([blob], "stackedwork-photo.jpg", { type: blob.type });
+          await navigator.share({ files: [file], title: "StackedWork", text: caption });
+        } catch { /* user cancelled or not supported */ }
+      } else {
+        const a = document.createElement("a");
+        a.href = url; a.download = "stackedwork-photo.jpg"; a.click();
+      }
+    }
   };
 
   const withTimeout = <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
@@ -140,6 +205,7 @@ export default function StackedWork() {
     if (!userId) return;
     supabase.from("leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbLeads(data); });
     supabase.from("jobs").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data }) => { if (data) setDbJobs(data); });
+    supabase.from("portfolio").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbPhotos(data); });
     const ch = supabase.channel("leads_" + userId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads", filter: `contractor_id=eq.${userId}` }, (payload) => {
         setDbLeads(prev => [payload.new as any, ...prev]);
@@ -190,7 +256,7 @@ export default function StackedWork() {
   }
 
   if(page==="app"){
-    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"leads",ic:"📥",lb:"Leads"},{id:"customers",ic:"👥",lb:"Clients"},{id:"followups",ic:"🔔",lb:"Alerts"}];
+    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"followups",ic:"🔔",lb:"Alerts"}];
     return(
       <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh"}}>
         <style>{`
@@ -278,6 +344,38 @@ export default function StackedWork() {
             </div>
           </div>
         </div>}
+        {sharePhoto&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:80,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:16}} onClick={()=>setSharePhoto(null)}>
+          <div style={{background:"#fff",borderRadius:20,width:"100%",maxWidth:480,overflow:"hidden",marginBottom:8}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+            <div style={{position:"relative",background:"#000"}}>
+              {sharePhoto.after_url
+                ? <img src={sharePhoto.after_url} alt="After" style={{width:"100%",maxHeight:260,objectFit:"cover",display:"block"}}/>
+                : <div style={{height:180,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48}}>📸</div>}
+              <div style={{position:"absolute",bottom:10,left:12,background:"rgba(0,0,0,0.55)",borderRadius:100,padding:"3px 12px",fontSize:11,fontWeight:700,color:"#fff"}}>
+                {sharePhoto.job_type?.toUpperCase()||"PROJECT"}
+              </div>
+            </div>
+            <div style={{padding:"18px 20px"}}>
+              <div style={{fontWeight:700,fontSize:15,color:"#0F172A",marginBottom:4}}>Share to Social Media</div>
+              {sharePhoto.caption&&<div style={{fontSize:13,color:"#64748B",marginBottom:16}}>{sharePhoto.caption}</div>}
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <button onClick={()=>shareToSocial("facebook",sharePhoto)} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 16px",background:"#1877F2",color:"#fff",border:"none",borderRadius:12,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.27h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+                  Share on Facebook
+                </button>
+                <button onClick={()=>shareToSocial("instagram",sharePhoto)} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 16px",background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",color:"#fff",border:"none",borderRadius:12,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                  Share to Instagram
+                </button>
+                <button onClick={()=>shareToSocial("tiktok",sharePhoto)} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 16px",background:"#000",color:"#fff",border:"none",borderRadius:12,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.76a4.85 4.85 0 01-1.01-.07z"/></svg>
+                  Share to TikTok
+                </button>
+              </div>
+              <div style={{fontSize:11,color:"#94A3B8",marginTop:12,textAlign:"center"}}>Instagram & TikTok: saves photo to your device to upload</div>
+              <button onClick={()=>setSharePhoto(null)} style={{marginTop:14,width:"100%",padding:"11px",background:"#F1F5F9",border:"none",borderRadius:10,fontSize:14,fontWeight:600,color:"#64748B",cursor:"pointer",fontFamily:"'DM Sans'"}}>Cancel</button>
+            </div>
+          </div>
+        </div>}
         <div style={{display:"flex",minHeight:"calc(100vh - 53px)"}}>
           <aside className="sw-sd"><div style={{marginBottom:20}}/>{nv.map(n=><div key={n.id} className={`sw-sl ${vw===n.id?"sw-a":""}`} onClick={()=>setVw(n.id)}><span>{n.ic}</span> {n.lb}</div>)}</aside>
           <main style={{flex:1,padding:"20px 16px 100px",maxWidth:960,overflow:"auto"}}>
@@ -301,6 +399,60 @@ export default function StackedWork() {
               <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{["all","quoted","scheduled","in-progress","complete"].map(f=><button key={f} className={`sw-fb ${jf===f?"sw-a":""}`} onClick={()=>setJf(f)}>{f==="all"?"All":STC[f]?.label||f}</button>)}</div>
               {fJ.length===0?<Card style={{padding:40,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🔨</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No jobs yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Add your first job to start tracking revenue.</div><Btn onClick={()=>userId?setNewJobOpen(true):setAuthMode("login")}>+ Add First Job</Btn></Card>
               :<Card style={{overflow:"hidden"}}>{fJ.map((j:any)=><div key={j.id} className="sw-jm"><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><div><div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.date}{j.phone?` · ${j.phone}`:""}</div></div><div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>${Number(j.value).toLocaleString()}</div></div><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge s={j.status}/>{userId&&j.status!=="complete"&&<select value={j.status} onChange={e=>updateJobStatus(j.id,e.target.value)} style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"'DM Sans'"}}><option value="quoted">→ Quoted</option><option value="scheduled">→ Scheduled</option><option value="in-progress">→ In Progress</option><option value="complete">→ Complete</option></select>}</div></div>)}</Card>}
+            </>}
+            {vw==="photos"&&<>
+              <input ref={beforeRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handlePhotoFile(f,"before");e.target.value="";}}/>
+              <input ref={afterRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handlePhotoFile(f,"after");e.target.value="";}}/>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10}}>
+                <div><h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:2}}>Before & After Photos</h1><p style={{fontSize:13,color:"#94A3B8"}}>Document your work. Share it anywhere.</p></div>
+                {userId&&<Btn onClick={()=>{setPhotoView("upload");setPhBefore(null);setPhAfter(null);setPhBeforeFile(null);setPhAfterFile(null);setPhCaption("");setPhJobType("other");setPhErr(null);}}>+ Add Photos</Btn>}
+              </div>
+              {photoView==="upload"&&<Card style={{padding:24,marginBottom:20}}>
+                <div style={{fontWeight:700,fontSize:15,color:"#0F172A",marginBottom:16}}>Upload Before & After</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
+                  <div onClick={()=>beforeRef.current?.click()} style={{border:phBefore?`2px solid ${G}`:"2px dashed #D1D5DB",borderRadius:14,overflow:"hidden",background:phBefore?"#000":"#FAFBFC",cursor:"pointer",minHeight:140,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",position:"relative"}}>
+                    {phBefore
+                      ? <><img src={phBefore} alt="Before" style={{width:"100%",height:140,objectFit:"cover"}}/><div style={{position:"absolute",bottom:6,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,0.6)",color:"#fff",fontSize:10,fontWeight:700,padding:"2px 10px",borderRadius:100,whiteSpace:"nowrap"}}>BEFORE</div></>
+                      : <><div style={{fontSize:30,marginBottom:6}}>📷</div><div style={{fontSize:12,fontWeight:600,color:"#475569"}}>Before</div><div style={{fontSize:10,color:"#94A3B8"}}>tap to add</div></>}
+                  </div>
+                  <div onClick={()=>afterRef.current?.click()} style={{border:phAfter?`2px solid ${G}`:"2px dashed #D1D5DB",borderRadius:14,overflow:"hidden",background:phAfter?"#000":"#FAFBFC",cursor:"pointer",minHeight:140,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",position:"relative"}}>
+                    {phAfter
+                      ? <><img src={phAfter} alt="After" style={{width:"100%",height:140,objectFit:"cover"}}/><div style={{position:"absolute",bottom:6,left:"50%",transform:"translateX(-50%)",background:`${G}dd`,color:"#132440",fontSize:10,fontWeight:700,padding:"2px 10px",borderRadius:100,whiteSpace:"nowrap"}}>AFTER ✨</div></>
+                      : <><div style={{fontSize:30,marginBottom:6}}>✨</div><div style={{fontSize:12,fontWeight:600,color:"#475569"}}>After</div><div style={{fontSize:10,color:"#94A3B8"}}>tap to add</div></>}
+                  </div>
+                </div>
+                <div style={{marginBottom:14}}><div style={{fontWeight:600,fontSize:12,color:"#374151",marginBottom:8}}>Job Type</div><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>{[["🚿 Bath","bathroom"],["🍳 Kitchen","kitchen"],["🎨 Paint","paint"],["🏡 Exterior","exterior"],["🪵 Deck","deck"],["🔧 Other","other"]].map(([lb,k],i)=><div key={i} onClick={()=>setPhJobType(k)} style={{padding:"8px 4px",textAlign:"center",border:phJobType===k?`2px solid ${G}`:"1px solid #E2E8F0",borderRadius:8,fontSize:11,fontWeight:500,color:phJobType===k?"#132440":"#475569",background:phJobType===k?"rgba(200,230,74,0.1)":"#fff",cursor:"pointer"}}>{lb}</div>)}</div></div>
+                <div style={{marginBottom:16}}><div style={{fontWeight:600,fontSize:12,color:"#374151",marginBottom:6}}>Caption (optional)</div><input value={phCaption} onChange={e=>setPhCaption(e.target.value)} placeholder="Bathroom gut remodel — Owings Mills, MD" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+                {phErr&&<div style={{marginBottom:12,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:12,color:"#991B1B"}}>{phErr}</div>}
+                <div style={{display:"flex",gap:10}}>
+                  <Btn onClick={handlePhotoUpload} style={{flex:1,padding:13,fontSize:14,opacity:(phBeforeFile&&phAfterFile&&!phUploading)?1:0.5,cursor:(phBeforeFile&&phAfterFile&&!phUploading)?"pointer":"not-allowed"}}>{phUploading?"Uploading...":"Save Photos"}</Btn>
+                  <BtnO onClick={()=>setPhotoView("gallery")} style={{padding:13}}>Cancel</BtnO>
+                </div>
+              </Card>}
+              {dbPhotos.length===0&&photoView==="gallery"
+                ? <Card style={{padding:"48px 20px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>📸</div><div style={{fontWeight:700,fontSize:16,color:"#0F172A",marginBottom:6}}>No photos yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Upload before & after photos to build your portfolio and share to social media.</div>{userId&&<Btn onClick={()=>setPhotoView("upload")}>+ Add First Photos</Btn>}</Card>
+                : <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                    {dbPhotos.map((p,i)=>{
+                      const d=p.created_at?new Date(p.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"";
+                      const jtEmoji:any={"bathroom":"🚿","kitchen":"🍳","paint":"🎨","exterior":"🏡","deck":"🪵","other":"🔧"};
+                      return<Card key={p.id||i} style={{overflow:"hidden"}}>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
+                          <div style={{position:"relative",background:"#000",minHeight:160}}>
+                            {p.before_url?<img src={p.before_url} alt="Before" style={{width:"100%",height:160,objectFit:"cover",display:"block"}}/>:<div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,background:"#E2E8F0"}}>{jtEmoji[p.job_type]||"🔧"}</div>}
+                            <div style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.6)",color:"#fff",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:100}}>BEFORE</div>
+                          </div>
+                          <div style={{position:"relative",background:"#000",minHeight:160}}>
+                            {p.after_url?<img src={p.after_url} alt="After" style={{width:"100%",height:160,objectFit:"cover",display:"block"}}/>:<div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,background:"#F0FDF4"}}>{jtEmoji[p.job_type]||"🔧"}</div>}
+                            <div style={{position:"absolute",top:8,left:8,background:`${G}ee`,color:"#132440",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:100}}>AFTER ✨</div>
+                          </div>
+                        </div>
+                        <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+                          <div><div style={{fontWeight:600,fontSize:13,color:"#0F172A",textTransform:"capitalize"}}>{jtEmoji[p.job_type]||"🔧"} {p.job_type}{p.caption?` — ${p.caption}`:""}</div><div style={{fontSize:11,color:"#94A3B8"}}>{d}</div></div>
+                          <Btn onClick={()=>setSharePhoto(p)} style={{fontSize:12,padding:"7px 16px"}}>Share ↗</Btn>
+                        </div>
+                      </Card>;
+                    })}
+                  </div>}
             </>}
             {vw==="customers"&&<>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Customers</h1><Btn>+ Add</Btn></div>
