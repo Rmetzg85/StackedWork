@@ -45,26 +45,16 @@ export default function StackedWork() {
   const [af, setAf] = useState(0);
   const [vw, setVw] = useState("dashboard");
   const [jf, setJf] = useState("all");
-  const [ms, setMs] = useState("gallery");
-  const [mSt, setMSt] = useState<string|null>(null);
-  const [mGn, setMGn] = useState(false);
-  const [mDn, setMDn] = useState(false);
   const [ntf, setNtf] = useState(false);
   const [sms, setSms] = useState(false);
   const [spv, setSpv] = useState(false);
   const [tst, setTst] = useState<any>(null);
   const [td, setTd] = useState(false);
-  const [mPh, setMPh] = useState<string|null>(null);
-  const [mFile, setMFile] = useState<File|null>(null);
-  const [mJt, setMJt] = useState<string>("other");
-  const [mErr, setMErr] = useState<string|null>(null);
-  const [mResult, setMResult] = useState<{beforeUrl:string,afterUrl:string}|null>(null);
   const [userId, setUserId] = useState<string|null>(null);
   const [userEmail, setUserEmail] = useState<string|null>(null);
   const [subStatus, setSubStatus] = useState<string|null>(null);
   const [dbLeads, setDbLeads] = useState<any[]>([]);
   const [dbJobs, setDbJobs] = useState<any[]>([]);
-  const [dbMockups, setDbMockups] = useState<any[]>([]);
   const [newJobOpen, setNewJobOpen] = useState(false);
   const [njCustomer, setNjCustomer] = useState("");
   const [njPhone, setNjPhone] = useState("");
@@ -75,57 +65,6 @@ export default function StackedWork() {
   const [njNotes, setNjNotes] = useState("");
   const [njLoading, setNjLoading] = useState(false);
   const [njError, setNjError] = useState<string|null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const handleMockupFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setMFile(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setMPh(ev.target?.result as string);
-    reader.readAsDataURL(file);
-  };
-
-  const handleGenerateMockup = async (retryCount = 0) => {
-    if (!mFile) return;
-    setMGn(true); setMErr(null);
-    try {
-      const fd = new FormData();
-      fd.append("image", mFile); fd.append("jobType", mJt); fd.append("style", mSt || "Modern Minimalist");
-      if (userId) fd.append("userId", userId);
-      const res = await fetch("/api/generate-mockup", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Generation failed");
-
-      const { predictionId, mockupId, beforeUrl } = data;
-      let attempts = 0;
-      const maxAttempts = 90;
-
-      const poll = async () => {
-        if (attempts >= maxAttempts) { setMGn(false); setMErr("Generation timed out. Please try again."); return; }
-        attempts++;
-        try {
-          const statusRes = await fetch(`/api/mockup-status?predictionId=${predictionId}&mockupId=${mockupId || ""}`);
-          const statusData = await statusRes.json();
-          if (statusData.status === "succeeded") {
-            setMResult({ beforeUrl, afterUrl: statusData.afterUrl });
-            setMGn(false); setMDn(true);
-            if (userId && mockupId) setDbMockups(prev => [{ id: mockupId, beforeUrl, afterUrl: statusData.afterUrl, jobType: mJt, style: mSt, createdAt: new Date().toISOString() }, ...prev]);
-          } else if (statusData.status === "failed") {
-            const isServerLoad = (statusData.error || "").toLowerCase().includes("server load");
-            if (isServerLoad && retryCount < 2) {
-              setTimeout(() => handleGenerateMockup(retryCount + 1), 3000);
-            } else {
-              setMGn(false); setMErr(statusData.error || "Generation failed. Please try again.");
-            }
-          } else {
-            setTimeout(poll, 3000);
-          }
-        } catch { setTimeout(poll, 3000); }
-      };
-      setTimeout(poll, 5000);
-    } catch (err: any) { setMGn(false); setMErr(err?.message || "Generation failed. Please try again."); }
-  };
 
   const checkSub = async (email: string) => {
     const { data } = await supabase.from("subscriptions").select("status").eq("email", email).maybeSingle();
@@ -201,7 +140,6 @@ export default function StackedWork() {
     if (!userId) return;
     supabase.from("leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbLeads(data); });
     supabase.from("jobs").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data }) => { if (data) setDbJobs(data); });
-    supabase.from("mockups").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbMockups(data); });
     const ch = supabase.channel("leads_" + userId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads", filter: `contractor_id=eq.${userId}` }, (payload) => {
         setDbLeads(prev => [payload.new as any, ...prev]);
@@ -252,7 +190,7 @@ export default function StackedWork() {
   }
 
   if(page==="app"){
-    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"leads",ic:"📥",lb:"Leads"},{id:"mockups",ic:"📸",lb:"Mockups"},{id:"customers",ic:"👥",lb:"Clients"},{id:"followups",ic:"🔔",lb:"Alerts"}];
+    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"leads",ic:"📥",lb:"Leads"},{id:"customers",ic:"👥",lb:"Clients"},{id:"followups",ic:"🔔",lb:"Alerts"}];
     return(
       <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh"}}>
         <style>{`
@@ -363,47 +301,6 @@ export default function StackedWork() {
               <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{["all","quoted","scheduled","in-progress","complete"].map(f=><button key={f} className={`sw-fb ${jf===f?"sw-a":""}`} onClick={()=>setJf(f)}>{f==="all"?"All":STC[f]?.label||f}</button>)}</div>
               {fJ.length===0?<Card style={{padding:40,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🔨</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No jobs yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Add your first job to start tracking revenue.</div><Btn onClick={()=>userId?setNewJobOpen(true):setAuthMode("login")}>+ Add First Job</Btn></Card>
               :<Card style={{overflow:"hidden"}}>{fJ.map((j:any)=><div key={j.id} className="sw-jm"><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><div><div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.date}{j.phone?` · ${j.phone}`:""}</div></div><div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>${Number(j.value).toLocaleString()}</div></div><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge s={j.status}/>{userId&&j.status!=="complete"&&<select value={j.status} onChange={e=>updateJobStatus(j.id,e.target.value)} style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"'DM Sans'"}}><option value="quoted">→ Quoted</option><option value="scheduled">→ Scheduled</option><option value="in-progress">→ In Progress</option><option value="complete">→ Complete</option></select>}</div></div>)}</Card>}
-            </>}
-            {vw==="mockups"&&<>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10}}>
-                <div><h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:2}}>AI Photo Mockups</h1><p style={{fontSize:13,color:"#94A3B8"}}>Show customers the finished job before you start.</p></div>
-                <Btn onClick={()=>{setMs("upload");setMDn(false);setMSt(null);setMGn(false);setMPh(null);setMFile(null);setMJt("other");setMErr(null);setMResult(null)}}>+ New Mockup</Btn>
-              </div>
-              {ms==="gallery"&&<Card style={{overflow:"hidden"}}>
-                <div style={{padding:"14px 18px",borderBottom:"2px solid #F1F5F9"}}><span style={{fontWeight:700,fontSize:14,color:"#0F172A"}}>Recent Mockups</span></div>
-                {userId ? (
-                  dbMockups.length === 0
-                    ? <div style={{padding:"40px 20px",textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>📸</div><div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>No mockups yet</div><div style={{fontSize:12,color:"#94A3B8"}}>Tap "+ New Mockup" to generate your first AI preview.</div></div>
-                    : dbMockups.map((m,i)=>{
-                        const jtEmoji:any={"bathroom":"🚿","kitchen":"🍳","paint":"🎨","exterior":"🏡","deck":"🪵","other":"🔧"};
-                        const e=jtEmoji[m.job_type]||"🔧";
-                        const d=m.created_at?new Date(m.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric"}):"";
-                        return<div key={m.id||i} style={{padding:"14px 18px",borderBottom:i<dbMockups.length-1?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                          <div style={{display:"flex",alignItems:"center",gap:12}}>
-                            {m.after_url?<img src={m.after_url} alt="mockup" style={{width:48,height:36,borderRadius:8,objectFit:"cover"}}/>:<div style={{width:48,height:36,borderRadius:8,background:"linear-gradient(135deg,#E0E7FF,#DBEAFE)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{e}</div>}
-                            <div><div style={{fontWeight:600,fontSize:13,color:"#0F172A",textTransform:"capitalize"}}>{m.job_type} - {m.style}</div><div style={{fontSize:11,color:"#94A3B8"}}>{d}</div></div>
-                          </div>
-                          <span style={{fontSize:11,color:"#16A34A",fontWeight:500}}>Done</span>
-                        </div>;
-                      })
-                ) : (
-                  [{c:"Sarah Johnson",p:"Bathroom Remodel",t:"Modern White Tile",d:"Feb 24",x:"Sent",e:"🚿"},{c:"John Smith",p:"Kitchen Backsplash",t:"Herringbone Marble",d:"Feb 22",x:"Closed",e:"🍳"},{c:"Angela White",p:"Deck Addition",t:"Composite Cedar",d:"Feb 18",x:"Closed",e:"🏡"}].map((m,i)=>
-                    <div key={i} style={{padding:"14px 18px",borderBottom:i<2?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:48,height:36,borderRadius:8,background:"linear-gradient(135deg,#E0E7FF,#DBEAFE)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{m.e}</div><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{m.c} - {m.p}</div><div style={{fontSize:11,color:"#94A3B8"}}>{m.t} - {m.d}</div></div></div>
-                      <span style={{fontSize:11,color:m.x==="Closed"?"#16A34A":"#64748B",fontWeight:500}}>{m.x}</span>
-                    </div>
-                  )
-                )}
-              </Card>}
-              {ms==="upload"&&!mGn&&!mDn&&<Card style={{padding:24}}>
-                <div onClick={()=>fileRef.current?.click()} style={{border:mPh?`2px solid ${G}`:"2px dashed #D1D5DB",borderRadius:16,padding:mPh?"12px":"40px 20px",textAlign:"center",marginBottom:20,background:mPh?"rgba(200,230,74,0.06)":"#FAFBFC",cursor:"pointer"}}><input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleMockupFile} style={{display:"none"}}/>{mPh?<div><img src={mPh} alt="Preview" style={{width:"100%",maxHeight:200,objectFit:"cover",borderRadius:10,marginBottom:8}}/><div style={{fontSize:12,color:"#64748B",fontWeight:500}}>Photo uploaded — tap to change</div></div>:<><div style={{fontSize:44,marginBottom:10}}>📸</div><div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>Take a photo or upload</div><div style={{fontSize:12,color:"#94A3B8"}}>Snap a pic of the room or area</div></>}</div>
-                <div style={{marginBottom:20}}><div style={{fontWeight:600,fontSize:13,color:"#0F172A",marginBottom:10}}>Job type</div><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>{[["🚿 Bath","bathroom"],["🍳 Kitchen","kitchen"],["🎨 Paint","paint"],["🏡 Exterior","exterior"],["🪵 Deck","deck"],["🔧 Other","other"]].map(([label,key],i)=><div key={i} onClick={()=>setMJt(key)} style={{padding:"10px 6px",textAlign:"center",border:mJt===key?`2px solid ${G}`:"1px solid #E2E8F0",borderRadius:8,fontSize:12,fontWeight:500,color:mJt===key?"#132440":"#475569",background:mJt===key?"rgba(200,230,74,0.1)":"#fff",cursor:"pointer"}}>{label}</div>)}</div></div>
-                <div style={{marginBottom:20}}><div style={{fontWeight:600,fontSize:13,color:"#0F172A",marginBottom:10}}>Style</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>{[{n:"Modern Minimalist",d:"Clean lines, neutral"},{n:"Classic Traditional",d:"Warm wood, timeless"},{n:"Industrial",d:"Exposed, dark metals"},{n:"Farmhouse",d:"Shiplap, rustic"}].map((x,i)=><div key={i} onClick={()=>setMSt(x.n)} style={{padding:12,border:mSt===x.n?`2px solid ${G}`:"1px solid #E2E8F0",borderRadius:10,cursor:"pointer",background:mSt===x.n?"rgba(200,230,74,0.08)":"#fff"}}><div style={{fontWeight:600,fontSize:12,color:"#0F172A",marginBottom:2}}>{x.n}</div><div style={{fontSize:11,color:"#94A3B8"}}>{x.d}</div></div>)}</div></div>
-                {mErr&&<div style={{marginBottom:12,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:12,color:"#991B1B"}}>{mErr}</div>}
-                <Btn onClick={handleGenerateMockup} style={{width:"100%",padding:14,fontSize:15,opacity:mFile?1:0.5,cursor:mFile?"pointer":"not-allowed"}}>Generate Mockup</Btn>
-              </Card>}
-              {mGn&&<Card style={{padding:48,textAlign:"center"}}><div style={{fontSize:44,marginBottom:14,animation:"pulseMk 1.5s infinite"}}>🎨</div><div style={{fontWeight:700,fontSize:18,color:"#0F172A",marginBottom:6}}>Generating mockup...</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>AI is rendering a realistic preview</div><div style={{width:"100%",maxWidth:280,margin:"0 auto",height:6,background:"#E2E8F0",borderRadius:100,overflow:"hidden"}}><div style={{height:"100%",background:`linear-gradient(90deg,${G},${GD})`,borderRadius:100,animation:"barLoad 3s ease forwards"}}/></div></Card>}
-              {mDn&&<Card style={{overflow:"hidden"}}><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",minHeight:200}}><div style={{background:"linear-gradient(135deg,#94A3B8,#CBD5E1)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:0,borderRight:"2px solid #fff",position:"relative",overflow:"hidden"}}>{(mResult?.beforeUrl||mPh)?<><img src={mResult?.beforeUrl||mPh!} alt="Before" style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0}}/><div style={{position:"relative",zIndex:2,fontWeight:700,fontSize:13,color:"#fff",textShadow:"0 1px 6px rgba(0,0,0,0.5)",background:"rgba(0,0,0,0.4)",padding:"4px 14px",borderRadius:100}}>BEFORE</div></>:<><div style={{fontSize:36,marginBottom:6}}>🏚️</div><div style={{fontWeight:700,fontSize:13,color:"#fff",textShadow:"0 1px 3px rgba(0,0,0,0.3)"}}>BEFORE</div></>}</div><div style={{background:`linear-gradient(135deg,${GD},${G})`,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:0,position:"relative",overflow:"hidden"}}>{mResult?.afterUrl?<><img src={mResult.afterUrl} alt="After" style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0}}/><div style={{position:"relative",zIndex:2,fontWeight:700,fontSize:13,color:"#132440",background:`${G}dd`,padding:"4px 14px",borderRadius:100}}>AFTER ✨</div></>:mPh?<><img src={mPh} alt="After" style={{width:"100%",height:"100%",objectFit:"cover",position:"absolute",inset:0,filter:"brightness(1.15) contrast(1.1) saturate(1.3) hue-rotate(15deg)"}}/><div style={{position:"absolute",inset:0,background:"linear-gradient(135deg,rgba(200,230,74,0.25),rgba(168,196,53,0.15))",mixBlendMode:"overlay"}}/><div style={{position:"relative",zIndex:2,fontWeight:700,fontSize:13,color:"#132440",background:`${G}dd`,padding:"4px 14px",borderRadius:100}}>AFTER ✨</div></>:<><div style={{fontSize:36,marginBottom:6}}>✨</div><div style={{fontWeight:700,fontSize:13,color:"#132440"}}>AFTER</div></>}</div></div><div style={{padding:18}}><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:3}}>Mockup - {mSt||"Modern Minimalist"}</div><div style={{fontSize:12,color:"#94A3B8",marginBottom:14}}>Generated just now</div><div style={{display:"flex",gap:6,flexWrap:"wrap"}}><Btn style={{fontSize:12}}>Send to Customer</Btn><BtnO style={{fontSize:12}}>Save to Job</BtnO><BtnO onClick={()=>{setMs("gallery");setMDn(false);setMPh(null);setMResult(null)}} style={{fontSize:12}}>Gallery</BtnO></div></div></Card>}
             </>}
             {vw==="customers"&&<>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Customers</h1><Btn>+ Add</Btn></div>
