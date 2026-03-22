@@ -7,6 +7,8 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGci
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const G = "#C8E64A";
 const GD = "#A8C435";
+// Paste your Replicate-generated ad image URL here:
+const AD_IMAGE_URL = "";
 const FEATURES = [
   { icon: "🏗️", title: "AI-Powered CRM", desc: "Track every job, client, and dollar. Voice-to-job entry means you log work from the truck, not a desk.", link: "dashboard" },
   { icon: "🌐", title: "AI Website Service", desc: "Need a website built or updated? We offer AI-powered website services for contractors — inquire for pricing.", link: "https://REMVentures.Tech" },
@@ -668,7 +670,7 @@ export default function StackedWork() {
         <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>From the field</div>
         <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:40}}>Built for the trades.</h2>
         <div style={{borderRadius:16,overflow:"hidden",maxHeight:500,position:"relative"}}>
-          <img src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80" alt="Contractor on the job" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} />
+          <img src={AD_IMAGE_URL || "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80"} alt="Contractor on the job" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} />
           <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,transparent 50%,rgba(19,36,64,0.85) 100%)"}}/>
           <div style={{position:"absolute",bottom:32,left:32,right:32}}>
             <p style={{fontSize:"clamp(16px,2.5vw,22px)",fontWeight:600,color:"#fff",lineHeight:1.5,maxWidth:600,textShadow:"0 2px 8px rgba(0,0,0,0.5)"}}>The tools built for how you actually work — from the truck, on the job, closing deals on the spot.</p>
