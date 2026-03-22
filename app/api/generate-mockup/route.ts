@@ -97,7 +97,7 @@ export async function POST(request) {
     const prompt = PROMPTS[typeKey]?.[style] || PROMPTS["other"]["Modern Minimalist"];
 
     const prediction = await replicate.predictions.create({
-      model: "stability-ai/stable-diffusion-img2img",
+      version: "d991ed58d1254817879017e676da96d1c2c99976cac210395d14b17e1fb2b496",
       input: {
         image: beforeUrlData.publicUrl,
         prompt: prompt,
