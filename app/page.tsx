@@ -7,7 +7,8 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGci
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const G = "#C8E64A";
 const GD = "#A8C435";
-// Paste your Replicate-generated ad image URL here:
+// Paste your Replicate-generated ad video URL here:
+const AD_VIDEO_URL = "";
 const AD_IMAGE_URL = "";
 const FEATURES = [
   { icon: "🏗️", title: "AI-Powered CRM", desc: "Track every job, client, and dollar. Voice-to-job entry means you log work from the truck, not a desk.", link: "dashboard" },
@@ -639,6 +640,15 @@ export default function StackedWork() {
           <button onClick={()=>setPage("app")} style={{background:"transparent",color:G,border:"2px solid rgba(200,230,74,0.25)",padding:"16px 38px",fontSize:17,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>See Live Demo</button>
         </div>
       </section>
+      {AD_VIDEO_URL && (
+        <section style={{padding:"80px 24px",maxWidth:900,margin:"0 auto",textAlign:"center"}}>
+          <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>See it in action</div>
+          <h2 style={{fontSize:"clamp(26px,4vw,42px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:40}}>Run your business from the truck.</h2>
+          <div style={{borderRadius:16,overflow:"hidden",border:`1px solid rgba(200,230,74,0.2)`,boxShadow:`0 0 60px rgba(200,230,74,0.08)`}}>
+            <video src={AD_VIDEO_URL} autoPlay muted loop playsInline style={{width:"100%",display:"block"}} />
+          </div>
+        </section>
+      )}
       <section style={{padding:"100px 24px",maxWidth:1100,margin:"0 auto",position:"relative"}}>
         <div style={{position:"absolute",top:0,right:0,width:"50%",height:"100%",backgroundImage:"url(/living.jpg)",backgroundSize:"cover",backgroundPosition:"center",opacity:0.1,maskImage:"linear-gradient(to left,rgba(0,0,0,0.5),transparent)",WebkitMaskImage:"linear-gradient(to left,rgba(0,0,0,0.5),transparent)"}} />
         <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>What you get</div>
