@@ -136,6 +136,12 @@ export default function StackedWork() {
     }
   };
 
+  const deletePhoto = async (photo: any) => {
+    if (!confirm("Delete this photo?")) return;
+    await supabase.from("portfolio").delete().eq("id", photo.id);
+    setDbPhotos(prev => prev.filter(p => p.id !== photo.id));
+  };
+
   const withTimeout = <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
     Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Request timed out. Check your connection and try again.")), ms))]);
 
@@ -448,7 +454,10 @@ export default function StackedWork() {
                         </div>
                         <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
                           <div><div style={{fontWeight:600,fontSize:13,color:"#0F172A",textTransform:"capitalize"}}>{jtEmoji[p.job_type]||"🔧"} {p.job_type}{p.caption?` — ${p.caption}`:""}</div><div style={{fontSize:11,color:"#94A3B8"}}>{d}</div></div>
-                          <Btn onClick={()=>setSharePhoto(p)} style={{fontSize:12,padding:"7px 16px"}}>Share ↗</Btn>
+                          <div style={{display:"flex",gap:8}}>
+                            <Btn onClick={()=>setSharePhoto(p)} style={{fontSize:12,padding:"7px 16px"}}>Share ↗</Btn>
+                            <BtnO onClick={()=>deletePhoto(p)} style={{fontSize:12,padding:"7px 14px",color:"#EF4444",borderColor:"#FECACA"}}>Delete</BtnO>
+                          </div>
                         </div>
                       </Card>;
                     })}
