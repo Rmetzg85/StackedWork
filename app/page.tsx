@@ -55,6 +55,7 @@ export default function StackedWork() {
   const [subStatus, setSubStatus] = useState<string|null>(null);
   const [dbLeads, setDbLeads] = useState<any[]>([]);
   const [dbJobs, setDbJobs] = useState<any[]>([]);
+  const [dbHomeownerLeads, setDbHomeownerLeads] = useState<any[]>([]);
   const [newJobOpen, setNewJobOpen] = useState(false);
   const [njCustomer, setNjCustomer] = useState("");
   const [njPhone, setNjPhone] = useState("");
@@ -211,6 +212,7 @@ export default function StackedWork() {
     if (!userId) return;
     supabase.from("leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbLeads(data); });
     supabase.from("jobs").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data }) => { if (data) setDbJobs(data); });
+    supabase.from("homeowner_leads").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => { if (data) setDbHomeownerLeads(data); });
     supabase.from("portfolio").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbPhotos(data); });
     const ch = supabase.channel("leads_" + userId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads", filter: `contractor_id=eq.${userId}` }, (payload) => {
@@ -473,9 +475,9 @@ export default function StackedWork() {
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                 <h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Leads</h1>
               </div>
-              <p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{activeLeads.filter((l:any)=>!l.read).length} unread</p>
-              {activeLeads.length===0?<Card style={{padding:40,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>📥</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No leads yet</div><div style={{fontSize:13,color:"#94A3B8"}}>Leads submitted through your website will appear here in real time.</div></Card>
-              :<div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{activeLeads.filter((l:any)=>!l.read).length} unread from your site</p>
+              {activeLeads.length===0?<Card style={{padding:40,textAlign:"center",marginBottom:24}}><div style={{fontSize:36,marginBottom:12}}>📥</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No leads yet</div><div style={{fontSize:13,color:"#94A3B8"}}>Leads submitted through your website will appear here in real time.</div></Card>
+              :<div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
                 {activeLeads.map((l:any,i:number)=>(
                   <Card key={l.id||i} style={{padding:16,borderLeft:l.urgent?`4px solid #EF4444`:`4px solid ${G}`,opacity:l.read?0.6:1}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
@@ -497,6 +499,42 @@ export default function StackedWork() {
                   </Card>
                 ))}
               </div>}
+              {/* Homeowner requests from /find-contractor */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <div>
+                  <h2 style={{fontSize:17,fontWeight:700,color:"#fff",marginBottom:2}}>Maryland Homeowner Requests</h2>
+                  <p style={{fontSize:12,color:"#94A3B8"}}>Project requests submitted by homeowners at letstaystacked.com/find-contractor</p>
+                </div>
+                <a href="/find-contractor" target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:G,fontWeight:700,textDecoration:"none",whiteSpace:"nowrap"}}>View Page ↗</a>
+              </div>
+              {dbHomeownerLeads.length===0
+                ? <Card style={{padding:"28px 20px",textAlign:"center"}}><div style={{fontSize:32,marginBottom:10}}>🏡</div><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:4}}>No homeowner requests yet</div><div style={{fontSize:12,color:"#94A3B8"}}>Share letstaystacked.com/find-contractor to start receiving project leads from Maryland homeowners.</div></Card>
+                : <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {dbHomeownerLeads.map((l:any,i:number)=>{
+                      const d=l.created_at?new Date(l.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
+                      const jtEmoji:any={"bathroom":"🚿","kitchen":"🍳","paint":"🎨","exterior":"🏡","deck":"🪵","electrical":"⚡","plumbing":"🔧","hvac":"❄️","general":"🏗️","other":"🛠️"};
+                      return(
+                        <Card key={l.id||i} style={{padding:16,borderLeft:`4px solid #4A82C4`}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                            <div>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                                <span style={{fontSize:16}}>{jtEmoji[l.job_type]||"🛠️"}</span>
+                                <span style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>{l.name}</span>
+                                <span style={{fontSize:10,fontWeight:700,color:"#4A82C4",background:"#EFF6FF",padding:"2px 8px",borderRadius:100,textTransform:"uppercase"}}>{l.job_type}</span>
+                              </div>
+                              <div style={{fontSize:12,color:"#64748B"}}>{[l.phone,l.email].filter(Boolean).join(" · ")}{l.zip_code?` · ${l.zip_code}`:""}</div>
+                            </div>
+                            <span style={{fontSize:11,color:"#94A3B8",whiteSpace:"nowrap"}}>{d}</span>
+                          </div>
+                          {l.description&&<div style={{fontSize:13,color:"#475569",lineHeight:1.6,marginBottom:12,background:"#F8FAFC",borderRadius:8,padding:"8px 12px"}}>{l.description}</div>}
+                          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                            {l.phone&&<a href={`tel:${l.phone}`} style={{textDecoration:"none"}}><Btn style={{fontSize:12,padding:"7px 16px"}}>Call</Btn></a>}
+                            {l.email&&<a href={`mailto:${l.email}`} style={{textDecoration:"none"}}><BtnO style={{fontSize:12,padding:"7px 16px"}}>Email</BtnO></a>}
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>}
             </>}
             {vw==="followups"&&<>
               <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Follow-up Reminders</h1><p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Don&apos;t leave money on the table.</p>
@@ -659,6 +697,14 @@ export default function StackedWork() {
         <button onClick={handleSubscribe} style={{position:"relative",zIndex:1,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"20px 48px",fontSize:18,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Start Your Free Trial</button>
         <p style={{position:"relative",zIndex:1,marginTop:22,fontSize:12,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>14-DAY FREE TRIAL — CREDIT CARD REQUIRED — CANCEL ANYTIME</p>
       </section>
+      <div style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.15)",borderRadius:0,padding:"48px 24px",textAlign:"center"}}>
+        <div style={{maxWidth:560,margin:"0 auto"}}>
+          <div style={{fontSize:32,marginBottom:12}}>🏡</div>
+          <h3 style={{fontSize:22,fontWeight:800,marginBottom:8}}>Looking for a Contractor in Maryland?</h3>
+          <p style={{fontSize:15,color:"rgba(245,240,235,0.6)",marginBottom:24,lineHeight:1.7}}>Describe your project and get connected with MHIC-licensed contractors in your area — free, fast, and no obligation.</p>
+          <a href="/find-contractor" style={{display:"inline-block",background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",textDecoration:"none",padding:"14px 36px",borderRadius:10,fontSize:15,fontWeight:800}}>Find a Licensed Contractor →</a>
+        </div>
+      </div>
       <footer style={{padding:"40px 24px",borderTop:"1px solid rgba(255,255,255,0.05)",maxWidth:1100,margin:"0 auto"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:20,marginBottom:24}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -666,6 +712,7 @@ export default function StackedWork() {
             <span style={{fontSize:13,color:"rgba(245,240,235,0.3)"}}>StackedWork — A <span style={{color:"rgba(245,240,235,0.5)"}}>REM Ventures</span> product</span>
           </div>
           <div style={{display:"flex",gap:20,flexWrap:"wrap",alignItems:"center"}}>
+            <a href="/find-contractor" style={{color:"rgba(200,230,74,0.8)",fontSize:12,fontWeight:600,textDecoration:"none"}}>🏡 Find a Contractor</a>
             <a href="mailto:Rmetzgar@REMVentures.Tech" style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>Contact: Rmetzgar@REMVentures.Tech</a>
             {["Privacy","Terms"].map(l=><span key={l} style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer"}}>{l}</span>)}
           </div>
