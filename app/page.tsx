@@ -99,7 +99,7 @@ export default function StackedWork() {
 
       const { predictionId, mockupId, beforeUrl } = data;
       let attempts = 0;
-      const maxAttempts = 40;
+      const maxAttempts = 90;
 
       const poll = async () => {
         if (attempts >= maxAttempts) { setMGn(false); setMErr("Generation timed out. Please try again."); return; }
