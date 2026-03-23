@@ -82,6 +82,18 @@ export default function StackedWork() {
   const [sharePhoto, setSharePhoto] = useState<any|null>(null);
   const beforeRef = useRef<HTMLInputElement>(null);
   const afterRef = useRef<HTMLInputElement>(null);
+  const rcFileRef = useRef<HTMLInputElement>(null);
+  const [dbReceipts, setDbReceipts] = useState<any[]>([]);
+  const [rcView, setRcView] = useState<"list"|"upload">("list");
+  const [rcFile, setRcFile] = useState<File|null>(null);
+  const [rcPreview, setRcPreview] = useState<string|null>(null);
+  const [rcAmount, setRcAmount] = useState("");
+  const [rcCategory, setRcCategory] = useState("Materials");
+  const [rcDate, setRcDate] = useState(new Date().toISOString().split("T")[0]);
+  const [rcDesc, setRcDesc] = useState("");
+  const [rcUploading, setRcUploading] = useState(false);
+  const [rcErr, setRcErr] = useState<string|null>(null);
+  const [rcFilter, setRcFilter] = useState("all");
 
   const checkSub = async (email: string) => {
     const { data } = await supabase.from("subscriptions").select("status").eq("email", email).maybeSingle();
@@ -144,6 +156,51 @@ export default function StackedWork() {
     if (!confirm("Delete this photo?")) return;
     await supabase.from("portfolio").delete().eq("id", photo.id);
     setDbPhotos(prev => prev.filter(p => p.id !== photo.id));
+  };
+
+  const handleReceiptFile = (file: File) => {
+    setRcFile(file);
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setRcPreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setRcPreview(null);
+    }
+  };
+
+  const handleReceiptUpload = async () => {
+    if (!userId || !rcFile || !rcAmount) return;
+    setRcUploading(true); setRcErr(null);
+    try {
+      const ts = Date.now();
+      const ext = rcFile.name.split(".").pop() || "jpg";
+      const path = `receipts/${userId}-${ts}.${ext}`;
+      const bytes = await rcFile.arrayBuffer();
+      const { error: upErr } = await supabase.storage.from("stackedwork-images").upload(path, bytes, { contentType: rcFile.type, upsert: true });
+      if (upErr) throw upErr;
+      const fileUrl = supabase.storage.from("stackedwork-images").getPublicUrl(path).data.publicUrl;
+      const { data, error } = await supabase.from("receipts").insert({
+        contractor_id: userId,
+        file_url: fileUrl,
+        amount: parseFloat(rcAmount),
+        category: rcCategory,
+        date: rcDate,
+        description: rcDesc.trim() || null,
+      }).select().single();
+      if (error) throw error;
+      if (data) setDbReceipts(prev => [data, ...prev]);
+      setRcFile(null); setRcPreview(null); setRcAmount(""); setRcCategory("Materials");
+      setRcDate(new Date().toISOString().split("T")[0]); setRcDesc("");
+      setRcView("list");
+    } catch (err: any) { setRcErr(err.message || "Upload failed. Please try again."); }
+    finally { setRcUploading(false); }
+  };
+
+  const deleteReceipt = async (rc: any) => {
+    if (!confirm("Delete this receipt?")) return;
+    await supabase.from("receipts").delete().eq("id", rc.id);
+    setDbReceipts(prev => prev.filter(r => r.id !== rc.id));
   };
 
   const withTimeout = <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
@@ -217,6 +274,7 @@ export default function StackedWork() {
     supabase.from("jobs").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data }) => { if (data) setDbJobs(data); });
     supabase.from("homeowner_leads").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => { if (data) setDbHomeownerLeads(data); });
     supabase.from("portfolio").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbPhotos(data); });
+    supabase.from("receipts").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data }) => { if (data) setDbReceipts(data); });
     const ch = supabase.channel("leads_" + userId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads", filter: `contractor_id=eq.${userId}` }, (payload) => {
         setDbLeads(prev => [payload.new as any, ...prev]);
@@ -267,7 +325,7 @@ export default function StackedWork() {
   }
 
   if(page==="app"){
-    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"followups",ic:"🔔",lb:"Alerts"}];
+    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"receipts",ic:"🧾",lb:"Receipts"},{id:"followups",ic:"🔔",lb:"Alerts"}];
     return(
       <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh"}}>
         <style>{`
@@ -539,6 +597,138 @@ export default function StackedWork() {
                     })}
                   </div>}
             </>}
+            {vw==="receipts"&&(()=>{
+              const RC_CATS = ["Materials","Fuel/Gas","Equipment","Tools","Subcontractor","Insurance","Office/Software","Other"];
+              const nowY = new Date().getFullYear();
+              const nowM = new Date().getMonth();
+              const ytdR = dbReceipts.filter((r:any)=>new Date(r.date).getFullYear()===nowY).reduce((a:number,r:any)=>a+Number(r.amount),0);
+              const moR2 = dbReceipts.filter((r:any)=>{const d=new Date(r.date);return d.getFullYear()===nowY&&d.getMonth()===nowM}).reduce((a:number,r:any)=>a+Number(r.amount),0);
+              const filtered = rcFilter==="all" ? dbReceipts : dbReceipts.filter((r:any)=>r.category===rcFilter);
+              return(<>
+                <input ref={rcFileRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handleReceiptFile(f);e.target.value="";}}/>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <div>
+                    <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:2}}>Receipts</h1>
+                    <p style={{fontSize:12,color:"#94A3B8"}}>Track expenses for tax time</p>
+                  </div>
+                  <Btn onClick={()=>{setRcView(rcView==="upload"?"list":"upload");setRcErr(null);}}>
+                    {rcView==="upload"?"← Back":"+ Upload"}
+                  </Btn>
+                </div>
+
+                {rcView==="list"&&<>
+                  {/* Summary cards */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
+                    {[
+                      {l:"YTD Expenses",v:`$${ytdR.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`,s:`${nowY} total`},
+                      {l:"This Month",v:`$${moR2.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`,s:"current month"},
+                      {l:"Receipts",v:String(dbReceipts.length),s:"uploaded"},
+                    ].map((s,i)=>(
+                      <div key={i} style={{background:"linear-gradient(135deg,#0F172A,#1E293B)",borderRadius:12,padding:"14px 12px",color:"#fff"}}>
+                        <div style={{fontSize:9,color:"#94A3B8",fontFamily:"'Space Mono'",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:5}}>{s.l}</div>
+                        <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>{s.v}</div>
+                        <div style={{fontSize:10,color:"#94A3B8"}}>{s.s}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Category filter */}
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+                    {["all",...RC_CATS].map(c=>(
+                      <button key={c} className={`sw-fb ${rcFilter===c?"sw-a":""}`} onClick={()=>setRcFilter(c)}>
+                        {c==="all"?"All":c}
+                      </button>
+                    ))}
+                  </div>
+
+                  {filtered.length===0
+                    ? <Card style={{padding:"40px 20px",textAlign:"center"}}>
+                        <div style={{fontSize:36,marginBottom:12}}>🧾</div>
+                        <div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>No receipts yet</div>
+                        <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Upload receipts to track deductible expenses</div>
+                        <Btn onClick={()=>setRcView("upload")}>Upload First Receipt</Btn>
+                      </Card>
+                    : <Card>
+                        {filtered.map((rc:any,i:number)=>(
+                          <div key={rc.id} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderBottom:i<filtered.length-1?"1px solid #F1F5F9":"none"}}>
+                            <div
+                              onClick={()=>window.open(rc.file_url,"_blank")}
+                              style={{width:44,height:44,borderRadius:8,background:"#F1F5F9",flexShrink:0,overflow:"hidden",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
+                            >
+                              {rc.file_url.match(/\.(jpg|jpeg|png|webp|gif)$/i)
+                                ? <img src={rc.file_url} alt="receipt" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                                : <span style={{fontSize:20}}>📄</span>}
+                            </div>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                                <div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>${Number(rc.amount).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+                                <div style={{fontSize:11,color:"#94A3B8"}}>{new Date(rc.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                              </div>
+                              <div style={{display:"flex",gap:6,alignItems:"center",marginTop:3}}>
+                                <span style={{fontSize:10,fontWeight:700,background:"#EEF2FF",color:"#3730A3",padding:"2px 8px",borderRadius:100}}>{rc.category}</span>
+                                {rc.description&&<span style={{fontSize:11,color:"#64748B",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{rc.description}</span>}
+                              </div>
+                            </div>
+                            <button onClick={()=>deleteReceipt(rc)} style={{background:"none",border:"none",color:"#CBD5E1",cursor:"pointer",fontSize:16,padding:"4px",flexShrink:0}}>×</button>
+                          </div>
+                        ))}
+                      </Card>
+                  }
+                </>}
+
+                {rcView==="upload"&&(
+                  <Card style={{padding:24,maxWidth:480}}>
+                    <h2 style={{fontSize:16,fontWeight:700,color:"#0F172A",marginBottom:18}}>Upload Receipt</h2>
+
+                    {/* File picker */}
+                    <div
+                      onClick={()=>rcFileRef.current?.click()}
+                      style={{border:`2px dashed ${rcFile?G:"#E2E8F0"}`,borderRadius:10,padding:"20px",textAlign:"center",cursor:"pointer",marginBottom:16,background:rcFile?"rgba(200,230,74,0.04)":"#FAFBFC",transition:"all .2s"}}
+                    >
+                      {rcPreview
+                        ? <img src={rcPreview} alt="preview" style={{maxHeight:140,maxWidth:"100%",borderRadius:8,objectFit:"contain"}}/>
+                        : rcFile
+                          ? <div style={{fontSize:13,color:"#64748B"}}>📄 {rcFile.name}</div>
+                          : <><div style={{fontSize:28,marginBottom:8}}>📸</div><div style={{fontSize:13,fontWeight:600,color:"#374151"}}>Tap to upload receipt</div><div style={{fontSize:11,color:"#94A3B8",marginTop:4}}>Photo or PDF</div></>
+                      }
+                    </div>
+
+                    {/* Amount + Date */}
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                      <div>
+                        <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Amount ($) *</label>
+                        <input type="number" min="0" step="0.01" value={rcAmount} onChange={e=>setRcAmount(e.target.value)} placeholder="0.00" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                      </div>
+                      <div>
+                        <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Date *</label>
+                        <input type="date" value={rcDate} onChange={e=>setRcDate(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                      </div>
+                    </div>
+
+                    {/* Category */}
+                    <div style={{marginBottom:14}}>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Category</label>
+                      <select value={rcCategory} onChange={e=>setRcCategory(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>
+                        {RC_CATS.map(c=><option key={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Description */}
+                    <div style={{marginBottom:20}}>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Description (optional)</label>
+                      <input value={rcDesc} onChange={e=>setRcDesc(e.target.value)} placeholder="e.g. Lumber from Home Depot" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+
+                    {rcErr&&<div style={{marginBottom:14,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:13,color:"#991B1B"}}>{rcErr}</div>}
+                    <button
+                      onClick={handleReceiptUpload}
+                      disabled={rcUploading||!rcFile||!rcAmount}
+                      style={{width:"100%",padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:rcUploading||!rcFile||!rcAmount?"not-allowed":"pointer",opacity:rcUploading||!rcFile||!rcAmount?0.6:1,fontFamily:"'DM Sans'"}}
+                    >{rcUploading?"Saving...":"Save Receipt"}</button>
+                  </Card>
+                )}
+              </>);
+            })()}
             {vw==="followups"&&<>
               <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Follow-up Reminders</h1><p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Don&apos;t leave money on the table.</p>
               <div style={{padding:"40px 20px",textAlign:"center",color:"#94A3B8"}}><div style={{fontSize:36,marginBottom:12}}>🔔</div><div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>No follow-ups yet</div><div style={{fontSize:12}}>Completed jobs will appear here as reminders to re-engage past clients.</div></div>
