@@ -712,8 +712,8 @@ export default function StackedWork() {
       <div style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.15)",borderRadius:0,padding:"48px 24px",textAlign:"center"}}>
         <div style={{maxWidth:560,margin:"0 auto"}}>
           <div style={{fontSize:32,marginBottom:12}}>🏡</div>
-          <h3 style={{fontSize:22,fontWeight:800,marginBottom:8}}>Looking for a Contractor in Maryland?</h3>
-          <p style={{fontSize:15,color:"rgba(245,240,235,0.6)",marginBottom:24,lineHeight:1.7}}>Describe your project and get connected with MHIC-licensed contractors in your area — free, fast, and no obligation.</p>
+          <h3 style={{fontSize:22,fontWeight:800,marginBottom:8}}>Looking for a Licensed Contractor?</h3>
+          <p style={{fontSize:15,color:"rgba(245,240,235,0.6)",marginBottom:24,lineHeight:1.7}}>Describe your project and get connected with state-licensed contractors in your area — free, fast, and no obligation. All 50 states.</p>
           <a href="/find-contractor" style={{display:"inline-block",background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",textDecoration:"none",padding:"14px 36px",borderRadius:10,fontSize:15,fontWeight:800}}>Find a Licensed Contractor →</a>
         </div>
       </div>
