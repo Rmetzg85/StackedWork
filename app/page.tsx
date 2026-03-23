@@ -897,7 +897,7 @@ export default function StackedWork() {
         <h2 style={{position:"relative",zIndex:1,fontSize:"clamp(34px,5vw,56px)",fontWeight:700,letterSpacing:"-0.03em",maxWidth:600,margin:"0 auto 16px"}}>Ready to stop hustling backwards?</h2>
         <p style={{position:"relative",zIndex:1,fontSize:17,color:"rgba(245,240,235,0.5)",maxWidth:480,margin:"0 auto 44px"}}>$49.99/month. CRM + photo portfolio + lead tracking. Cancel anytime. No contracts. No setup fees.</p>
         <button onClick={handleSubscribe} style={{position:"relative",zIndex:1,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"20px 48px",fontSize:18,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Start Your Free Trial</button>
-        <p style={{position:"relative",zIndex:1,marginTop:22,fontSize:12,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>14-DAY FREE TRIAL — CREDIT CARD REQUIRED — CANCEL ANYTIME</p>
+        <p style={{position:"relative",zIndex:1,marginTop:22,fontSize:12,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>14-DAY FREE TRIAL — CANCEL ANYTIME</p>
       </section>
       <div style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.15)",borderRadius:0,padding:"48px 24px",textAlign:"center"}}>
         <div style={{maxWidth:560,margin:"0 auto"}}>
