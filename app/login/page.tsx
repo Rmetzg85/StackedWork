@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
 const G = "#C8E64A";
@@ -10,7 +11,9 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGci
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default function LoginPage() {
-  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signup");
+  const searchParams = useSearchParams();
+  const initialMode = searchParams.get("mode") === "signin" ? "signin" : "signup";
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">(initialMode);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
