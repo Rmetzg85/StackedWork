@@ -276,27 +276,408 @@ async function lookupWI(zip?: string, name?: string): Promise<LicenseResult[]> {
   return parseTable(html, "WI", { license: 0, name: 1, city: 2, status: 3 });
 }
 
+// ── Alabama ALBGC ──────────────────────────────────────────────────────────────
+
+async function lookupAL(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "", status: "A" });
+  const res = await fetch(`https://gencon.state.al.us/search.aspx?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://gencon.state.al.us/" },
+  });
+  if (!res.ok) throw new Error(`AL ALBGC returned ${res.status}`);
+  return parseTable(await res.text(), "AL", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Alaska DCBPL ───────────────────────────────────────────────────────────────
+
+async function lookupAK(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "", profType: "CONTRACTOR" });
+  const res = await fetch(`https://www.commerce.alaska.gov/cbp/main/search/professional?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://www.commerce.alaska.gov/cbp/main/search/professional" },
+  });
+  if (!res.ok) throw new Error(`AK DCBPL returned ${res.status}`);
+  return parseTable(await res.text(), "AK", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Arkansas ACLB ──────────────────────────────────────────────────────────────
+
+async function lookupAR(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://www.aclb.arkansas.gov/Home/Verification?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://www.aclb.arkansas.gov/Home/Verification" },
+  });
+  if (!res.ok) throw new Error(`AR ACLB returned ${res.status}`);
+  return parseTable(await res.text(), "AR", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── California CSLB ────────────────────────────────────────────────────────────
+
+async function lookupCA(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ LicenseType: "C", Status: "A", ZipCode: zip ?? "", LicenseName: name ?? "" });
+  const res = await fetch(`https://www.cslb.ca.gov/OnlineServices/CheckLicenseII/ZipCodeSearch.aspx?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://www.cslb.ca.gov/onlineservices/checklicenseII/checklicense.aspx" },
+  });
+  if (!res.ok) throw new Error(`CA CSLB returned ${res.status}`);
+  return parseTable(await res.text(), "CA", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Colorado DORA ──────────────────────────────────────────────────────────────
+
+async function lookupCO(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ professionCode: "GC", zipCode: zip ?? "", lastName: name ?? "" });
+  const res = await fetch(`https://apps2.colorado.gov/dora/licensing/Lookup/LicenseLookup.aspx?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://apps2.colorado.gov/dora/licensing/Lookup/LicenseLookup.aspx" },
+  });
+  if (!res.ok) throw new Error(`CO DORA returned ${res.status}`);
+  return parseTable(await res.text(), "CO", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Connecticut DCP ────────────────────────────────────────────────────────────
+
+async function lookupCT(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ licenseType: "HIC", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://www.elicense.ct.gov/Lookup/LicenseLookup.aspx?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://www.elicense.ct.gov/Lookup/LicenseLookup.aspx" },
+  });
+  if (!res.ok) throw new Error(`CT DCP returned ${res.status}`);
+  return parseTable(await res.text(), "CT", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Delaware ───────────────────────────────────────────────────────────────────
+
+async function lookupDE(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ licType: "CONTRACTOR", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://onestop.delaware.gov/osbrlpublic/Home/LicenseSearch?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://onestop.delaware.gov/osbrlpublic/Home/LicenseSearch" },
+  });
+  if (!res.ok) throw new Error(`DE returned ${res.status}`);
+  return parseTable(await res.text(), "DE", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Hawaii DCCA ────────────────────────────────────────────────────────────────
+
+async function lookupHI(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ licType: "C", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://pvl.ehawaii.gov/pvlsearch/app?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://pvl.ehawaii.gov/pvlsearch/" },
+  });
+  if (!res.ok) throw new Error(`HI DCCA returned ${res.status}`);
+  return parseTable(await res.text(), "HI", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Idaho IPLA ─────────────────────────────────────────────────────────────────
+
+async function lookupID(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ licenseType: "PWC", zipCode: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://ipla.idaho.gov/ipla/public/LicenseLookup?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://ipla.idaho.gov/ipla/public/LicenseLookup" },
+  });
+  if (!res.ok) throw new Error(`ID IPLA returned ${res.status}`);
+  return parseTable(await res.text(), "ID", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Illinois IDFPR ─────────────────────────────────────────────────────────────
+
+async function lookupIL(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ licType: "CONTRACTOR", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://online-dfpr.micropact.com/lookup/licenselookup.aspx?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://online-dfpr.micropact.com/lookup/licenselookup.aspx" },
+  });
+  if (!res.ok) throw new Error(`IL IDFPR returned ${res.status}`);
+  return parseTable(await res.text(), "IL", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Indiana PLA ────────────────────────────────────────────────────────────────
+
+async function lookupIN(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ licenseType: "HIM", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://mylicense.in.gov/everification/Search.aspx?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://mylicense.in.gov/everification/" },
+  });
+  if (!res.ok) throw new Error(`IN PLA returned ${res.status}`);
+  return parseTable(await res.text(), "IN", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Iowa DOL ───────────────────────────────────────────────────────────────────
+
+async function lookupIA(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://www.iowadivisionoflabor.gov/contractor-licensing/search?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://www.iowadivisionoflabor.gov/contractor-licensing" },
+  });
+  if (!res.ok) throw new Error(`IA DOL returned ${res.status}`);
+  return parseTable(await res.text(), "IA", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Kansas AG ─────────────────────────────────────────────────────────────────
+
+async function lookupKS(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://ag.ks.gov/licensing/contractor-registration/search?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://ag.ks.gov/licensing/contractor-registration" },
+  });
+  if (!res.ok) throw new Error(`KS AG returned ${res.status}`);
+  return parseTable(await res.text(), "KS", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Kentucky DHBC ──────────────────────────────────────────────────────────────
+
+async function lookupKY(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zipCode: zip ?? "", name: name ?? "", licenseType: "CONTRACTOR" });
+  const res = await fetch(`https://dhbc.ky.gov/Pages/LookUpLicense.aspx?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://dhbc.ky.gov/Pages/LookUpLicense.aspx" },
+  });
+  if (!res.ok) throw new Error(`KY DHBC returned ${res.status}`);
+  return parseTable(await res.text(), "KY", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Maine OPLR ─────────────────────────────────────────────────────────────────
+
+async function lookupME(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ board: "HOME", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://www.pfr.maine.gov/almsonline/almsquery/SearchEntity.aspx?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://www.pfr.maine.gov/almsonline/almsquery/welcome.aspx" },
+  });
+  if (!res.ok) throw new Error(`ME OPLR returned ${res.status}`);
+  return parseTable(await res.text(), "ME", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Michigan LARA ──────────────────────────────────────────────────────────────
+
+async function lookupMI(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ licenseType: "RESIDENTIAL", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://www.lara.michigan.gov/Lic/ContactSearch.aspx?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://www.lara.michigan.gov/Lic/ContactSearch.aspx" },
+  });
+  if (!res.ok) throw new Error(`MI LARA returned ${res.status}`);
+  return parseTable(await res.text(), "MI", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Mississippi MSBOC ──────────────────────────────────────────────────────────
+
+async function lookupMS(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://www.msboc.us/ContractorSearch?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://www.msboc.us/ContractorSearch" },
+  });
+  if (!res.ok) throw new Error(`MS MSBOC returned ${res.status}`);
+  return parseTable(await res.text(), "MS", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Missouri DPR ───────────────────────────────────────────────────────────────
+
+async function lookupMO(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "", board: "CONTRACTOR" });
+  const res = await fetch(`https://pr.mo.gov/licensee-search.asp?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://pr.mo.gov/licensee-search.asp" },
+  });
+  if (!res.ok) throw new Error(`MO DPR returned ${res.status}`);
+  return parseTable(await res.text(), "MO", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Montana DLI ────────────────────────────────────────────────────────────────
+
+async function lookupMT(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ mylist: "lic", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://ebizws.mt.gov/PUBLICPORTAL/searchform?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://ebizws.mt.gov/PUBLICPORTAL/searchform?mylist=lic" },
+  });
+  if (!res.ok) throw new Error(`MT DLI returned ${res.status}`);
+  return parseTable(await res.text(), "MT", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Nebraska DOL ───────────────────────────────────────────────────────────────
+
+async function lookupNE(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ licType: "CONTRACTOR", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://www.nebraska.gov/LISShowPublicLicense.cgi?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://www.nebraska.gov/LISShowPublicLicense.cgi" },
+  });
+  if (!res.ok) throw new Error(`NE DOL returned ${res.status}`);
+  return parseTable(await res.text(), "NE", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── New Hampshire OPLC ─────────────────────────────────────────────────────────
+
+async function lookupNH(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ licType: "HIC", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://forms.nh.gov/licenseverification/search?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://forms.nh.gov/licenseverification/" },
+  });
+  if (!res.ok) throw new Error(`NH OPLC returned ${res.status}`);
+  return parseTable(await res.text(), "NH", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── New Jersey DCA ─────────────────────────────────────────────────────────────
+
+async function lookupNJ(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ facility: "N", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://newjersey.mylicense.com/verification/Search.aspx?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://newjersey.mylicense.com/verification/" },
+  });
+  if (!res.ok) throw new Error(`NJ DCA returned ${res.status}`);
+  return parseTable(await res.text(), "NJ", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── New Mexico RLD ─────────────────────────────────────────────────────────────
+
+async function lookupNM(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "", licType: "GB98" });
+  const res = await fetch(`https://www.rld.nm.gov/licensing/lookup?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://www.rld.nm.gov/" },
+  });
+  if (!res.ok) throw new Error(`NM RLD returned ${res.status}`);
+  return parseTable(await res.text(), "NM", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── North Dakota SOS ───────────────────────────────────────────────────────────
+
+async function lookupND(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://firststop.sos.nd.gov/search/business?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://firststop.sos.nd.gov/search/business" },
+  });
+  if (!res.ok) throw new Error(`ND SOS returned ${res.status}`);
+  return parseTable(await res.text(), "ND", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Ohio eLicense ──────────────────────────────────────────────────────────────
+
+async function lookupOH(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ licenseType: "HIC", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://elicense.ohio.gov/OH_SearchResults?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://elicense.ohio.gov/OH_HomePage" },
+  });
+  if (!res.ok) throw new Error(`OH eLicense returned ${res.status}`);
+  return parseTable(await res.text(), "OH", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Oklahoma CIB ───────────────────────────────────────────────────────────────
+
+async function lookupOK(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://www.ok.gov/cib/Contractor_Licensing/Contractor_Search/index.html?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://www.ok.gov/cib/" },
+  });
+  if (!res.ok) throw new Error(`OK CIB returned ${res.status}`);
+  return parseTable(await res.text(), "OK", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Rhode Island CRB ───────────────────────────────────────────────────────────
+
+async function lookupRI(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://crb.ri.gov/contractor-search?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://crb.ri.gov/contractor-search" },
+  });
+  if (!res.ok) throw new Error(`RI CRB returned ${res.status}`);
+  return parseTable(await res.text(), "RI", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── South Dakota DOL ───────────────────────────────────────────────────────────
+
+async function lookupSD(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://dlr.sd.gov/contractor/search?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://dlr.sd.gov/contractor/contractor_licensing.aspx" },
+  });
+  if (!res.ok) throw new Error(`SD DOL returned ${res.status}`);
+  return parseTable(await res.text(), "SD", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Texas TDLR ────────────────────────────────────────────────────────────────
+// TX only licenses specialty trades (electrical, plumbing, HVAC, AC) at state level
+
+async function lookupTX(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://www.tdlr.texas.gov/LicenseSearch/licfile.asp?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://www.tdlr.texas.gov/LicenseSearch/" },
+  });
+  if (!res.ok) throw new Error(`TX TDLR returned ${res.status}`);
+  return parseTable(await res.text(), "TX", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Utah DOPL ─────────────────────────────────────────────────────────────────
+
+async function lookupUT(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ licType: "GCME", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://dopl.utah.gov/license_lookup/results?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://dopl.utah.gov/license_lookup/" },
+  });
+  if (!res.ok) throw new Error(`UT DOPL returned ${res.status}`);
+  return parseTable(await res.text(), "UT", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Vermont SOS ────────────────────────────────────────────────────────────────
+
+async function lookupVT(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://sos.vermont.gov/licensing/lookup?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://sos.vermont.gov/corporations/reg-professional-licensing/" },
+  });
+  if (!res.ok) throw new Error(`VT SOS returned ${res.status}`);
+  return parseTable(await res.text(), "VT", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── West Virginia DOL ──────────────────────────────────────────────────────────
+
+async function lookupWV(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://labor.wv.gov/Contractor-Licensing/search?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://labor.wv.gov/Contractor-Licensing/Pages/Contractor-Licensing.aspx" },
+  });
+  if (!res.ok) throw new Error(`WV DOL returned ${res.status}`);
+  return parseTable(await res.text(), "WV", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── Wyoming ────────────────────────────────────────────────────────────────────
+
+async function lookupWY(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://wyominglicensing.com/search?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://wyominglicensing.com/" },
+  });
+  if (!res.ok) throw new Error(`WY returned ${res.status}`);
+  return parseTable(await res.text(), "WY", { license: 0, name: 1, city: 2, status: 3 });
+}
+
+// ── DC DCRA ────────────────────────────────────────────────────────────────────
+
+async function lookupDC(zip?: string, name?: string): Promise<LicenseResult[]> {
+  const params = new URLSearchParams({ licType: "CONTRACTOR", zip: zip ?? "", name: name ?? "" });
+  const res = await fetch(`https://dcra.dc.gov/licensing/search?${params}`, {
+    headers: { ...BROWSER_HEADERS, Referer: "https://dcra.dc.gov/service/licensing-verification" },
+  });
+  if (!res.ok) throw new Error(`DC DCRA returned ${res.status}`);
+  return parseTable(await res.text(), "DC", { license: 0, name: 1, city: 2, status: 3 });
+}
+
 // ── Router map ─────────────────────────────────────────────────────────────────
 
 type LookupFn = (zip?: string, name?: string) => Promise<LicenseResult[]>;
 
 const SCRAPERS: Partial<Record<string, LookupFn>> = {
-  MD: lookupMD,
-  MA: lookupMA,
+  // Proven / high-confidence
+  MD: lookupMD, MA: lookupMA,
+  // Best-effort with browser headers + graceful fallback
+  AL: lookupAL, AK: lookupAK, AR: lookupAR, AZ: lookupAZ,
+  CA: lookupCA, CO: lookupCO, CT: lookupCT,
+  DC: lookupDC, DE: lookupDE,
   FL: lookupFL,
-  VA: lookupVA,
-  OR: lookupOR,
-  PA: lookupPA,
-  NC: lookupNC,
   GA: lookupGA,
-  WA: lookupWA,
-  TN: lookupTN,
+  HI: lookupHI,
+  IA: lookupIA, ID: lookupID, IL: lookupIL, IN: lookupIN,
+  KS: lookupKS, KY: lookupKY,
   LA: lookupLA,
-  SC: lookupSC,
-  NV: lookupNV,
-  AZ: lookupAZ,
-  MN: lookupMN,
-  WI: lookupWI,
+  ME: lookupME, MI: lookupMI, MN: lookupMN, MO: lookupMO, MS: lookupMS, MT: lookupMT,
+  NC: lookupNC, ND: lookupND, NE: lookupNE, NH: lookupNH, NJ: lookupNJ, NM: lookupNM, NV: lookupNV,
+  OH: lookupOH, OK: lookupOK, OR: lookupOR,
+  PA: lookupPA,
+  RI: lookupRI,
+  SC: lookupSC, SD: lookupSD,
+  TN: lookupTN, TX: lookupTX,
+  UT: lookupUT,
+  VA: lookupVA, VT: lookupVT,
+  WA: lookupWA, WI: lookupWI, WV: lookupWV, WY: lookupWY,
 };
 
 // ── Main handler ───────────────────────────────────────────────────────────────
