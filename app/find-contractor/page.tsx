@@ -28,12 +28,12 @@ export default function FindContractor() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // MHIC verification
-  const [mhicZip, setMhicZip] = useState("");
-  const [mhicName, setMhicName] = useState("");
-  const [mhicResults, setMhicResults] = useState<any[] | null>(null);
-  const [mhicLoading, setMhicLoading] = useState(false);
-  const [mhicError, setMhicError] = useState<string | null>(null);
+  // License verification
+  const [verifyZip, setVerifyZip] = useState("");
+  const [verifyName, setVerifyName] = useState("");
+  const [verifyResults, setVerifyResults] = useState<any | null>(null);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!name.trim() || (!phone.trim() && !email.trim()) || !jobType || !zip.trim()) {
@@ -57,24 +57,24 @@ export default function FindContractor() {
     }
   };
 
-  const handleMHICLookup = async () => {
-    if (!mhicZip.trim() && !mhicName.trim()) {
-      setMhicError("Enter a zip code or contractor name to search.");
+  const handleVerify = async () => {
+    if (!verifyZip.trim() && !verifyName.trim()) {
+      setVerifyError("Enter a zip code or contractor name to search.");
       return;
     }
-    setMhicLoading(true); setMhicError(null); setMhicResults(null);
+    setVerifyLoading(true); setVerifyError(null); setVerifyResults(null);
     try {
       const params = new URLSearchParams();
-      if (mhicZip.trim()) params.set("zip", mhicZip.trim());
-      else params.set("name", mhicName.trim());
-      const res = await fetch(`/api/mhic-lookup?${params}`);
+      if (verifyZip.trim()) params.set("zip", verifyZip.trim());
+      if (verifyName.trim()) params.set("name", verifyName.trim());
+      const res = await fetch(`/api/license-lookup?${params}`);
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setMhicResults(data.contractors || []);
+      if (data.error && !data.supported) throw new Error(data.error);
+      setVerifyResults(data);
     } catch (err: any) {
-      setMhicError(err.message || "Lookup failed. Please try again.");
+      setVerifyError(err.message || "Lookup failed. Please try again.");
     } finally {
-      setMhicLoading(false);
+      setVerifyLoading(false);
     }
   };
 
@@ -103,16 +103,16 @@ export default function FindContractor() {
       {/* Hero */}
       <div style={{ padding: "60px 20px 40px", textAlign: "center", maxWidth: 680, margin: "0 auto" }} className="fc-fade">
         <div style={{ display: "inline-block", background: "rgba(200,230,74,0.12)", border: `1px solid ${G}33`, borderRadius: 100, padding: "6px 18px", fontSize: 12, fontWeight: 700, color: G, letterSpacing: "0.06em", marginBottom: 20, fontFamily: "'Space Mono'" }}>
-          MARYLAND LICENSED CONTRACTORS
+          LICENSED CONTRACTORS — ALL 50 STATES
         </div>
         <h1 style={{ fontSize: "clamp(28px, 6vw, 48px)", fontWeight: 800, lineHeight: 1.15, marginBottom: 16 }}>
           Get Free Quotes from<br />
-          <span style={{ color: G }}>Licensed Maryland Contractors</span>
+          <span style={{ color: G }}>Licensed Contractors Near You</span>
         </h1>
         <p style={{ fontSize: 17, color: "rgba(245,240,235,0.65)", lineHeight: 1.7, marginBottom: 8 }}>
-          Tell us about your project. We connect you with MHIC-licensed contractors in your area — verified, insured, and ready to work.
+          Tell us about your project and your zip code. We connect you with state-licensed contractors in your area — verified, insured, and ready to work.
         </p>
-        <p style={{ fontSize: 13, color: "rgba(245,240,235,0.4)" }}>Free service · No obligation · Maryland only</p>
+        <p style={{ fontSize: 13, color: "rgba(245,240,235,0.4)" }}>Free service · No obligation · All 50 states</p>
       </div>
 
       {/* Main card */}
@@ -169,7 +169,7 @@ export default function FindContractor() {
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", display: "block", marginBottom: 6, letterSpacing: "0.03em" }}>ZIP CODE *</label>
-                <input value={zip} onChange={e => setZip(e.target.value)} placeholder="21201" maxLength={5} style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #E2E8F0", borderRadius: 10, fontSize: 14, boxSizing: "border-box" }} />
+                <input value={zip} onChange={e => setZip(e.target.value)} placeholder="Enter zip code" maxLength={5} style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #E2E8F0", borderRadius: 10, fontSize: 14, boxSizing: "border-box" }} />
               </div>
             </div>
 
@@ -177,7 +177,7 @@ export default function FindContractor() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", display: "block", marginBottom: 6, letterSpacing: "0.03em" }}>PHONE *</label>
-                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(410) 555-0100" style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #E2E8F0", borderRadius: 10, fontSize: 14, boxSizing: "border-box" }} />
+                <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="(555) 555-0100" style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #E2E8F0", borderRadius: 10, fontSize: 14, boxSizing: "border-box" }} />
               </div>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", display: "block", marginBottom: 6, letterSpacing: "0.03em" }}>EMAIL</label>
@@ -191,7 +191,7 @@ export default function FindContractor() {
               {loading ? "Submitting..." : "Get Free Quotes →"}
             </button>
             <p style={{ fontSize: 11, color: "#94A3B8", textAlign: "center", marginTop: 10 }}>
-              By submitting you agree to be contacted by licensed Maryland contractors. No spam.
+              By submitting you agree to be contacted by licensed contractors. No spam.
             </p>
           </div>
         )}
@@ -205,7 +205,7 @@ export default function FindContractor() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 24 }}>
             {[
               { n: "01", t: "Describe your project", d: "Tell us what needs to be done, your zip code, and how to reach you." },
-              { n: "02", t: "We match you instantly", d: "Your request goes live to MHIC-licensed contractors in your area." },
+              { n: "02", t: "We match you instantly", d: "Your request goes live to state-licensed contractors in your area." },
               { n: "03", t: "Contractors reach out", d: "Compare quotes, check reviews, and hire who you trust." },
             ].map((x, i) => (
               <div key={i} style={{ background: "rgba(255,255,255,0.04)", borderRadius: 14, padding: "24px 20px", border: "1px solid rgba(255,255,255,0.07)" }}>
@@ -218,50 +218,89 @@ export default function FindContractor() {
         </div>
       </div>
 
-      {/* MHIC Verification */}
+      {/* License Verification — national */}
       <div style={{ padding: "60px 20px", maxWidth: 680, margin: "0 auto" }}>
         <div style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 16, padding: "32px 28px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
             <span style={{ fontSize: 24 }}>🔍</span>
-            <h3 style={{ fontSize: 18, fontWeight: 800 }}>Verify an MHIC License</h3>
+            <h3 style={{ fontSize: 18, fontWeight: 800 }}>Verify a Contractor License</h3>
           </div>
           <p style={{ fontSize: 13, color: "rgba(245,240,235,0.5)", marginBottom: 20, lineHeight: 1.6 }}>
-            Already found a contractor? Search the Maryland Home Improvement Commission database to confirm they&apos;re licensed.
+            Already found a contractor? Enter their zip code or name to check their license with your state&apos;s licensing board.
           </p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-            <input value={mhicZip} onChange={e => setMhicZip(e.target.value)} placeholder="Zip code (e.g. 21201)" maxLength={5} style={{ padding: "10px 14px", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.07)", color: "#fff", fontSize: 14, boxSizing: "border-box" }} />
-            <input value={mhicName} onChange={e => setMhicName(e.target.value)} placeholder="Or contractor last name" style={{ padding: "10px 14px", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.07)", color: "#fff", fontSize: 14, boxSizing: "border-box" }} />
+            <input value={verifyZip} onChange={e => setVerifyZip(e.target.value)} placeholder="Contractor zip code" maxLength={5} style={{ padding: "10px 14px", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.07)", color: "#fff", fontSize: 14, boxSizing: "border-box" }} />
+            <input value={verifyName} onChange={e => setVerifyName(e.target.value)} placeholder="Or contractor last name" style={{ padding: "10px 14px", borderRadius: 10, border: "1.5px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.07)", color: "#fff", fontSize: 14, boxSizing: "border-box" }} />
           </div>
-          <button onClick={handleMHICLookup} disabled={mhicLoading} style={{ width: "100%", padding: "12px", background: G, color: "#132440", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: mhicLoading ? "not-allowed" : "pointer", opacity: mhicLoading ? 0.7 : 1 }}>
-            {mhicLoading ? "Searching MHIC Database..." : "Search Maryland MHIC Database"}
+          <button onClick={handleVerify} disabled={verifyLoading} style={{ width: "100%", padding: "12px", background: G, color: "#132440", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: verifyLoading ? "not-allowed" : "pointer", opacity: verifyLoading ? 0.7 : 1 }}>
+            {verifyLoading ? "Searching..." : "Verify License"}
           </button>
-          {mhicError && <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, fontSize: 13, color: "#FCA5A5" }}>{mhicError}</div>}
-          {mhicResults !== null && (
+
+          {verifyError && (
+            <div style={{ marginTop: 12, padding: "10px 14px", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, fontSize: 13, color: "#FCA5A5" }}>{verifyError}</div>
+          )}
+
+          {verifyResults && (
             <div style={{ marginTop: 16 }}>
-              {mhicResults.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 20, color: "rgba(245,240,235,0.5)", fontSize: 13 }}>No licensed contractors found for that search.</div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto" }}>
-                  {mhicResults.map((c, i) => (
-                    <div key={i} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "12px 16px", border: "1px solid rgba(255,255,255,0.08)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div>
-                          <div style={{ fontWeight: 700, fontSize: 13 }}>{c.name}{c.trade_name ? ` · ${c.trade_name}` : ""}</div>
-                          <div style={{ fontSize: 11, color: "rgba(245,240,235,0.45)", marginTop: 2 }}>{[c.city, c.county].filter(Boolean).join(", ")}</div>
-                        </div>
-                        <div style={{ textAlign: "right" }}>
-                          <div style={{ fontSize: 11, fontFamily: "'Space Mono'", color: G }}>{c.license}</div>
-                          <div style={{ fontSize: 10, color: c.status?.toLowerCase() === "active" ? "#4ADE80" : "#94A3B8", marginTop: 2, fontWeight: 600 }}>{c.status}</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              {/* Unsupported state — show official link */}
+              {!verifyResults.supported && verifyResults.lookupUrl && (
+                <div style={{ background: "rgba(200,230,74,0.08)", border: "1px solid rgba(200,230,74,0.2)", borderRadius: 12, padding: "20px" }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
+                    {verifyResults.stateName ? `${verifyResults.stateName} — ${verifyResults.agencyName}` : "Official State Database"}
+                  </div>
+                  {verifyResults.notes && (
+                    <p style={{ fontSize: 12, color: "rgba(245,240,235,0.5)", marginBottom: 10, lineHeight: 1.5 }}>{verifyResults.notes}</p>
+                  )}
+                  <p style={{ fontSize: 13, color: "rgba(245,240,235,0.6)", marginBottom: 14, lineHeight: 1.5 }}>
+                    Automated lookup for this state is coming soon. Verify the license directly on the official state database:
+                  </p>
+                  <a href={verifyResults.lookupUrl} target="_blank" rel="noopener noreferrer"
+                    style={{ display: "inline-block", background: G, color: "#132440", textDecoration: "none", padding: "10px 20px", borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
+                    Verify on {verifyResults.agencyName || "State Database"} →
+                  </a>
                 </div>
+              )}
+
+              {/* Supported state — show inline results */}
+              {verifyResults.supported && (
+                <>
+                  {verifyResults.contractors?.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: 20, color: "rgba(245,240,235,0.5)", fontSize: 13 }}>
+                      No licensed contractors found. Try the {" "}
+                      <a href={verifyResults.lookupUrl} target="_blank" rel="noopener noreferrer" style={{ color: G }}>
+                        official {verifyResults.agencyName} database
+                      </a>.
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 12, color: "rgba(245,240,235,0.4)", marginBottom: 10 }}>
+                        {verifyResults.contractors.length} result{verifyResults.contractors.length !== 1 ? "s" : ""} from {verifyResults.agencyName}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 320, overflowY: "auto" }}>
+                        {verifyResults.contractors.map((c: any, i: number) => (
+                          <div key={i} style={{ background: "rgba(255,255,255,0.06)", borderRadius: 10, padding: "12px 16px", border: "1px solid rgba(255,255,255,0.08)" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: 13 }}>{c.name}{c.trade_name ? ` · ${c.trade_name}` : ""}</div>
+                                <div style={{ fontSize: 11, color: "rgba(245,240,235,0.45)", marginTop: 2 }}>{[c.city, c.county, c.state].filter(Boolean).join(", ")}</div>
+                              </div>
+                              <div style={{ textAlign: "right" }}>
+                                <div style={{ fontSize: 11, fontFamily: "'Space Mono'", color: G }}>{c.license}</div>
+                                <div style={{ fontSize: 10, color: c.status?.toLowerCase() === "active" ? "#4ADE80" : "#94A3B8", marginTop: 2, fontWeight: 600 }}>{c.status}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
               )}
             </div>
           )}
-          <p style={{ fontSize: 11, color: "rgba(245,240,235,0.3)", marginTop: 12, textAlign: "center" }}>
-            Data sourced from the Maryland Dept. of Labor MHIC public database.
+
+          <p style={{ fontSize: 11, color: "rgba(245,240,235,0.3)", marginTop: 16, textAlign: "center" }}>
+            Data sourced directly from official state licensing boards. Currently live for MD and MA. More states added regularly.
           </p>
         </div>
       </div>

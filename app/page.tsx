@@ -7,6 +7,9 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGci
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const G = "#C8E64A";
 const GD = "#A8C435";
+// Paste your Replicate-generated ad video URL here:
+const AD_VIDEO_URL = "";
+const AD_IMAGE_URL = "";
 const FEATURES = [
   { icon: "🏗️", title: "AI-Powered CRM", desc: "Track every job, client, and dollar. Voice-to-job entry means you log work from the truck, not a desk.", link: "dashboard" },
   { icon: "🌐", title: "AI Website Service", desc: "Need a website built or updated? We offer AI-powered website services for contractors — inquire for pricing.", link: "https://REMVentures.Tech" },
@@ -79,6 +82,96 @@ export default function StackedWork() {
   const [sharePhoto, setSharePhoto] = useState<any|null>(null);
   const beforeRef = useRef<HTMLInputElement>(null);
   const afterRef = useRef<HTMLInputElement>(null);
+  const rcFileRef = useRef<HTMLInputElement>(null);
+  const [dbReceipts, setDbReceipts] = useState<any[]>([]);
+  const [rcView, setRcView] = useState<"list"|"upload">("list");
+  const [rcFile, setRcFile] = useState<File|null>(null);
+  const [rcPreview, setRcPreview] = useState<string|null>(null);
+  const [rcAmount, setRcAmount] = useState("");
+  const [rcCategory, setRcCategory] = useState("Materials");
+  const [rcDate, setRcDate] = useState(new Date().toISOString().split("T")[0]);
+  const [rcDesc, setRcDesc] = useState("");
+  const [rcUploading, setRcUploading] = useState(false);
+  const [rcErr, setRcErr] = useState<string|null>(null);
+  const [rcFilter, setRcFilter] = useState("all");
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+
+  const parseVoiceToJob = (text: string) => {
+    const t = text.toLowerCase();
+    // Dollar amount — handles "$450", "450 dollars", "fifteen hundred", "two thousand five hundred"
+    const wordNums: Record<string,number> = { zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,hundred:100,thousand:1000 };
+    const spokenNum = (s: string): number|null => {
+      const parts = s.trim().split(/\s+/);
+      let total = 0; let curr = 0;
+      for (const p of parts) {
+        const n = wordNums[p];
+        if (n === undefined) return null;
+        if (n === 1000) { total += (curr||1)*1000; curr = 0; }
+        else if (n === 100) { curr = (curr||1)*100; }
+        else { curr += n; }
+      }
+      return total + curr || null;
+    };
+    let value = "";
+    const dollarMatch = t.match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
+    if (dollarMatch) { value = dollarMatch[1].replace(/,/g,""); }
+    else {
+      const digitMatch = t.match(/(\d[\d,]*(?:\.\d{1,2})?)\s*(?:dollars?|bucks?)?/);
+      if (digitMatch) value = digitMatch[1].replace(/,/g,"");
+      else {
+        const spoken = t.match(/\b((?:(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\s*)+)(?:dollars?|bucks?)?/);
+        if (spoken) { const n = spokenNum(spoken[1].trim()); if (n) value = String(n); }
+      }
+    }
+    // Job type
+    const JOB_TYPES = ["Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","General","Other"];
+    let jobType = "General";
+    for (const jt of JOB_TYPES) { if (t.includes(jt.toLowerCase())) { jobType = jt; break; } }
+    if (t.includes("paint")) jobType = "Painting";
+    if (t.includes("electric")) jobType = "Electrical";
+    if (t.includes("roof")) jobType = "Roofing";
+    if (t.includes("floor")) jobType = "Flooring";
+    if (t.includes("air condition") || t.includes("hvac") || t.includes("heat")) jobType = "HVAC";
+    // Status
+    let status = "quoted";
+    if (t.includes("scheduled") || t.includes("schedule")) status = "scheduled";
+    else if (t.includes("in progress") || t.includes("in-progress") || t.includes("started")) status = "in-progress";
+    else if (t.includes("complete") || t.includes("finished") || t.includes("done")) status = "complete";
+    // Customer name — first thing said before a job type or dollar or status keyword
+    const stripWords = [jobType.toLowerCase(),"quoted","scheduled","in progress","complete","finished","dollars","bucks","plumbing","electrical","hvac","roofing","drywall","painting","deck","flooring","general","other","job","for","new"];
+    let remaining = text;
+    for (const w of stripWords) remaining = remaining.replace(new RegExp(w,"gi"),"");
+    if (value) remaining = remaining.replace(new RegExp("\\$?"+value.replace(/\./,"\\.")+"\\s*(dollars?|bucks?)?","i"),"");
+    const name = remaining.replace(/[^a-zA-Z\s]/g,"").trim().replace(/\s+/g," ").split(" ").slice(0,4).join(" ").trim();
+    return { name, jobType, value, status };
+  };
+
+  const startVoiceEntry = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { alert("Voice entry isn't supported on this browser. Try Chrome or Safari."); return; }
+    const rec = new SR();
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.lang = "en-US";
+    setVoiceListening(true);
+    setVoiceTranscript("");
+    rec.onresult = (e: any) => {
+      const transcript = Array.from(e.results).map((r: any) => r[0].transcript).join("");
+      setVoiceTranscript(transcript);
+      if (e.results[e.results.length - 1].isFinal) {
+        const parsed = parseVoiceToJob(transcript);
+        if (parsed.name) setNjCustomer(parsed.name);
+        if (parsed.value) setNjValue(parsed.value);
+        if (parsed.jobType) setNjType(parsed.jobType);
+        if (parsed.status) setNjStatus(parsed.status);
+        setVoiceListening(false);
+      }
+    };
+    rec.onerror = () => setVoiceListening(false);
+    rec.onend = () => setVoiceListening(false);
+    rec.start();
+  };
 
   const checkSub = async (email: string) => {
     const { data } = await supabase.from("subscriptions").select("status").eq("email", email).maybeSingle();
@@ -141,6 +234,51 @@ export default function StackedWork() {
     if (!confirm("Delete this photo?")) return;
     await supabase.from("portfolio").delete().eq("id", photo.id);
     setDbPhotos(prev => prev.filter(p => p.id !== photo.id));
+  };
+
+  const handleReceiptFile = (file: File) => {
+    setRcFile(file);
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setRcPreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setRcPreview(null);
+    }
+  };
+
+  const handleReceiptUpload = async () => {
+    if (!userId || !rcFile || !rcAmount) return;
+    setRcUploading(true); setRcErr(null);
+    try {
+      const ts = Date.now();
+      const ext = rcFile.name.split(".").pop() || "jpg";
+      const path = `receipts/${userId}-${ts}.${ext}`;
+      const bytes = await rcFile.arrayBuffer();
+      const { error: upErr } = await supabase.storage.from("stackedwork-images").upload(path, bytes, { contentType: rcFile.type, upsert: true });
+      if (upErr) throw upErr;
+      const fileUrl = supabase.storage.from("stackedwork-images").getPublicUrl(path).data.publicUrl;
+      const { data, error } = await supabase.from("receipts").insert({
+        contractor_id: userId,
+        file_url: fileUrl,
+        amount: parseFloat(rcAmount),
+        category: rcCategory,
+        date: rcDate,
+        description: rcDesc.trim() || null,
+      }).select().single();
+      if (error) throw error;
+      if (data) setDbReceipts(prev => [data, ...prev]);
+      setRcFile(null); setRcPreview(null); setRcAmount(""); setRcCategory("Materials");
+      setRcDate(new Date().toISOString().split("T")[0]); setRcDesc("");
+      setRcView("list");
+    } catch (err: any) { setRcErr(err.message || "Upload failed. Please try again."); }
+    finally { setRcUploading(false); }
+  };
+
+  const deleteReceipt = async (rc: any) => {
+    if (!confirm("Delete this receipt?")) return;
+    await supabase.from("receipts").delete().eq("id", rc.id);
+    setDbReceipts(prev => prev.filter(r => r.id !== rc.id));
   };
 
   const withTimeout = <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
@@ -214,6 +352,7 @@ export default function StackedWork() {
     supabase.from("jobs").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data }) => { if (data) setDbJobs(data); });
     supabase.from("homeowner_leads").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => { if (data) setDbHomeownerLeads(data); });
     supabase.from("portfolio").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbPhotos(data); });
+    supabase.from("receipts").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data }) => { if (data) setDbReceipts(data); });
     const ch = supabase.channel("leads_" + userId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads", filter: `contractor_id=eq.${userId}` }, (payload) => {
         setDbLeads(prev => [payload.new as any, ...prev]);
@@ -264,7 +403,7 @@ export default function StackedWork() {
   }
 
   if(page==="app"){
-    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"followups",ic:"🔔",lb:"Alerts"}];
+    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"receipts",ic:"🧾",lb:"Receipts"},{id:"followups",ic:"🔔",lb:"Alerts"}];
     return(
       <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh"}}>
         <style>{`
@@ -320,7 +459,21 @@ export default function StackedWork() {
         </div>}
         {newJobOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setNewJobOpen(false)}>
           <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h2 style={{fontSize:18,fontWeight:700,color:"#0F172A"}}>New Job</h2><button onClick={()=>setNewJobOpen(false)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button></div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <h2 style={{fontSize:18,fontWeight:700,color:"#0F172A"}}>New Job</h2>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <button onClick={startVoiceEntry} title="Speak job details" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:voiceListening?`linear-gradient(135deg,${G},${GD})`:"#F1F5F9",color:voiceListening?"#132440":"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",transition:"all .2s"}}>
+                  {voiceListening
+                    ? <><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#132440",animation:"pulseMk 1s infinite"}}/>Listening...</>
+                    : <>🎤 Voice Entry</>}
+                </button>
+                <button onClick={()=>{setNewJobOpen(false);setVoiceTranscript("");}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button>
+              </div>
+            </div>
+            {voiceTranscript&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534"}}>
+              <span style={{fontWeight:700}}>Heard: </span>{voiceTranscript}
+            </div>}
+            {!voiceTranscript&&<p style={{fontSize:11,color:"#94A3B8",marginBottom:14}}>Tap <strong>Voice Entry</strong> and say something like: <em>&quot;John Smith, plumbing, $850, scheduled&quot;</em></p>}
             {[
               {label:"Customer Name *",val:njCustomer,set:setNjCustomer,placeholder:"John Smith",type:"text"},
               {label:"Phone",val:njPhone,set:setNjPhone,placeholder:"(410) 555-0100",type:"tel"},
@@ -502,13 +655,13 @@ export default function StackedWork() {
               {/* Homeowner requests from /find-contractor */}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <div>
-                  <h2 style={{fontSize:17,fontWeight:700,color:"#fff",marginBottom:2}}>Maryland Homeowner Requests</h2>
+                  <h2 style={{fontSize:17,fontWeight:700,color:"#fff",marginBottom:2}}>Looking for a Licensed Contractor?</h2>
                   <p style={{fontSize:12,color:"#94A3B8"}}>Project requests submitted by homeowners at letstaystacked.com/find-contractor</p>
                 </div>
                 <a href="/find-contractor" target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:G,fontWeight:700,textDecoration:"none",whiteSpace:"nowrap"}}>View Page ↗</a>
               </div>
               {dbHomeownerLeads.length===0
-                ? <Card style={{padding:"28px 20px",textAlign:"center"}}><div style={{fontSize:32,marginBottom:10}}>🏡</div><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:4}}>No homeowner requests yet</div><div style={{fontSize:12,color:"#94A3B8"}}>Share letstaystacked.com/find-contractor to start receiving project leads from Maryland homeowners.</div></Card>
+                ? <Card style={{padding:"28px 20px",textAlign:"center"}}><div style={{fontSize:32,marginBottom:10}}>🏡</div><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:4}}>No homeowner requests yet</div><div style={{fontSize:12,color:"#94A3B8"}}>Share letstaystacked.com/find-contractor to start receiving project leads from homeowners in your area.</div></Card>
                 : <div style={{display:"flex",flexDirection:"column",gap:10}}>
                     {dbHomeownerLeads.map((l:any,i:number)=>{
                       const d=l.created_at?new Date(l.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
@@ -536,6 +689,138 @@ export default function StackedWork() {
                     })}
                   </div>}
             </>}
+            {vw==="receipts"&&(()=>{
+              const RC_CATS = ["Materials","Fuel/Gas","Equipment","Tools","Subcontractor","Insurance","Office/Software","Other"];
+              const nowY = new Date().getFullYear();
+              const nowM = new Date().getMonth();
+              const ytdR = dbReceipts.filter((r:any)=>new Date(r.date).getFullYear()===nowY).reduce((a:number,r:any)=>a+Number(r.amount),0);
+              const moR2 = dbReceipts.filter((r:any)=>{const d=new Date(r.date);return d.getFullYear()===nowY&&d.getMonth()===nowM}).reduce((a:number,r:any)=>a+Number(r.amount),0);
+              const filtered = rcFilter==="all" ? dbReceipts : dbReceipts.filter((r:any)=>r.category===rcFilter);
+              return(<>
+                <input ref={rcFileRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handleReceiptFile(f);e.target.value="";}}/>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <div>
+                    <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:2}}>Receipts</h1>
+                    <p style={{fontSize:12,color:"#94A3B8"}}>Track expenses for tax time</p>
+                  </div>
+                  <Btn onClick={()=>{setRcView(rcView==="upload"?"list":"upload");setRcErr(null);}}>
+                    {rcView==="upload"?"← Back":"+ Upload"}
+                  </Btn>
+                </div>
+
+                {rcView==="list"&&<>
+                  {/* Summary cards */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
+                    {[
+                      {l:"YTD Expenses",v:`$${ytdR.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`,s:`${nowY} total`},
+                      {l:"This Month",v:`$${moR2.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`,s:"current month"},
+                      {l:"Receipts",v:String(dbReceipts.length),s:"uploaded"},
+                    ].map((s,i)=>(
+                      <div key={i} style={{background:"linear-gradient(135deg,#0F172A,#1E293B)",borderRadius:12,padding:"14px 12px",color:"#fff"}}>
+                        <div style={{fontSize:9,color:"#94A3B8",fontFamily:"'Space Mono'",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:5}}>{s.l}</div>
+                        <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>{s.v}</div>
+                        <div style={{fontSize:10,color:"#94A3B8"}}>{s.s}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Category filter */}
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+                    {["all",...RC_CATS].map(c=>(
+                      <button key={c} className={`sw-fb ${rcFilter===c?"sw-a":""}`} onClick={()=>setRcFilter(c)}>
+                        {c==="all"?"All":c}
+                      </button>
+                    ))}
+                  </div>
+
+                  {filtered.length===0
+                    ? <Card style={{padding:"40px 20px",textAlign:"center"}}>
+                        <div style={{fontSize:36,marginBottom:12}}>🧾</div>
+                        <div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>No receipts yet</div>
+                        <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Upload receipts to track deductible expenses</div>
+                        <Btn onClick={()=>setRcView("upload")}>Upload First Receipt</Btn>
+                      </Card>
+                    : <Card>
+                        {filtered.map((rc:any,i:number)=>(
+                          <div key={rc.id} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderBottom:i<filtered.length-1?"1px solid #F1F5F9":"none"}}>
+                            <div
+                              onClick={()=>window.open(rc.file_url,"_blank")}
+                              style={{width:44,height:44,borderRadius:8,background:"#F1F5F9",flexShrink:0,overflow:"hidden",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
+                            >
+                              {rc.file_url.match(/\.(jpg|jpeg|png|webp|gif)$/i)
+                                ? <img src={rc.file_url} alt="receipt" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                                : <span style={{fontSize:20}}>📄</span>}
+                            </div>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                                <div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>${Number(rc.amount).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+                                <div style={{fontSize:11,color:"#94A3B8"}}>{new Date(rc.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                              </div>
+                              <div style={{display:"flex",gap:6,alignItems:"center",marginTop:3}}>
+                                <span style={{fontSize:10,fontWeight:700,background:"#EEF2FF",color:"#3730A3",padding:"2px 8px",borderRadius:100}}>{rc.category}</span>
+                                {rc.description&&<span style={{fontSize:11,color:"#64748B",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{rc.description}</span>}
+                              </div>
+                            </div>
+                            <button onClick={()=>deleteReceipt(rc)} style={{background:"none",border:"none",color:"#CBD5E1",cursor:"pointer",fontSize:16,padding:"4px",flexShrink:0}}>×</button>
+                          </div>
+                        ))}
+                      </Card>
+                  }
+                </>}
+
+                {rcView==="upload"&&(
+                  <Card style={{padding:24,maxWidth:480}}>
+                    <h2 style={{fontSize:16,fontWeight:700,color:"#0F172A",marginBottom:18}}>Upload Receipt</h2>
+
+                    {/* File picker */}
+                    <div
+                      onClick={()=>rcFileRef.current?.click()}
+                      style={{border:`2px dashed ${rcFile?G:"#E2E8F0"}`,borderRadius:10,padding:"20px",textAlign:"center",cursor:"pointer",marginBottom:16,background:rcFile?"rgba(200,230,74,0.04)":"#FAFBFC",transition:"all .2s"}}
+                    >
+                      {rcPreview
+                        ? <img src={rcPreview} alt="preview" style={{maxHeight:140,maxWidth:"100%",borderRadius:8,objectFit:"contain"}}/>
+                        : rcFile
+                          ? <div style={{fontSize:13,color:"#64748B"}}>📄 {rcFile.name}</div>
+                          : <><div style={{fontSize:28,marginBottom:8}}>📸</div><div style={{fontSize:13,fontWeight:600,color:"#374151"}}>Tap to upload receipt</div><div style={{fontSize:11,color:"#94A3B8",marginTop:4}}>Photo or PDF</div></>
+                      }
+                    </div>
+
+                    {/* Amount + Date */}
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                      <div>
+                        <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Amount ($) *</label>
+                        <input type="number" min="0" step="0.01" value={rcAmount} onChange={e=>setRcAmount(e.target.value)} placeholder="0.00" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                      </div>
+                      <div>
+                        <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Date *</label>
+                        <input type="date" value={rcDate} onChange={e=>setRcDate(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                      </div>
+                    </div>
+
+                    {/* Category */}
+                    <div style={{marginBottom:14}}>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Category</label>
+                      <select value={rcCategory} onChange={e=>setRcCategory(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>
+                        {RC_CATS.map(c=><option key={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Description */}
+                    <div style={{marginBottom:20}}>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Description (optional)</label>
+                      <input value={rcDesc} onChange={e=>setRcDesc(e.target.value)} placeholder="e.g. Lumber from Home Depot" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+
+                    {rcErr&&<div style={{marginBottom:14,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:13,color:"#991B1B"}}>{rcErr}</div>}
+                    <button
+                      onClick={handleReceiptUpload}
+                      disabled={rcUploading||!rcFile||!rcAmount}
+                      style={{width:"100%",padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:rcUploading||!rcFile||!rcAmount?"not-allowed":"pointer",opacity:rcUploading||!rcFile||!rcAmount?0.6:1,fontFamily:"'DM Sans'"}}
+                    >{rcUploading?"Saving...":"Save Receipt"}</button>
+                  </Card>
+                )}
+              </>);
+            })()}
             {vw==="followups"&&<>
               <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Follow-up Reminders</h1><p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Don&apos;t leave money on the table.</p>
               <div style={{padding:"40px 20px",textAlign:"center",color:"#94A3B8"}}><div style={{fontSize:36,marginBottom:12}}>🔔</div><div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>No follow-ups yet</div><div style={{fontSize:12}}>Completed jobs will appear here as reminders to re-engage past clients.</div></div>
@@ -617,7 +902,7 @@ export default function StackedWork() {
         <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:34,height:34,background:"#4A82C4",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,color:"#fff",fontFamily:"'DM Sans'",letterSpacing:"-0.03em"}}>SW</div><span style={{fontWeight:700,fontSize:17,letterSpacing:"-0.02em"}}>StackedWork</span></div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <span onClick={()=>setPage("app")} style={{color:G,fontSize:14,fontWeight:500,cursor:"pointer"}}>Demo</span>
-          <button onClick={()=>{setAuthMode("login");setAuthError(null);setAuthSuccess(null);}} style={{background:"transparent",color:"#fff",border:"1px solid rgba(255,255,255,0.3)",padding:"8px 18px",fontSize:13,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Sign In</button>
+          <a href="/login?mode=signin" style={{background:"transparent",color:"#fff",border:"1px solid rgba(255,255,255,0.3)",padding:"8px 18px",fontSize:13,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer",textDecoration:"none",display:"inline-block"}}>Sign In</a>
           <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"10px 20px",fontSize:13,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Get Started</button>
         </div>
       </nav>
@@ -629,7 +914,7 @@ export default function StackedWork() {
         <p className="sw-f2" style={{position:"relative",zIndex:1,fontSize:18,lineHeight:1.7,color:"rgba(245,240,235,0.6)",maxWidth:560,marginBottom:16}}>Stop juggling spreadsheets and apps you never open. StackedWork runs your contracting business in one place — CRM, lead tracking, before & after portfolio, and revenue dashboards.</p>
         <div className="sw-f3" style={{position:"relative",zIndex:1,marginBottom:48}}>
           <div className="sw-price" style={{fontFamily:"'Space Mono'",fontSize:72,fontWeight:700,color:G,lineHeight:1,marginBottom:4}}>$49.99<span style={{fontSize:24,color:"rgba(245,240,235,0.4)"}}>/mo</span></div>
-          <p style={{fontFamily:"'Space Mono'",fontSize:13,color:"rgba(245,240,235,0.4)",letterSpacing:"0.05em"}}>CRM + AI MOCKUPS + LEAD TRACKING. NO SETUP FEES.</p>
+          <p style={{fontFamily:"'Space Mono'",fontSize:13,color:"rgba(245,240,235,0.4)",letterSpacing:"0.05em"}}>CRM + VOICE-TO-JOB + LEAD TRACKING. NO SETUP FEES.</p>
           <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"rgba(245,240,235,0.35)",marginTop:10}}>Need a website? Ask us about our AI website building services.</p>
         </div>
         <div className="sw-f4" style={{position:"relative",zIndex:1,display:"flex",gap:16,flexWrap:"wrap",justifyContent:"center"}}>
@@ -637,6 +922,15 @@ export default function StackedWork() {
           <button onClick={()=>setPage("app")} style={{background:"transparent",color:G,border:"2px solid rgba(200,230,74,0.25)",padding:"16px 38px",fontSize:17,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>See Live Demo</button>
         </div>
       </section>
+      {AD_VIDEO_URL && (
+        <section style={{padding:"80px 24px",maxWidth:900,margin:"0 auto",textAlign:"center"}}>
+          <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>See it in action</div>
+          <h2 style={{fontSize:"clamp(26px,4vw,42px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:40}}>Run your business from the truck.</h2>
+          <div style={{borderRadius:16,overflow:"hidden",border:`1px solid rgba(200,230,74,0.2)`,boxShadow:`0 0 60px rgba(200,230,74,0.08)`}}>
+            <video src={AD_VIDEO_URL} autoPlay muted loop playsInline style={{width:"100%",display:"block"}} />
+          </div>
+        </section>
+      )}
       <section style={{padding:"100px 24px",maxWidth:1100,margin:"0 auto",position:"relative"}}>
         <div style={{position:"absolute",top:0,right:0,width:"50%",height:"100%",backgroundImage:"url(/living.jpg)",backgroundSize:"cover",backgroundPosition:"center",opacity:0.1,maskImage:"linear-gradient(to left,rgba(0,0,0,0.5),transparent)",WebkitMaskImage:"linear-gradient(to left,rgba(0,0,0,0.5),transparent)"}} />
         <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>What you get</div>
@@ -668,7 +962,7 @@ export default function StackedWork() {
         <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>From the field</div>
         <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:40}}>Built for the trades.</h2>
         <div style={{borderRadius:16,overflow:"hidden",maxHeight:500,position:"relative"}}>
-          <img src="https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80" alt="Contractor on the job" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} />
+          <img src={AD_IMAGE_URL || "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80"} alt="Contractor on the job" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} />
           <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,transparent 50%,rgba(19,36,64,0.85) 100%)"}}/>
           <div style={{position:"absolute",bottom:32,left:32,right:32}}>
             <p style={{fontSize:"clamp(16px,2.5vw,22px)",fontWeight:600,color:"#fff",lineHeight:1.5,maxWidth:600,textShadow:"0 2px 8px rgba(0,0,0,0.5)"}}>The tools built for how you actually work — from the truck, on the job, closing deals on the spot.</p>
@@ -695,16 +989,47 @@ export default function StackedWork() {
         <h2 style={{position:"relative",zIndex:1,fontSize:"clamp(34px,5vw,56px)",fontWeight:700,letterSpacing:"-0.03em",maxWidth:600,margin:"0 auto 16px"}}>Ready to stop hustling backwards?</h2>
         <p style={{position:"relative",zIndex:1,fontSize:17,color:"rgba(245,240,235,0.5)",maxWidth:480,margin:"0 auto 44px"}}>$49.99/month. CRM + photo portfolio + lead tracking. Cancel anytime. No contracts. No setup fees.</p>
         <button onClick={handleSubscribe} style={{position:"relative",zIndex:1,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"20px 48px",fontSize:18,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Start Your Free Trial</button>
-        <p style={{position:"relative",zIndex:1,marginTop:22,fontSize:12,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>14-DAY FREE TRIAL — CREDIT CARD REQUIRED — CANCEL ANYTIME</p>
+        <p style={{position:"relative",zIndex:1,marginTop:22,fontSize:12,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>14-DAY FREE TRIAL — CANCEL ANYTIME</p>
       </section>
       <div style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.15)",borderRadius:0,padding:"48px 24px",textAlign:"center"}}>
         <div style={{maxWidth:560,margin:"0 auto"}}>
           <div style={{fontSize:32,marginBottom:12}}>🏡</div>
-          <h3 style={{fontSize:22,fontWeight:800,marginBottom:8}}>Looking for a Contractor in Maryland?</h3>
-          <p style={{fontSize:15,color:"rgba(245,240,235,0.6)",marginBottom:24,lineHeight:1.7}}>Describe your project and get connected with MHIC-licensed contractors in your area — free, fast, and no obligation.</p>
+          <h3 style={{fontSize:22,fontWeight:800,marginBottom:8}}>Looking for a Licensed Contractor?</h3>
+          <p style={{fontSize:15,color:"rgba(245,240,235,0.6)",marginBottom:24,lineHeight:1.7}}>Describe your project and get connected with state-licensed contractors in your area — free, fast, and no obligation. All 50 states.</p>
           <a href="/find-contractor" style={{display:"inline-block",background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",textDecoration:"none",padding:"14px 36px",borderRadius:10,fontSize:15,fontWeight:800}}>Find a Licensed Contractor →</a>
         </div>
       </div>
+      <section style={{padding:"60px 24px",textAlign:"center",borderTop:"1px solid rgba(255,255,255,0.05)"}}>
+        <p style={{fontSize:11,fontFamily:"'Space Mono'",color:"rgba(245,240,235,0.3)",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Spread the word</p>
+        <h3 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:8}}>Know a contractor who needs this?</h3>
+        <p style={{fontSize:14,color:"rgba(245,240,235,0.45)",marginBottom:28}}>Share StackedWork and help them run a tighter business.</p>
+        <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}}>
+          <a
+            href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent("https://letstaystacked.com")}`}
+            target="_blank" rel="noopener noreferrer"
+            style={{display:"flex",alignItems:"center",gap:10,padding:"12px 22px",background:"#1877F2",color:"#fff",borderRadius:10,fontSize:14,fontWeight:600,textDecoration:"none",fontFamily:"'DM Sans'"}}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.27h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+            Share on Facebook
+          </a>
+          <a
+            href={`https://www.instagram.com/`}
+            target="_blank" rel="noopener noreferrer"
+            style={{display:"flex",alignItems:"center",gap:10,padding:"12px 22px",background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",color:"#fff",borderRadius:10,fontSize:14,fontWeight:600,textDecoration:"none",fontFamily:"'DM Sans'"}}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+            Share on Instagram
+          </a>
+          <a
+            href={`https://twitter.com/intent/tweet?text=${encodeURIComponent("Just found StackedWork — a CRM built for contractors. Job tracking, lead management, before & after portfolio, and revenue dashboards. All for $49.99/mo. Check it out:")}&url=${encodeURIComponent("https://letstaystacked.com")}`}
+            target="_blank" rel="noopener noreferrer"
+            style={{display:"flex",alignItems:"center",gap:10,padding:"12px 22px",background:"#000",color:"#fff",borderRadius:10,fontSize:14,fontWeight:600,textDecoration:"none",fontFamily:"'DM Sans'"}}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.258 5.63zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            Share on X
+          </a>
+        </div>
+      </section>
       <footer style={{padding:"40px 24px",borderTop:"1px solid rgba(255,255,255,0.05)",maxWidth:1100,margin:"0 auto"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:20,marginBottom:24}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
