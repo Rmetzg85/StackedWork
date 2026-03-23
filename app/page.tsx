@@ -563,13 +563,13 @@ export default function StackedWork() {
               {/* Homeowner requests from /find-contractor */}
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <div>
-                  <h2 style={{fontSize:17,fontWeight:700,color:"#fff",marginBottom:2}}>Maryland Homeowner Requests</h2>
+                  <h2 style={{fontSize:17,fontWeight:700,color:"#fff",marginBottom:2}}>Looking for a Licensed Contractor?</h2>
                   <p style={{fontSize:12,color:"#94A3B8"}}>Project requests submitted by homeowners at letstaystacked.com/find-contractor</p>
                 </div>
                 <a href="/find-contractor" target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:G,fontWeight:700,textDecoration:"none",whiteSpace:"nowrap"}}>View Page ↗</a>
               </div>
               {dbHomeownerLeads.length===0
-                ? <Card style={{padding:"28px 20px",textAlign:"center"}}><div style={{fontSize:32,marginBottom:10}}>🏡</div><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:4}}>No homeowner requests yet</div><div style={{fontSize:12,color:"#94A3B8"}}>Share letstaystacked.com/find-contractor to start receiving project leads from Maryland homeowners.</div></Card>
+                ? <Card style={{padding:"28px 20px",textAlign:"center"}}><div style={{fontSize:32,marginBottom:10}}>🏡</div><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:4}}>No homeowner requests yet</div><div style={{fontSize:12,color:"#94A3B8"}}>Share letstaystacked.com/find-contractor to start receiving project leads from homeowners in your area.</div></Card>
                 : <div style={{display:"flex",flexDirection:"column",gap:10}}>
                     {dbHomeownerLeads.map((l:any,i:number)=>{
                       const d=l.created_at?new Date(l.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
