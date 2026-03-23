@@ -94,6 +94,84 @@ export default function StackedWork() {
   const [rcUploading, setRcUploading] = useState(false);
   const [rcErr, setRcErr] = useState<string|null>(null);
   const [rcFilter, setRcFilter] = useState("all");
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+
+  const parseVoiceToJob = (text: string) => {
+    const t = text.toLowerCase();
+    // Dollar amount — handles "$450", "450 dollars", "fifteen hundred", "two thousand five hundred"
+    const wordNums: Record<string,number> = { zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,hundred:100,thousand:1000 };
+    const spokenNum = (s: string): number|null => {
+      const parts = s.trim().split(/\s+/);
+      let total = 0; let curr = 0;
+      for (const p of parts) {
+        const n = wordNums[p];
+        if (n === undefined) return null;
+        if (n === 1000) { total += (curr||1)*1000; curr = 0; }
+        else if (n === 100) { curr = (curr||1)*100; }
+        else { curr += n; }
+      }
+      return total + curr || null;
+    };
+    let value = "";
+    const dollarMatch = t.match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
+    if (dollarMatch) { value = dollarMatch[1].replace(/,/g,""); }
+    else {
+      const digitMatch = t.match(/(\d[\d,]*(?:\.\d{1,2})?)\s*(?:dollars?|bucks?)?/);
+      if (digitMatch) value = digitMatch[1].replace(/,/g,"");
+      else {
+        const spoken = t.match(/\b((?:(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\s*)+)(?:dollars?|bucks?)?/);
+        if (spoken) { const n = spokenNum(spoken[1].trim()); if (n) value = String(n); }
+      }
+    }
+    // Job type
+    const JOB_TYPES = ["Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","General","Other"];
+    let jobType = "General";
+    for (const jt of JOB_TYPES) { if (t.includes(jt.toLowerCase())) { jobType = jt; break; } }
+    if (t.includes("paint")) jobType = "Painting";
+    if (t.includes("electric")) jobType = "Electrical";
+    if (t.includes("roof")) jobType = "Roofing";
+    if (t.includes("floor")) jobType = "Flooring";
+    if (t.includes("air condition") || t.includes("hvac") || t.includes("heat")) jobType = "HVAC";
+    // Status
+    let status = "quoted";
+    if (t.includes("scheduled") || t.includes("schedule")) status = "scheduled";
+    else if (t.includes("in progress") || t.includes("in-progress") || t.includes("started")) status = "in-progress";
+    else if (t.includes("complete") || t.includes("finished") || t.includes("done")) status = "complete";
+    // Customer name — first thing said before a job type or dollar or status keyword
+    const stripWords = [jobType.toLowerCase(),"quoted","scheduled","in progress","complete","finished","dollars","bucks","plumbing","electrical","hvac","roofing","drywall","painting","deck","flooring","general","other","job","for","new"];
+    let remaining = text;
+    for (const w of stripWords) remaining = remaining.replace(new RegExp(w,"gi"),"");
+    if (value) remaining = remaining.replace(new RegExp("\\$?"+value.replace(/\./,"\\.")+"\\s*(dollars?|bucks?)?","i"),"");
+    const name = remaining.replace(/[^a-zA-Z\s]/g,"").trim().replace(/\s+/g," ").split(" ").slice(0,4).join(" ").trim();
+    return { name, jobType, value, status };
+  };
+
+  const startVoiceEntry = () => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { alert("Voice entry isn't supported on this browser. Try Chrome or Safari."); return; }
+    const rec = new SR();
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.lang = "en-US";
+    setVoiceListening(true);
+    setVoiceTranscript("");
+    rec.onresult = (e: any) => {
+      const transcript = Array.from(e.results).map((r: any) => r[0].transcript).join("");
+      setVoiceTranscript(transcript);
+      if (e.results[e.results.length - 1].isFinal) {
+        const parsed = parseVoiceToJob(transcript);
+        if (parsed.name) setNjCustomer(parsed.name);
+        if (parsed.value) setNjValue(parsed.value);
+        if (parsed.jobType) setNjType(parsed.jobType);
+        if (parsed.status) setNjStatus(parsed.status);
+        setVoiceListening(false);
+      }
+    };
+    rec.onerror = () => setVoiceListening(false);
+    rec.onend = () => setVoiceListening(false);
+    rec.start();
+  };
 
   const checkSub = async (email: string) => {
     const { data } = await supabase.from("subscriptions").select("status").eq("email", email).maybeSingle();
@@ -381,7 +459,21 @@ export default function StackedWork() {
         </div>}
         {newJobOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setNewJobOpen(false)}>
           <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h2 style={{fontSize:18,fontWeight:700,color:"#0F172A"}}>New Job</h2><button onClick={()=>setNewJobOpen(false)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button></div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <h2 style={{fontSize:18,fontWeight:700,color:"#0F172A"}}>New Job</h2>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <button onClick={startVoiceEntry} title="Speak job details" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:voiceListening?`linear-gradient(135deg,${G},${GD})`:"#F1F5F9",color:voiceListening?"#132440":"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",transition:"all .2s"}}>
+                  {voiceListening
+                    ? <><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#132440",animation:"pulseMk 1s infinite"}}/>Listening...</>
+                    : <>🎤 Voice Entry</>}
+                </button>
+                <button onClick={()=>{setNewJobOpen(false);setVoiceTranscript("");}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button>
+              </div>
+            </div>
+            {voiceTranscript&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534"}}>
+              <span style={{fontWeight:700}}>Heard: </span>{voiceTranscript}
+            </div>}
+            {!voiceTranscript&&<p style={{fontSize:11,color:"#94A3B8",marginBottom:14}}>Tap <strong>Voice Entry</strong> and say something like: <em>&quot;John Smith, plumbing, $850, scheduled&quot;</em></p>}
             {[
               {label:"Customer Name *",val:njCustomer,set:setNjCustomer,placeholder:"John Smith",type:"text"},
               {label:"Phone",val:njPhone,set:setNjPhone,placeholder:"(410) 555-0100",type:"tel"},
@@ -822,7 +914,7 @@ export default function StackedWork() {
         <p className="sw-f2" style={{position:"relative",zIndex:1,fontSize:18,lineHeight:1.7,color:"rgba(245,240,235,0.6)",maxWidth:560,marginBottom:16}}>Stop juggling spreadsheets and apps you never open. StackedWork runs your contracting business in one place — CRM, lead tracking, before & after portfolio, and revenue dashboards.</p>
         <div className="sw-f3" style={{position:"relative",zIndex:1,marginBottom:48}}>
           <div className="sw-price" style={{fontFamily:"'Space Mono'",fontSize:72,fontWeight:700,color:G,lineHeight:1,marginBottom:4}}>$49.99<span style={{fontSize:24,color:"rgba(245,240,235,0.4)"}}>/mo</span></div>
-          <p style={{fontFamily:"'Space Mono'",fontSize:13,color:"rgba(245,240,235,0.4)",letterSpacing:"0.05em"}}>CRM + AI MOCKUPS + LEAD TRACKING. NO SETUP FEES.</p>
+          <p style={{fontFamily:"'Space Mono'",fontSize:13,color:"rgba(245,240,235,0.4)",letterSpacing:"0.05em"}}>CRM + VOICE-TO-JOB + LEAD TRACKING. NO SETUP FEES.</p>
           <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"rgba(245,240,235,0.35)",marginTop:10}}>Need a website? Ask us about our AI website building services.</p>
         </div>
         <div className="sw-f4" style={{position:"relative",zIndex:1,display:"flex",gap:16,flexWrap:"wrap",justifyContent:"center"}}>
