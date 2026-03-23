@@ -1004,14 +1004,17 @@ export default function StackedWork() {
         <h3 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:8}}>Know a contractor who needs this?</h3>
         <p style={{fontSize:14,color:"rgba(245,240,235,0.45)",marginBottom:28}}>Share StackedWork and help them run a tighter business.</p>
         <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}}>
-          <a
-            href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent("https://letstaystacked.com")}`}
-            target="_blank" rel="noopener noreferrer"
-            style={{display:"flex",alignItems:"center",gap:10,padding:"12px 22px",background:"#1877F2",color:"#fff",borderRadius:10,fontSize:14,fontWeight:600,textDecoration:"none",fontFamily:"'DM Sans'"}}
+          <button
+            onClick={()=>{
+              const shareData={url:"https://letstaystacked.com",title:"StackedWork",text:"Just found StackedWork — a CRM built for contractors. Job tracking, lead management, before & after portfolio, and revenue dashboards. All for $49.99/mo."};
+              if(typeof navigator!=="undefined"&&navigator.share){navigator.share(shareData).catch(()=>{});}
+              else{window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent("https://letstaystacked.com")}`, "_blank", "width=600,height=400");}
+            }}
+            style={{display:"flex",alignItems:"center",gap:10,padding:"12px 22px",background:"#1877F2",color:"#fff",borderRadius:10,fontSize:14,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"'DM Sans'"}}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.27h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
             Share on Facebook
-          </a>
+          </button>
           <button
             onClick={()=>{navigator.clipboard.writeText("https://letstaystacked.com").then(()=>{window.open("https://www.instagram.com/","_blank")});}}
             style={{display:"flex",alignItems:"center",gap:10,padding:"12px 22px",background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",color:"#fff",borderRadius:10,fontSize:14,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"'DM Sans'"}}
