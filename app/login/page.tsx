@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
@@ -10,7 +10,7 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://vyqbhpuqdu
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5cWJocHVxZHVhdWd4bWhidGJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMDQ0MzUsImV4cCI6MjA4ODc4MDQzNX0.wW4uaZJwIvl6TGZYkVZo9EuG2Ek713Y8F4jACuMxwSI";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-export default function LoginPage() {
+function LoginForm() {
   const searchParams = useSearchParams();
   const initialMode = searchParams.get("mode") === "signin" ? "signin" : "signup";
   const [mode, setMode] = useState<"signin" | "signup" | "forgot">(initialMode);
@@ -77,6 +77,200 @@ export default function LoginPage() {
     }
   };
 
+  return (
+    <>
+      {/* Tabs */}
+      {mode !== "forgot" && (
+        <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+          <button
+            className="tab"
+            onClick={() => { setMode("signup"); setError(null); setSuccess(null); }}
+            style={{
+              color: mode === "signup" ? G : "rgba(245,240,235,0.4)",
+              borderBottomColor: mode === "signup" ? G : "transparent",
+            }}
+          >
+            Sign Up
+          </button>
+          <button
+            className="tab"
+            onClick={() => { setMode("signin"); setError(null); setSuccess(null); }}
+            style={{
+              color: mode === "signin" ? G : "rgba(245,240,235,0.4)",
+              borderBottomColor: mode === "signin" ? G : "transparent",
+            }}
+          >
+            Sign In
+          </button>
+        </div>
+      )}
+
+      <div style={{ padding: "28px 28px 32px" }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>
+          {mode === "signup" ? "Start your free trial" : mode === "signin" ? "Welcome back" : "Reset your password"}
+        </h1>
+        <p style={{ fontSize: 13, color: "rgba(245,240,235,0.45)", marginBottom: 24 }}>
+          {mode === "signup"
+            ? "14-day free trial. Credit card required."
+            : mode === "signin"
+            ? "Sign in to access your StackedWork dashboard."
+            : "Enter your email and we'll send you a reset link."}
+        </p>
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {mode === "signup" && (
+            <>
+              <div>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
+                  Username
+                </label>
+                <input
+                  className="auth-input"
+                  type="text"
+                  placeholder="yourname"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.replace(/\s/g, ""))}
+                  required={mode === "signup"}
+                  autoComplete="username"
+                  maxLength={30}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
+                  Business Phone
+                </label>
+                <input
+                  className="auth-input"
+                  type="tel"
+                  placeholder="(410) 555-0100"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  autoComplete="tel"
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
+                  Business Website <span style={{ color: "rgba(245,240,235,0.3)", fontWeight: 400 }}>(optional — we'll set up your lead form)</span>
+                </label>
+                <input
+                  className="auth-input"
+                  type="url"
+                  placeholder="https://yourcompany.com"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  autoComplete="url"
+                />
+              </div>
+            </>
+          )}
+          <div>
+            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
+              Email
+            </label>
+            <input
+              className="auth-input"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
+          </div>
+
+          {mode !== "forgot" && (
+            <div>
+              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
+                Password
+              </label>
+              <div style={{ position: "relative" }}>
+                <input
+                  className="auth-input"
+                  type={showPassword ? "text" : "password"}
+                  placeholder={mode === "signup" ? "Create a password (min 6 chars)" : "Your password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  style={{ paddingRight: 44 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  style={{
+                    position: "absolute",
+                    right: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "rgba(245,240,235,0.45)",
+                    fontSize: 15,
+                    padding: 0,
+                    lineHeight: 1,
+                  }}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? "🙈" : "👁"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {mode === "signin" && (
+            <div style={{ textAlign: "right", marginTop: -6 }}>
+              <span
+                onClick={() => { setMode("forgot"); setError(null); setSuccess(null); }}
+                style={{ fontSize: 12, color: G, cursor: "pointer", fontWeight: 500 }}
+              >
+                Forgot password?
+              </span>
+            </div>
+          )}
+
+          {error && (
+            <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, fontSize: 13, color: "#FCA5A5" }}>
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div style={{ padding: "10px 14px", background: "rgba(200,230,74,0.1)", border: "1px solid rgba(200,230,74,0.3)", borderRadius: 8, fontSize: 13, color: G }}>
+              {success}
+            </div>
+          )}
+
+          <button className="auth-btn" type="submit" disabled={loading} style={{ marginTop: 4 }}>
+            {loading
+              ? (mode === "signup" ? "Creating account..." : mode === "signin" ? "Signing in..." : "Sending...")
+              : (mode === "signup" ? "Create Account & Start Trial" : mode === "signin" ? "Sign In" : "Send Reset Link")}
+          </button>
+        </form>
+
+        {mode === "forgot" && (
+          <p style={{ marginTop: 18, fontSize: 13, color: "rgba(245,240,235,0.35)", textAlign: "center" }}>
+            <span
+              onClick={() => { setMode("signin"); setError(null); setSuccess(null); }}
+              style={{ color: G, cursor: "pointer", fontWeight: 500 }}
+            >
+              ← Back to sign in
+            </span>
+          </p>
+        )}
+
+        {mode === "signup" && (
+          <p style={{ marginTop: 18, fontSize: 11, color: "rgba(245,240,235,0.25)", textAlign: "center", lineHeight: 1.5 }}>
+            By signing up you agree to our Terms of Service and Privacy Policy.
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
+export default function LoginPage() {
   return (
     <div
       style={{
@@ -156,193 +350,9 @@ export default function LoginPage() {
           overflow: "hidden",
         }}
       >
-        {/* Tabs */}
-        {mode !== "forgot" && (
-          <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-            <button
-              className="tab"
-              onClick={() => { setMode("signup"); setError(null); setSuccess(null); }}
-              style={{
-                color: mode === "signup" ? G : "rgba(245,240,235,0.4)",
-                borderBottomColor: mode === "signup" ? G : "transparent",
-              }}
-            >
-              Sign Up
-            </button>
-            <button
-              className="tab"
-              onClick={() => { setMode("signin"); setError(null); setSuccess(null); }}
-              style={{
-                color: mode === "signin" ? G : "rgba(245,240,235,0.4)",
-                borderBottomColor: mode === "signin" ? G : "transparent",
-              }}
-            >
-              Sign In
-            </button>
-          </div>
-        )}
-
-        <div style={{ padding: "28px 28px 32px" }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>
-            {mode === "signup" ? "Start your free trial" : mode === "signin" ? "Welcome back" : "Reset your password"}
-          </h1>
-          <p style={{ fontSize: 13, color: "rgba(245,240,235,0.45)", marginBottom: 24 }}>
-            {mode === "signup"
-              ? "14-day free trial. Credit card required."
-              : mode === "signin"
-              ? "Sign in to access your StackedWork dashboard."
-              : "Enter your email and we'll send you a reset link."}
-          </p>
-
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {mode === "signup" && (
-              <>
-                <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
-                    Username
-                  </label>
-                  <input
-                    className="auth-input"
-                    type="text"
-                    placeholder="yourname"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value.replace(/\s/g, ""))}
-                    required={mode === "signup"}
-                    autoComplete="username"
-                    maxLength={30}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
-                    Business Phone
-                  </label>
-                  <input
-                    className="auth-input"
-                    type="tel"
-                    placeholder="(410) 555-0100"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    autoComplete="tel"
-                  />
-                </div>
-                <div>
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
-                    Business Website <span style={{ color: "rgba(245,240,235,0.3)", fontWeight: 400 }}>(optional — we'll set up your lead form)</span>
-                  </label>
-                  <input
-                    className="auth-input"
-                    type="url"
-                    placeholder="https://yourcompany.com"
-                    value={website}
-                    onChange={(e) => setWebsite(e.target.value)}
-                    autoComplete="url"
-                  />
-                </div>
-              </>
-            )}
-            <div>
-              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
-                Email
-              </label>
-              <input
-                className="auth-input"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-              />
-            </div>
-
-            {mode !== "forgot" && (
-              <div>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
-                  Password
-                </label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    className="auth-input"
-                    type={showPassword ? "text" : "password"}
-                    placeholder={mode === "signup" ? "Create a password (min 6 chars)" : "Your password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                    style={{ paddingRight: 44 }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    style={{
-                      position: "absolute",
-                      right: 12,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      color: "rgba(245,240,235,0.45)",
-                      fontSize: 15,
-                      padding: 0,
-                      lineHeight: 1,
-                    }}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? "🙈" : "👁"}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {mode === "signin" && (
-              <div style={{ textAlign: "right", marginTop: -6 }}>
-                <span
-                  onClick={() => { setMode("forgot"); setError(null); setSuccess(null); }}
-                  style={{ fontSize: 12, color: G, cursor: "pointer", fontWeight: 500 }}
-                >
-                  Forgot password?
-                </span>
-              </div>
-            )}
-
-            {error && (
-              <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, fontSize: 13, color: "#FCA5A5" }}>
-                {error}
-              </div>
-            )}
-
-            {success && (
-              <div style={{ padding: "10px 14px", background: "rgba(200,230,74,0.1)", border: "1px solid rgba(200,230,74,0.3)", borderRadius: 8, fontSize: 13, color: G }}>
-                {success}
-              </div>
-            )}
-
-            <button className="auth-btn" type="submit" disabled={loading} style={{ marginTop: 4 }}>
-              {loading
-                ? (mode === "signup" ? "Creating account..." : mode === "signin" ? "Signing in..." : "Sending...")
-                : (mode === "signup" ? "Create Account & Start Trial" : mode === "signin" ? "Sign In" : "Send Reset Link")}
-            </button>
-          </form>
-
-          {mode === "forgot" && (
-            <p style={{ marginTop: 18, fontSize: 13, color: "rgba(245,240,235,0.35)", textAlign: "center" }}>
-              <span
-                onClick={() => { setMode("signin"); setError(null); setSuccess(null); }}
-                style={{ color: G, cursor: "pointer", fontWeight: 500 }}
-              >
-                ← Back to sign in
-              </span>
-            </p>
-          )}
-
-          {mode === "signup" && (
-            <p style={{ marginTop: 18, fontSize: 11, color: "rgba(245,240,235,0.25)", textAlign: "center", lineHeight: 1.5 }}>
-              By signing up you agree to our Terms of Service and Privacy Policy.
-            </p>
-          )}
-        </div>
+        <Suspense fallback={null}>
+          <LoginForm />
+        </Suspense>
       </div>
 
       <a href="/" style={{ marginTop: 24, fontSize: 13, color: "rgba(245,240,235,0.35)", textDecoration: "none" }}>
