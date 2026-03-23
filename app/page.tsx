@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
+import ChatWidget from "./components/ChatWidget";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://vyqbhpuqduaugxmhbtbk.supabase.co";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5cWJocHVxZHVhdWd4bWhidGJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMDQ0MzUsImV4cCI6MjA4ODc4MDQzNX0.wW4uaZJwIvl6TGZYkVZo9EuG2Ek713Y8F4jACuMxwSI";
@@ -12,6 +13,7 @@ const AD_VIDEO_URL = "";
 const AD_IMAGE_URL = "";
 const FEATURES = [
   { icon: "🏗️", title: "AI-Powered CRM", desc: "Track every job, client, and dollar. Voice-to-job entry means you log work from the truck, not a desk.", link: "dashboard" },
+  { icon: "🤖", title: "AI Business Assistant", desc: "Ask your AI anything — pricing guidance, follow-up tips, business advice. Built right into your dashboard.", link: "dashboard" },
   { icon: "🌐", title: "AI Website Service", desc: "Need a website built or updated? We offer AI-powered website services for contractors — inquire for pricing.", link: "https://REMVentures.Tech" },
   { icon: "📸", title: "Before & After Portfolio", desc: "Upload job photos, build your portfolio, and push before & after shots straight to Facebook, Instagram, and TikTok.", link: "photos" },
   { icon: "📊", title: "Revenue Dashboard", desc: "See what you've earned this week, this month, this year. Know which jobs are profitable and which aren't.", link: "dashboard" },
@@ -828,6 +830,7 @@ export default function StackedWork() {
           </main>
         </div>
         <div className="sw-bn">{nv.map(n=><button key={n.id} className={`sw-bi ${vw===n.id?"sw-a":""}`} onClick={()=>setVw(n.id)}><span className="sw-ic">{n.ic}</span><span className="sw-lb">{n.lb}</span></button>)}</div>
+        <ChatWidget mode="contractor" />
       </div>
     );
   }
@@ -981,6 +984,27 @@ export default function StackedWork() {
             </div>
           ))}
         </div>
+      </section>
+      <Divider/>
+      <section style={{padding:"100px 24px",maxWidth:1000,margin:"0 auto",textAlign:"center"}}>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>New feature</div>
+        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:16}}>Your AI. <span style={{color:G}}>Always on call.</span></h2>
+        <p style={{fontSize:17,lineHeight:1.7,color:"rgba(245,240,235,0.55)",maxWidth:560,margin:"0 auto 56px"}}>Ask pricing questions, get follow-up scripts, figure out if a job is worth taking. Your AI business assistant is built right into your dashboard — no extra apps, no extra cost.</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:20,textAlign:"left"}}>
+          {[
+            {icon:"💰",title:"Job Pricing Help",desc:"\"What should I charge for a 2-bathroom gut job in Maryland?\" — just ask."},
+            {icon:"📞",title:"Follow-Up Scripts",desc:"Get word-for-word scripts to re-engage leads that went cold."},
+            {icon:"📈",title:"Business Advice",desc:"Profitability tips, when to hire, how to grow — on demand."},
+            {icon:"🏡",title:"Homeowner Assistant",desc:"Homeowners on your find-contractor page get their own AI helper too."},
+          ].map((item,i)=>(
+            <div key={i} style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.15)",borderRadius:12,padding:28}}>
+              <div style={{fontSize:28,marginBottom:12}}>{item.icon}</div>
+              <h3 style={{fontSize:16,fontWeight:700,marginBottom:6}}>{item.title}</h3>
+              <p style={{fontSize:13,lineHeight:1.65,color:"rgba(245,240,235,0.5)"}}>{item.desc}</p>
+            </div>
+          ))}
+        </div>
+        <p style={{marginTop:36,fontSize:13,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>POWERED BY CLAUDE AI · INCLUDED IN YOUR $49.99/MO PLAN</p>
       </section>
       <Divider/>
       <section style={{padding:"100px 24px 140px",textAlign:"center",position:"relative",overflow:"hidden"}}>
