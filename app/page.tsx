@@ -1321,6 +1321,7 @@ export default function StackedWork() {
         <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:34,height:34,background:"#4A82C4",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,color:"#fff",fontFamily:"'DM Sans'",letterSpacing:"-0.03em"}}>SW</div><span style={{fontWeight:700,fontSize:17,letterSpacing:"-0.02em"}}>StackedWork</span></div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <span onClick={()=>setPage("app")} style={{color:G,fontSize:14,fontWeight:500,cursor:"pointer"}}>Demo</span>
+          <a href="/find-contractor" style={{color:"rgba(245,240,235,0.7)",fontSize:13,fontWeight:500,textDecoration:"none",display:"inline-block"}}>Find a Contractor</a>
           <a href="/login?mode=signin" style={{background:"transparent",color:"#fff",border:"1px solid rgba(255,255,255,0.3)",padding:"8px 18px",fontSize:13,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer",textDecoration:"none",display:"inline-block"}}>Sign In</a>
           <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"10px 20px",fontSize:13,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Get Started</button>
         </div>
@@ -1500,7 +1501,7 @@ export default function StackedWork() {
           </p>
         </div>
       </footer>
-      <ChatWidget mode="homeowner" />
+      <ChatWidget mode="contractor" />
     </div>
   );
 }
