@@ -104,7 +104,7 @@ export async function GET(request: Request) {
 
     // ?debug=1&mode=cgi-raw&app=HIC::HIC_qselect — raw HTML from a specific calling_app
     if (mode === "cgi-raw") {
-      const app = searchParams.get("app") || "MHIC::MHIC_personal_info";
+      const app = searchParams.get("app") || "HIC::HIC_qselect";
       const res = await fetch(`${MHIC_CGI}?calling_app=${encodeURIComponent(app)}`, {
         headers: { "User-Agent": "Mozilla/5.0" },
         signal: AbortSignal.timeout(12000),
@@ -113,6 +113,30 @@ export async function GET(request: Request) {
       return new NextResponse(`<!-- status: ${res.status} calling_app: ${app} -->\n${html}`, {
         headers: { "Content-Type": "text/html" },
       });
+    }
+
+    // ?debug=1&mode=hic-search&field=zip_code&value=21201 — POST to HIC search
+    if (mode === "hic-search") {
+      const field = searchParams.get("field") || "zip_code";
+      const value = searchParams.get("value") || "21201";
+      // Try different calling_app variants for the location/zip search
+      const apps = ["HIC::HIC_location_pq", "HIC::HIC_zip_pq", "HIC::HIC_personal_pq"];
+      const results: any[] = [];
+      for (const app of apps) {
+        const body = new URLSearchParams({ calling_app: app, [field]: value, search_type: field === "zip_code" ? "ZIP" : "NAME" }).toString();
+        const res = await fetch(MHIC_CGI, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+          body,
+          signal: AbortSignal.timeout(10000),
+        });
+        const text = await res.text();
+        const hasError = /error|can't locate|not found|unavailable/i.test(text.slice(0, 500));
+        const hasTable = /<table/i.test(text);
+        const rowCount = (text.match(/<tr/gi) || []).length;
+        results.push({ app, status: res.status, hasError, hasTable, rowCount, snippet: text.slice(0, 400).replace(/\s+/g, " ") });
+      }
+      return NextResponse.json(results, { status: 200 });
     }
 
     // ?debug=1&mode=company&term=Smith — POST company name search
