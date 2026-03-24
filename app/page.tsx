@@ -96,6 +96,24 @@ export default function StackedWork() {
   const [rcUploading, setRcUploading] = useState(false);
   const [rcErr, setRcErr] = useState<string|null>(null);
   const [rcFilter, setRcFilter] = useState("all");
+  const [dbEstimates, setDbEstimates] = useState<any[]>([]);
+  const [newEstimateOpen, setNewEstimateOpen] = useState(false);
+  const [neStep, setNeStep] = useState<1|2>(1);
+  const [neCustomer, setNeCustomer] = useState("");
+  const [neEmail, setNeEmail] = useState("");
+  const [nePhone, setNePhone] = useState("");
+  const [neJobType, setNeJobType] = useState("General");
+  const [neDesc, setNeDesc] = useState("");
+  const [neValidUntil, setNeValidUntil] = useState("");
+  const [neNotes, setNeNotes] = useState("");
+  const [neTaxRate, setNeTaxRate] = useState("0");
+  const [neLineItems, setNeLineItems] = useState<any[]>([{ id: 1, description: "", quantity: 1, unit: "hours", unit_price: 0, total: 0 }]);
+  const [neLoading, setNeLoading] = useState(false);
+  const [neError, setNeError] = useState<string|null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [estimateDetail, setEstimateDetail] = useState<any|null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
 
@@ -355,6 +373,7 @@ export default function StackedWork() {
     supabase.from("homeowner_leads").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => { if (data) setDbHomeownerLeads(data); });
     supabase.from("portfolio").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbPhotos(data); });
     supabase.from("receipts").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data }) => { if (data) setDbReceipts(data); });
+    supabase.from("estimates").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbEstimates(data); });
     const ch = supabase.channel("leads_" + userId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads", filter: `contractor_id=eq.${userId}` }, (payload) => {
         setDbLeads(prev => [payload.new as any, ...prev]);
@@ -381,6 +400,115 @@ export default function StackedWork() {
     setDbLeads(prev => prev.map(l => l.id === id ? { ...l, read: true } : l));
   };
 
+  const calcEstimateTotals = (items: any[], taxRate: number) => {
+    const subtotal = items.reduce((a: number, it: any) => a + (Number(it.total) || 0), 0);
+    const taxAmount = subtotal * (taxRate / 100);
+    return { subtotal, taxAmount, total: subtotal + taxAmount };
+  };
+
+  const updateLineItem = (id: number, field: string, value: any) => {
+    setNeLineItems(prev => prev.map(it => {
+      if (it.id !== id) return it;
+      const updated = { ...it, [field]: value };
+      if (field === "quantity" || field === "unit_price") {
+        updated.total = parseFloat((Number(updated.quantity) * Number(updated.unit_price)).toFixed(2));
+      }
+      return updated;
+    }));
+  };
+
+  const addLineItem = () => {
+    setNeLineItems(prev => [...prev, { id: Date.now(), description: "", quantity: 1, unit: "hours", unit_price: 0, total: 0 }]);
+  };
+
+  const removeLineItem = (id: number) => {
+    setNeLineItems(prev => prev.filter(it => it.id !== id));
+  };
+
+  const handleAiPricing = async () => {
+    if (!neJobType) return;
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/estimate-ai-price", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobType: neJobType, description: neDesc }),
+      });
+      const data = await res.json();
+      if (data.line_items) {
+        setNeLineItems(data.line_items.map((it: any, i: number) => ({ ...it, id: Date.now() + i })));
+        if (data.notes && !neNotes) setNeNotes(data.notes);
+      }
+    } catch { /* ignore */ }
+    finally { setAiLoading(false); }
+  };
+
+  const resetNewEstimate = () => {
+    setNeStep(1); setNeCustomer(""); setNeEmail(""); setNePhone(""); setNeJobType("General");
+    setNeDesc(""); setNeValidUntil(""); setNeNotes(""); setNeTaxRate("0");
+    setNeLineItems([{ id: 1, description: "", quantity: 1, unit: "hours", unit_price: 0, total: 0 }]);
+    setNeLoading(false); setNeError(null); setNewEstimateOpen(false);
+  };
+
+  const handleSaveEstimate = async (sendEmail = false) => {
+    if (!userId || !neCustomer.trim()) return;
+    setNeLoading(true); setNeError(null);
+    const taxRate = parseFloat(neTaxRate) || 0;
+    const { subtotal, taxAmount, total } = calcEstimateTotals(neLineItems, taxRate);
+    const { data, error } = await supabase.from("estimates").insert({
+      contractor_id: userId,
+      customer_name: neCustomer.trim(),
+      customer_email: neEmail.trim() || null,
+      customer_phone: nePhone.trim() || null,
+      job_type: neJobType,
+      line_items: neLineItems.filter(it => it.description.trim()),
+      subtotal,
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      total,
+      notes: neNotes.trim() || null,
+      status: sendEmail ? "sent" : "draft",
+      valid_until: neValidUntil || null,
+    }).select().single();
+    setNeLoading(false);
+    if (error) { setNeError(error.message); return; }
+    if (data) {
+      setDbEstimates(prev => [data, ...prev]);
+      if (sendEmail && data.customer_email) {
+        const shareUrl = `${window.location.origin}/estimate/${data.share_token}`;
+        await fetch("/api/estimate-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ estimate: data, contractorName: userEmail?.split("@")[0] || "Your Contractor", contractorEmail: userEmail, shareUrl }),
+        });
+      }
+    }
+    resetNewEstimate();
+  };
+
+  const deleteEstimate = async (est: any) => {
+    if (!confirm("Delete this estimate?")) return;
+    await supabase.from("estimates").delete().eq("id", est.id);
+    setDbEstimates(prev => prev.filter(e => e.id !== est.id));
+    if (estimateDetail?.id === est.id) setEstimateDetail(null);
+  };
+
+  const sendEstimateEmail = async (est: any) => {
+    if (!est.customer_email) return;
+    setSendingEmail(true);
+    const shareUrl = `${window.location.origin}/estimate/${est.share_token}`;
+    await fetch("/api/estimate-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ estimate: est, contractorName: userEmail?.split("@")[0] || "Your Contractor", contractorEmail: userEmail, shareUrl }),
+    });
+    await supabase.from("estimates").update({ status: "sent" }).eq("id", est.id);
+    setDbEstimates(prev => prev.map(e => e.id === est.id ? { ...e, status: "sent" } : e));
+    if (estimateDetail?.id === est.id) setEstimateDetail((e: any) => ({ ...e, status: "sent" }));
+    setSendingEmail(false); setEmailSent(true);
+    setTimeout(() => setEmailSent(false), 3000);
+  };
+
   const handleSubscribe = () => {
     window.location.href = "/login";
   };
@@ -405,7 +533,7 @@ export default function StackedWork() {
   }
 
   if(page==="app"){
-    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"receipts",ic:"🧾",lb:"Receipts"},{id:"followups",ic:"🔔",lb:"Alerts"}];
+    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"estimates",ic:"📋",lb:"Estimates"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"receipts",ic:"🧾",lb:"Receipts"},{id:"followups",ic:"🔔",lb:"Alerts"}];
     return(
       <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh"}}>
         <style>{`
@@ -491,6 +619,71 @@ export default function StackedWork() {
             <div style={{marginBottom:20}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Notes</label><textarea value={njNotes} onChange={e=>setNjNotes(e.target.value)} placeholder="Job details..." rows={3} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",resize:"vertical",boxSizing:"border-box"}}/></div>
             {njError&&<div style={{marginBottom:14,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:13,color:"#991B1B"}}>{njError}</div>}
             <button onClick={handleNewJob} disabled={njLoading||!njCustomer.trim()||!njValue} style={{width:"100%",padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:njLoading||!njCustomer.trim()||!njValue?"not-allowed":"pointer",opacity:njLoading||!njCustomer.trim()||!njValue?0.6:1,fontFamily:"'DM Sans'"}}>{njLoading?"Saving...":"Save Job"}</button>
+          </div>
+        </div>}
+        {newEstimateOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={resetNewEstimate}>
+          <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:560,width:"100%",maxHeight:"92vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <div>
+                <h2 style={{fontSize:18,fontWeight:700,color:"#0F172A"}}>New Estimate</h2>
+                <div style={{display:"flex",gap:8,marginTop:6}}>
+                  {[{n:1,l:"Client Info"},{n:2,l:"Line Items"}].map(s=>(
+                    <button key={s.n} onClick={()=>setNeStep(s.n as 1|2)} style={{fontSize:11,fontWeight:700,padding:"3px 12px",borderRadius:100,border:`1.5px solid ${neStep===s.n?"#C8E64A":"#E2E8F0"}`,background:neStep===s.n?"#C8E64A":"transparent",color:neStep===s.n?"#132440":"#94A3B8",cursor:"pointer",fontFamily:"'DM Sans'"}}>{s.n}. {s.l}</button>
+                  ))}
+                </div>
+              </div>
+              <button onClick={resetNewEstimate} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button>
+            </div>
+
+            {neStep===1&&<>
+              {[{label:"Customer Name *",val:neCustomer,set:setNeCustomer,placeholder:"John Smith",type:"text"},{label:"Customer Email",val:neEmail,set:setNeEmail,placeholder:"john@email.com",type:"email"},{label:"Phone",val:nePhone,set:setNePhone,placeholder:"(410) 555-0100",type:"tel"}].map((f,i)=>(
+                <div key={i} style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>{f.label}</label><input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.placeholder} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+              ))}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Job Type</label><select value={neJobType} onChange={e=>setNeJobType(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>{["General","Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","Other"].map(t=><option key={t}>{t}</option>)}</select></div>
+                <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Valid Until</label><input type="date" value={neValidUntil} onChange={e=>setNeValidUntil(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+              </div>
+              <div style={{marginBottom:20}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Project Description (for AI pricing)</label><textarea value={neDesc} onChange={e=>setNeDesc(e.target.value)} placeholder="e.g. Replace water heater, 50 gallon, existing hookups..." rows={2} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",resize:"vertical",boxSizing:"border-box"}}/></div>
+              <button onClick={()=>setNeStep(2)} disabled={!neCustomer.trim()} style={{width:"100%",padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:!neCustomer.trim()?"not-allowed":"pointer",opacity:!neCustomer.trim()?0.6:1,fontFamily:"'DM Sans'"}}>Next: Line Items →</button>
+            </>}
+
+            {neStep===2&&<>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <span style={{fontSize:13,fontWeight:600,color:"#374151"}}>Line Items</span>
+                <button onClick={handleAiPricing} disabled={aiLoading} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:aiLoading?"#F1F5F9":`linear-gradient(135deg,${G},${GD})`,color:aiLoading?"#94A3B8":"#132440",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:aiLoading?"not-allowed":"pointer",fontFamily:"'DM Sans'"}}>
+                  {aiLoading?<><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#94A3B8",animation:"pulseMk 1s infinite"}}/>Getting prices...</>:<>🤖 AI Price Suggestions</>}
+                </button>
+              </div>
+              {aiLoading&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534"}}>Analyzing {neJobType} pricing for {new Date().getFullYear()}...</div>}
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+                {neLineItems.map((it,i)=>(
+                  <div key={it.id} style={{display:"grid",gridTemplateColumns:"2fr 0.7fr 0.7fr 0.8fr 0.8fr auto",gap:6,alignItems:"center"}}>
+                    <input value={it.description} onChange={e=>updateLineItem(it.id,"description",e.target.value)} placeholder="Description" style={{padding:"8px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none"}}/>
+                    <input type="number" min="0" value={it.quantity} onChange={e=>updateLineItem(it.id,"quantity",e.target.value)} placeholder="Qty" style={{padding:"8px 8px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"center"}}/>
+                    <select value={it.unit} onChange={e=>updateLineItem(it.id,"unit",e.target.value)} style={{padding:"8px 6px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:11,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>
+                      {["hours","sq ft","linear ft","each","lbs","bags","gallons","days"].map(u=><option key={u}>{u}</option>)}
+                    </select>
+                    <input type="number" min="0" step="0.01" value={it.unit_price} onChange={e=>updateLineItem(it.id,"unit_price",e.target.value)} placeholder="$/unit" style={{padding:"8px 8px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"right"}}/>
+                    <div style={{padding:"8px 8px",background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:7,fontSize:12,fontWeight:600,color:"#374151",textAlign:"right"}}>${Number(it.total).toFixed(2)}</div>
+                    <button onClick={()=>removeLineItem(it.id)} style={{background:"none",border:"none",color:"#CBD5E1",cursor:"pointer",fontSize:16,padding:"0 2px"}} title="Remove">×</button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={addLineItem} style={{fontSize:12,color:GD,fontWeight:600,background:"none",border:`1px dashed ${G}`,borderRadius:7,padding:"7px 16px",cursor:"pointer",fontFamily:"'DM Sans'",width:"100%",marginBottom:16}}>+ Add Line Item</button>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Tax Rate (%)</label><input type="number" min="0" max="30" step="0.1" value={neTaxRate} onChange={e=>setNeTaxRate(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+                <div style={{display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+                  {(()=>{const{subtotal,taxAmount,total}=calcEstimateTotals(neLineItems,parseFloat(neTaxRate)||0);return<div style={{padding:"10px 12px",background:"#F0FDF4",borderRadius:8,textAlign:"right"}}><div style={{fontSize:11,color:"#64748B"}}>Subtotal: ${subtotal.toFixed(2)}{taxAmount>0?` · Tax: $${taxAmount.toFixed(2)}`:""}</div><div style={{fontSize:17,fontWeight:800,color:"#132440"}}>Total: ${total.toFixed(2)}</div></div>})()}
+                </div>
+              </div>
+              <div style={{marginBottom:20}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Notes (optional)</label><textarea value={neNotes} onChange={e=>setNeNotes(e.target.value)} placeholder="Payment terms, scope notes, disclaimers..." rows={3} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",resize:"vertical",boxSizing:"border-box"}}/></div>
+              {neError&&<div style={{marginBottom:14,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:13,color:"#991B1B"}}>{neError}</div>}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <button onClick={()=>handleSaveEstimate(false)} disabled={neLoading||!neCustomer.trim()} style={{padding:13,background:"#F1F5F9",color:"#374151",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:neLoading||!neCustomer.trim()?"not-allowed":"pointer",opacity:neLoading||!neCustomer.trim()?0.6:1,fontFamily:"'DM Sans'"}}>{neLoading?"Saving...":"💾 Save Draft"}</button>
+                <button onClick={()=>handleSaveEstimate(true)} disabled={neLoading||!neCustomer.trim()||!neEmail.trim()} style={{padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:neLoading||!neCustomer.trim()||!neEmail.trim()?"not-allowed":"pointer",opacity:neLoading||!neCustomer.trim()||!neEmail.trim()?0.6:1,fontFamily:"'DM Sans'"}} title={!neEmail.trim()?"Add customer email to send":""}>{neLoading?"Sending...":"📧 Save & Email Client"}</button>
+              </div>
+              {!neEmail.trim()&&<div style={{fontSize:11,color:"#94A3B8",textAlign:"center",marginTop:8}}>Add customer email on step 1 to enable email sending</div>}
+            </>}
           </div>
         </div>}
         {sms&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setSms(false)}>
@@ -821,6 +1014,88 @@ export default function StackedWork() {
                     >{rcUploading?"Saving...":"Save Receipt"}</button>
                   </Card>
                 )}
+              </>);
+            })()}
+            {vw==="estimates"&&(()=>{
+              const EST_STC: Record<string,{bg:string;text:string;label:string}> = { draft:{bg:"#F1F5F9",text:"#64748B",label:"Draft"}, sent:{bg:"#DBEAFE",text:"#1E40AF",label:"Sent"}, accepted:{bg:"#D1FAE5",text:"#065F46",label:"Accepted"}, declined:{bg:"#FEE2E2",text:"#991B1B",label:"Declined"} };
+              const EstBadge = ({s}:{s:string}) => { const c=EST_STC[s]||EST_STC.draft; return <span style={{display:"inline-block",padding:"3px 10px",borderRadius:100,fontSize:11,fontWeight:600,background:c.bg,color:c.text}}>{c.label}</span>; };
+              return (<>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Estimates</h1>
+                  <Btn onClick={()=>userId?setNewEstimateOpen(true):setAuthMode("login")}>+ New Estimate</Btn>
+                </div>
+                <p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Create and send professional estimates to clients.</p>
+                {dbEstimates.length===0
+                  ? <Card style={{padding:40,textAlign:"center"}}>
+                      <div style={{fontSize:36,marginBottom:12}}>📋</div>
+                      <div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No estimates yet</div>
+                      <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Build a professional estimate and send it to a client in minutes.</div>
+                      <Btn onClick={()=>userId?setNewEstimateOpen(true):setAuthMode("login")}>Create First Estimate</Btn>
+                    </Card>
+                  : <Card style={{overflow:"hidden"}}>
+                      {dbEstimates.map((est:any, i:number)=>(
+                        <div key={est.id} style={{padding:"14px 18px",borderBottom:i<dbEstimates.length-1?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setEstimateDetail(est)}>
+                          <div>
+                            <div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{est.customer_name}</div>
+                            <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{est.job_type} · {new Date(est.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}{est.customer_email?` · ${est.customer_email}`:""}</div>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <span style={{fontWeight:700,fontSize:14}}>${Number(est.total).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                            <EstBadge s={est.status}/>
+                          </div>
+                        </div>
+                      ))}
+                    </Card>
+                }
+                {/* Estimate detail modal */}
+                {estimateDetail&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>{setEstimateDetail(null);setEmailSent(false);}}>
+                  <div style={{background:"#fff",borderRadius:16,maxWidth:560,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+                    <div style={{background:"linear-gradient(135deg,#132440,#1E3A5F)",borderRadius:"16px 16px 0 0",padding:"20px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:16,color:"#fff"}}>{estimateDetail.customer_name}</div>
+                        <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginTop:2}}>{estimateDetail.job_type} · {new Date(estimateDetail.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <EstBadge s={estimateDetail.status}/>
+                        <button onClick={()=>{setEstimateDetail(null);setEmailSent(false);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.6)",fontSize:20,cursor:"pointer",padding:0,lineHeight:1}}>×</button>
+                      </div>
+                    </div>
+                    <div style={{padding:"20px 24px"}}>
+                      {/* Line items */}
+                      <table style={{width:"100%",borderCollapse:"collapse",marginBottom:16}}>
+                        <thead><tr style={{background:"#F8FAFC"}}>
+                          <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Item</th>
+                          <th style={{padding:"8px 10px",textAlign:"center",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Qty</th>
+                          <th style={{padding:"8px 10px",textAlign:"right",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Unit $</th>
+                          <th style={{padding:"8px 10px",textAlign:"right",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Total</th>
+                        </tr></thead>
+                        <tbody>
+                          {(estimateDetail.line_items||[]).map((it:any,i:number)=>(
+                            <tr key={i}>
+                              <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,color:"#374151"}}>{it.description}</td>
+                              <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,color:"#374151",textAlign:"center"}}>{it.quantity} {it.unit}</td>
+                              <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,color:"#374151",textAlign:"right"}}>${Number(it.unit_price).toFixed(2)}</td>
+                              <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,fontWeight:600,color:"#0F172A",textAlign:"right"}}>${Number(it.total).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr><td colSpan={3} style={{padding:"8px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>Subtotal</td><td style={{padding:"8px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>${Number(estimateDetail.subtotal).toFixed(2)}</td></tr>
+                          {estimateDetail.tax_rate>0&&<tr><td colSpan={3} style={{padding:"6px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>Tax ({estimateDetail.tax_rate}%)</td><td style={{padding:"6px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>${Number(estimateDetail.tax_amount).toFixed(2)}</td></tr>}
+                          <tr style={{background:"#F0FDF4"}}><td colSpan={3} style={{padding:"10px",textAlign:"right",fontSize:14,fontWeight:700,color:"#0F172A"}}>Total</td><td style={{padding:"10px",textAlign:"right",fontSize:18,fontWeight:800,color:"#132440"}}>${Number(estimateDetail.total).toFixed(2)}</td></tr>
+                        </tfoot>
+                      </table>
+                      {estimateDetail.notes&&<div style={{padding:"10px 14px",background:"#F8FAFC",borderLeft:"3px solid #C8E64A",borderRadius:4,marginBottom:16}}><p style={{fontSize:12,color:"#374151",lineHeight:1.6,margin:0}}>{estimateDetail.notes}</p></div>}
+                      {emailSent&&<div style={{padding:"10px 14px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:8,marginBottom:14,fontSize:13,color:"#065F46",fontWeight:600,textAlign:"center"}}>✅ Estimate sent to {estimateDetail.customer_email}</div>}
+                      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                        <Btn onClick={()=>window.open(`/estimate/${estimateDetail.share_token}`,"_blank")} style={{fontSize:12,padding:"8px 14px"}}>🔗 Share Link</Btn>
+                        {estimateDetail.customer_email&&<Btn onClick={()=>sendEstimateEmail(estimateDetail)} style={{fontSize:12,padding:"8px 14px",opacity:sendingEmail?0.6:1}}>{sendingEmail?"Sending...":"📧 Send Email"}</Btn>}
+                        <BtnO onClick={()=>{ navigator.clipboard?.writeText(`${window.location.origin}/estimate/${estimateDetail.share_token}`); }} style={{fontSize:12,padding:"8px 14px"}}>📋 Copy Link</BtnO>
+                        <BtnO onClick={()=>deleteEstimate(estimateDetail)} style={{fontSize:12,padding:"8px 14px",color:"#EF4444"}}>Delete</BtnO>
+                      </div>
+                    </div>
+                  </div>
+                </div>}
               </>);
             })()}
             {vw==="followups"&&<>
