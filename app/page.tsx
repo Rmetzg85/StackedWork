@@ -1363,7 +1363,7 @@ export default function StackedWork() {
       <section style={{padding:"72px 24px 80px",maxWidth:600,margin:"0 auto",textAlign:"center"}}>
         <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:14}}>Start free today</div>
         <h2 style={{fontSize:"clamp(26px,4vw,38px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:10}}>Set up in <span style={{color:G}}>5 minutes.</span></h2>
-        <p style={{fontSize:15,color:"rgba(245,240,235,0.5)",marginBottom:32}}>No credit card required. 14-day free trial.</p>
+        <p style={{fontSize:15,color:"rgba(245,240,235,0.5)",marginBottom:32}}>14-day free trial. Credit card required to start.</p>
         <form onSubmit={(e)=>{e.preventDefault();const email=(e.currentTarget.elements.namedItem("email") as HTMLInputElement).value;window.location.href=`/login?email=${encodeURIComponent(email)}`;}} style={{display:"flex",gap:12,maxWidth:460,margin:"0 auto",flexWrap:"wrap",justifyContent:"center"}}>
           <input name="email" type="email" placeholder="your@email.com" required style={{flex:1,minWidth:220,padding:"14px 18px",borderRadius:8,border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.06)",color:"#fff",fontSize:15,fontFamily:"'DM Sans'",outline:"none"}} />
           <button type="submit" style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 28px",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",whiteSpace:"nowrap"}}>Get Started →</button>
