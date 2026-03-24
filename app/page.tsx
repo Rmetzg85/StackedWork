@@ -114,6 +114,17 @@ export default function StackedWork() {
   const [estimateDetail, setEstimateDetail] = useState<any|null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [editingEstimate, setEditingEstimate] = useState(false);
+  const [editLineItems, setEditLineItems] = useState<any[]>([]);
+  const [editNotes, setEditNotes] = useState("");
+  const [editTaxRate, setEditTaxRate] = useState("0");
+  const [editCustomer, setEditCustomer] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editJobType, setEditJobType] = useState("General");
+  const [editValidUntil, setEditValidUntil] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string|null>(null);
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
 
@@ -507,6 +518,59 @@ export default function StackedWork() {
     if (estimateDetail?.id === est.id) setEstimateDetail((e: any) => ({ ...e, status: "sent" }));
     setSendingEmail(false); setEmailSent(true);
     setTimeout(() => setEmailSent(false), 3000);
+  };
+
+  const openEditEstimate = (est: any) => {
+    setEditCustomer(est.customer_name || "");
+    setEditEmail(est.customer_email || "");
+    setEditPhone(est.customer_phone || "");
+    setEditJobType(est.job_type || "General");
+    setEditValidUntil(est.valid_until || "");
+    setEditNotes(est.notes || "");
+    setEditTaxRate(String(est.tax_rate || 0));
+    setEditLineItems((est.line_items || []).map((it: any, i: number) => ({ ...it, id: Date.now() + i })));
+    setEditingEstimate(true);
+    setEditError(null);
+  };
+
+  const updateEditLineItem = (id: number, field: string, value: any) => {
+    setEditLineItems(prev => prev.map(it => {
+      if (it.id !== id) return it;
+      const updated = { ...it, [field]: value };
+      if (field === "quantity" || field === "unit_price") {
+        updated.total = parseFloat((Number(updated.quantity) * Number(updated.unit_price)).toFixed(2));
+      }
+      return updated;
+    }));
+  };
+
+  const handleUpdateEstimate = async () => {
+    if (!estimateDetail || !editCustomer.trim()) return;
+    setEditLoading(true); setEditError(null);
+    const taxRate = parseFloat(editTaxRate) || 0;
+    const { subtotal, taxAmount, total } = calcEstimateTotals(editLineItems, taxRate);
+    const updates = {
+      customer_name: editCustomer.trim(),
+      customer_email: editEmail.trim() || null,
+      customer_phone: editPhone.trim() || null,
+      job_type: editJobType,
+      line_items: editLineItems.filter((it: any) => it.description.trim()),
+      subtotal,
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      total,
+      notes: editNotes.trim() || null,
+      valid_until: editValidUntil || null,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from("estimates").update(updates).eq("id", estimateDetail.id).select().single();
+    setEditLoading(false);
+    if (error) { setEditError(error.message); return; }
+    if (data) {
+      setDbEstimates(prev => prev.map(e => e.id === data.id ? data : e));
+      setEstimateDetail(data);
+    }
+    setEditingEstimate(false);
   };
 
   const handleSubscribe = () => {
@@ -1047,52 +1111,94 @@ export default function StackedWork() {
                       ))}
                     </Card>
                 }
-                {/* Estimate detail modal */}
-                {estimateDetail&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>{setEstimateDetail(null);setEmailSent(false);}}>
-                  <div style={{background:"#fff",borderRadius:16,maxWidth:560,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+                {/* Estimate detail / edit modal */}
+                {estimateDetail&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>{if(!editingEstimate){setEstimateDetail(null);setEmailSent(false);}}}>
+                  <div style={{background:"#fff",borderRadius:16,maxWidth:560,width:"100%",maxHeight:"92vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+                    {/* Header */}
                     <div style={{background:"linear-gradient(135deg,#132440,#1E3A5F)",borderRadius:"16px 16px 0 0",padding:"20px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <div>
                         <div style={{fontWeight:700,fontSize:16,color:"#fff"}}>{estimateDetail.customer_name}</div>
                         <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginTop:2}}>{estimateDetail.job_type} · {new Date(estimateDetail.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <EstBadge s={estimateDetail.status}/>
-                        <button onClick={()=>{setEstimateDetail(null);setEmailSent(false);}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.6)",fontSize:20,cursor:"pointer",padding:0,lineHeight:1}}>×</button>
+                        {!editingEstimate&&<EstBadge s={estimateDetail.status}/>}
+                        {!editingEstimate&&<button onClick={()=>openEditEstimate(estimateDetail)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",fontSize:12,fontWeight:700,padding:"5px 12px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans'"}}>✏️ Edit</button>}
+                        <button onClick={()=>{if(editingEstimate){setEditingEstimate(false);}else{setEstimateDetail(null);setEmailSent(false);}}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.6)",fontSize:20,cursor:"pointer",padding:0,lineHeight:1}}>×</button>
                       </div>
                     </div>
+
                     <div style={{padding:"20px 24px"}}>
-                      {/* Line items */}
-                      <table style={{width:"100%",borderCollapse:"collapse",marginBottom:16}}>
-                        <thead><tr style={{background:"#F8FAFC"}}>
-                          <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Item</th>
-                          <th style={{padding:"8px 10px",textAlign:"center",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Qty</th>
-                          <th style={{padding:"8px 10px",textAlign:"right",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Unit $</th>
-                          <th style={{padding:"8px 10px",textAlign:"right",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Total</th>
-                        </tr></thead>
-                        <tbody>
-                          {(estimateDetail.line_items||[]).map((it:any,i:number)=>(
-                            <tr key={i}>
-                              <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,color:"#374151"}}>{it.description}</td>
-                              <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,color:"#374151",textAlign:"center"}}>{it.quantity} {it.unit}</td>
-                              <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,color:"#374151",textAlign:"right"}}>${Number(it.unit_price).toFixed(2)}</td>
-                              <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,fontWeight:600,color:"#0F172A",textAlign:"right"}}>${Number(it.total).toFixed(2)}</td>
-                            </tr>
+                      {!editingEstimate ? <>
+                        {/* VIEW MODE */}
+                        <table style={{width:"100%",borderCollapse:"collapse",marginBottom:16}}>
+                          <thead><tr style={{background:"#F8FAFC"}}>
+                            <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Item</th>
+                            <th style={{padding:"8px 10px",textAlign:"center",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Qty</th>
+                            <th style={{padding:"8px 10px",textAlign:"right",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Unit $</th>
+                            <th style={{padding:"8px 10px",textAlign:"right",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Total</th>
+                          </tr></thead>
+                          <tbody>
+                            {(estimateDetail.line_items||[]).map((it:any,i:number)=>(
+                              <tr key={i}>
+                                <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,color:"#374151"}}>{it.description}</td>
+                                <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,color:"#374151",textAlign:"center"}}>{it.quantity} {it.unit}</td>
+                                <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,color:"#374151",textAlign:"right"}}>${Number(it.unit_price).toFixed(2)}</td>
+                                <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,fontWeight:600,color:"#0F172A",textAlign:"right"}}>${Number(it.total).toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr><td colSpan={3} style={{padding:"8px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>Subtotal</td><td style={{padding:"8px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>${Number(estimateDetail.subtotal).toFixed(2)}</td></tr>
+                            {estimateDetail.tax_rate>0&&<tr><td colSpan={3} style={{padding:"6px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>Tax ({estimateDetail.tax_rate}%)</td><td style={{padding:"6px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>${Number(estimateDetail.tax_amount).toFixed(2)}</td></tr>}
+                            <tr style={{background:"#F0FDF4"}}><td colSpan={3} style={{padding:"10px",textAlign:"right",fontSize:14,fontWeight:700,color:"#0F172A"}}>Total</td><td style={{padding:"10px",textAlign:"right",fontSize:18,fontWeight:800,color:"#132440"}}>${Number(estimateDetail.total).toFixed(2)}</td></tr>
+                          </tfoot>
+                        </table>
+                        {estimateDetail.notes&&<div style={{padding:"10px 14px",background:"#F8FAFC",borderLeft:"3px solid #C8E64A",borderRadius:4,marginBottom:16}}><p style={{fontSize:12,color:"#374151",lineHeight:1.6,margin:0}}>{estimateDetail.notes}</p></div>}
+                        {emailSent&&<div style={{padding:"10px 14px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:8,marginBottom:14,fontSize:13,color:"#065F46",fontWeight:600,textAlign:"center"}}>✅ Estimate sent to {estimateDetail.customer_email}</div>}
+                        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                          <Btn onClick={()=>window.open(`/estimate/${estimateDetail.share_token}`,"_blank")} style={{fontSize:12,padding:"8px 14px"}}>🔗 Share Link</Btn>
+                          {estimateDetail.customer_email&&<Btn onClick={()=>sendEstimateEmail(estimateDetail)} style={{fontSize:12,padding:"8px 14px",opacity:sendingEmail?0.6:1}}>{sendingEmail?"Sending...":"📧 Send Email"}</Btn>}
+                          <BtnO onClick={()=>{ navigator.clipboard?.writeText(`${window.location.origin}/estimate/${estimateDetail.share_token}`); }} style={{fontSize:12,padding:"8px 14px"}}>📋 Copy Link</BtnO>
+                          <BtnO onClick={()=>deleteEstimate(estimateDetail)} style={{fontSize:12,padding:"8px 14px",color:"#EF4444"}}>Delete</BtnO>
+                        </div>
+                      </> : <>
+                        {/* EDIT MODE */}
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                          {[{label:"Customer Name *",val:editCustomer,set:setEditCustomer,type:"text"},{label:"Email",val:editEmail,set:setEditEmail,type:"email"},{label:"Phone",val:editPhone,set:setEditPhone,type:"tel"}].map((f,i)=>(
+                            <div key={i} style={{gridColumn:i===0?"1/3":"auto"}}><label style={{fontSize:11,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>{f.label}</label><input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
                           ))}
-                        </tbody>
-                        <tfoot>
-                          <tr><td colSpan={3} style={{padding:"8px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>Subtotal</td><td style={{padding:"8px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>${Number(estimateDetail.subtotal).toFixed(2)}</td></tr>
-                          {estimateDetail.tax_rate>0&&<tr><td colSpan={3} style={{padding:"6px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>Tax ({estimateDetail.tax_rate}%)</td><td style={{padding:"6px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>${Number(estimateDetail.tax_amount).toFixed(2)}</td></tr>}
-                          <tr style={{background:"#F0FDF4"}}><td colSpan={3} style={{padding:"10px",textAlign:"right",fontSize:14,fontWeight:700,color:"#0F172A"}}>Total</td><td style={{padding:"10px",textAlign:"right",fontSize:18,fontWeight:800,color:"#132440"}}>${Number(estimateDetail.total).toFixed(2)}</td></tr>
-                        </tfoot>
-                      </table>
-                      {estimateDetail.notes&&<div style={{padding:"10px 14px",background:"#F8FAFC",borderLeft:"3px solid #C8E64A",borderRadius:4,marginBottom:16}}><p style={{fontSize:12,color:"#374151",lineHeight:1.6,margin:0}}>{estimateDetail.notes}</p></div>}
-                      {emailSent&&<div style={{padding:"10px 14px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:8,marginBottom:14,fontSize:13,color:"#065F46",fontWeight:600,textAlign:"center"}}>✅ Estimate sent to {estimateDetail.customer_email}</div>}
-                      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                        <Btn onClick={()=>window.open(`/estimate/${estimateDetail.share_token}`,"_blank")} style={{fontSize:12,padding:"8px 14px"}}>🔗 Share Link</Btn>
-                        {estimateDetail.customer_email&&<Btn onClick={()=>sendEstimateEmail(estimateDetail)} style={{fontSize:12,padding:"8px 14px",opacity:sendingEmail?0.6:1}}>{sendingEmail?"Sending...":"📧 Send Email"}</Btn>}
-                        <BtnO onClick={()=>{ navigator.clipboard?.writeText(`${window.location.origin}/estimate/${estimateDetail.share_token}`); }} style={{fontSize:12,padding:"8px 14px"}}>📋 Copy Link</BtnO>
-                        <BtnO onClick={()=>deleteEstimate(estimateDetail)} style={{fontSize:12,padding:"8px 14px",color:"#EF4444"}}>Delete</BtnO>
-                      </div>
+                          <div><label style={{fontSize:11,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>Job Type</label><select value={editJobType} onChange={e=>setEditJobType(e.target.value)} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:13,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>{["General","Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","Other"].map(t=><option key={t}>{t}</option>)}</select></div>
+                          <div><label style={{fontSize:11,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>Valid Until</label><input type="date" value={editValidUntil} onChange={e=>setEditValidUntil(e.target.value)} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+                        </div>
+                        <div style={{fontSize:12,fontWeight:600,color:"#374151",marginBottom:8}}>Line Items</div>
+                        <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:10}}>
+                          {editLineItems.map((it)=>(
+                            <div key={it.id} style={{display:"grid",gridTemplateColumns:"2fr 0.7fr 0.7fr 0.8fr 0.8fr auto",gap:5,alignItems:"center"}}>
+                              <input value={it.description} onChange={e=>updateEditLineItem(it.id,"description",e.target.value)} placeholder="Description" style={{padding:"7px 8px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none"}}/>
+                              <input type="number" min="0" value={it.quantity} onChange={e=>updateEditLineItem(it.id,"quantity",e.target.value)} style={{padding:"7px 6px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"center"}}/>
+                              <select value={it.unit} onChange={e=>updateEditLineItem(it.id,"unit",e.target.value)} style={{padding:"7px 4px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:11,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>
+                                {["hours","sq ft","linear ft","each","lbs","bags","gallons","days"].map(u=><option key={u}>{u}</option>)}
+                              </select>
+                              <input type="number" min="0" step="0.01" value={it.unit_price} onChange={e=>updateEditLineItem(it.id,"unit_price",e.target.value)} style={{padding:"7px 6px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"right"}}/>
+                              <div style={{padding:"7px 6px",background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:6,fontSize:12,fontWeight:600,color:"#374151",textAlign:"right"}}>${Number(it.total).toFixed(2)}</div>
+                              <button onClick={()=>setEditLineItems(prev=>prev.filter(x=>x.id!==it.id))} style={{background:"none",border:"none",color:"#CBD5E1",cursor:"pointer",fontSize:16,padding:"0 2px"}}>×</button>
+                            </div>
+                          ))}
+                        </div>
+                        <button onClick={()=>setEditLineItems(prev=>[...prev,{id:Date.now(),description:"",quantity:1,unit:"hours",unit_price:0,total:0}])} style={{fontSize:12,color:GD,fontWeight:600,background:"none",border:`1px dashed ${G}`,borderRadius:6,padding:"6px 14px",cursor:"pointer",fontFamily:"'DM Sans'",width:"100%",marginBottom:14}}>+ Add Line Item</button>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                          <div><label style={{fontSize:11,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>Tax Rate (%)</label><input type="number" min="0" max="30" step="0.1" value={editTaxRate} onChange={e=>setEditTaxRate(e.target.value)} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+                          <div style={{display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+                            {(()=>{const{subtotal,taxAmount,total}=calcEstimateTotals(editLineItems,parseFloat(editTaxRate)||0);return<div style={{padding:"9px 10px",background:"#F0FDF4",borderRadius:7,textAlign:"right"}}><div style={{fontSize:11,color:"#64748B"}}>Subtotal: ${subtotal.toFixed(2)}{taxAmount>0?` · Tax: $${taxAmount.toFixed(2)}`:""}</div><div style={{fontSize:16,fontWeight:800,color:"#132440"}}>Total: ${total.toFixed(2)}</div></div>})()}
+                          </div>
+                        </div>
+                        <div style={{marginBottom:16}}><label style={{fontSize:11,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>Notes</label><textarea value={editNotes} onChange={e=>setEditNotes(e.target.value)} rows={3} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:13,fontFamily:"'DM Sans'",outline:"none",resize:"vertical",boxSizing:"border-box"}}/></div>
+                        {editError&&<div style={{marginBottom:12,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:13,color:"#991B1B"}}>{editError}</div>}
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                          <BtnO onClick={()=>setEditingEstimate(false)} style={{fontSize:13,padding:11}}>Cancel</BtnO>
+                          <button onClick={handleUpdateEstimate} disabled={editLoading||!editCustomer.trim()} style={{padding:11,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:editLoading||!editCustomer.trim()?"not-allowed":"pointer",opacity:editLoading||!editCustomer.trim()?0.6:1,fontFamily:"'DM Sans'"}}>{editLoading?"Saving...":"Save Changes"}</button>
+                        </div>
+                      </>}
                     </div>
                   </div>
                 </div>}
