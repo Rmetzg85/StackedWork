@@ -77,22 +77,62 @@ function toCSV(rows: any[]): string {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
-  // Debug mode: return raw HTML for a single letter search
+  // Debug mode: probe what's working on the MHIC server
   if (searchParams.get("debug") === "1") {
-    const letter = (searchParams.get("letter") || "A").toUpperCase();
-    const body = new URLSearchParams({
-      calling_app: "HIC::HIC_personal_pq",
-      last_name: letter,
-      first_name: "",
-    }).toString();
-    const res = await fetch(MHIC_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
-      body,
-      signal: AbortSignal.timeout(12000),
-    });
+    const mode = searchParams.get("mode") || "qselect";
+
+    // mode=qselect  → GET the query-selector page (shows all available search types)
+    // mode=company  → POST company name search
+    // mode=personal → POST personal name search
+    // mode=labor    → GET qselect from the newer labor.maryland.gov domain
+
+    const LABOR_URL =
+      "https://labor.maryland.gov/cgi-bin/ElectronicLicensing/OP_search/OP_search.cgi";
+
+    let res: Response;
+    if (mode === "qselect") {
+      res = await fetch(`${MHIC_URL}?calling_app=HIC::HIC_qselect`, {
+        headers: { "User-Agent": "Mozilla/5.0" },
+        signal: AbortSignal.timeout(12000),
+      });
+    } else if (mode === "labor") {
+      res = await fetch(`${LABOR_URL}?calling_app=HIC::HIC_qselect`, {
+        headers: { "User-Agent": "Mozilla/5.0" },
+        signal: AbortSignal.timeout(12000),
+      });
+    } else if (mode === "company") {
+      const term = searchParams.get("term") || "A";
+      const body = new URLSearchParams({
+        calling_app: "HIC::HIC_company_pq",
+        trade_name: term,
+      }).toString();
+      res = await fetch(MHIC_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+        body,
+        signal: AbortSignal.timeout(12000),
+      });
+    } else {
+      // mode=personal (original broken approach, for reference)
+      const letter = (searchParams.get("letter") || "A").toUpperCase();
+      const body = new URLSearchParams({
+        calling_app: "HIC::HIC_personal_pq",
+        last_name: letter,
+        first_name: "",
+      }).toString();
+      res = await fetch(MHIC_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+        body,
+        signal: AbortSignal.timeout(12000),
+      });
+    }
+
     const html = await res.text();
-    return new NextResponse(html, { headers: { "Content-Type": "text/html" } });
+    return new NextResponse(
+      `<!-- status: ${res.status} mode: ${mode} -->\n${html}`,
+      { headers: { "Content-Type": "text/html" } }
+    );
   }
 
   try {
