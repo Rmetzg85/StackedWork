@@ -2,54 +2,12 @@ import { NextResponse } from "next/server";
 
 export const maxDuration = 60;
 
-const MD_ZIPS = [
-  // Baltimore City
-  "21201","21202","21205","21210","21211","21215","21218","21224","21229","21230",
-  // Baltimore County
-  "21222","21228","21234","21236","21237","21244",
-  // Anne Arundel
-  "21401","21403","21061","21122","21146",
-  // Montgomery
-  "20814","20850","20902","20906","20910",
-  // Prince George's
-  "20740","20743","20745","20770","20772",
-  // Howard
-  "21042","21044","21045",
-  // Frederick
-  "21701","21702","21703",
-  // Harford
-  "21014","21015","21078",
-  // Carroll
-  "21157","21158",
-  // Washington
-  "21740","21742",
-  // Allegany
-  "21502",
-  // Garrett
-  "21550",
-  // Cecil
-  "21921",
-  // Kent
-  "21620",
-  // Queen Anne's
-  "21666",
-  // Talbot
-  "21601",
-  // Caroline
-  "21629",
-  // Dorchester
-  "21613",
-  // Wicomico
-  "21801","21804",
-  // Worcester
-  "21842","21811",
-  // Calvert
-  "20678",
-  // Charles
-  "20646","20601",
-  // St. Mary's
-  "20650",
-];
+// Maryland's HIC_location_pq (zip search) Perl module is broken on their server.
+// Use HIC_personal_pq (name search) with last_name A–Z to enumerate all contractors.
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+const MHIC_URL =
+  "https://www.dllr.state.md.us/cgi-bin/ElectronicLicensing/OP_search/OP_search.cgi";
 
 function parseMHICResults(html: string): any[] {
   const contractors: any[] = [];
@@ -82,26 +40,23 @@ function parseMHICResults(html: string): any[] {
   return contractors;
 }
 
-async function queryZip(zip: string): Promise<any[]> {
+async function queryByLastName(letter: string): Promise<any[]> {
   try {
     const body = new URLSearchParams({
-      calling_app: "HIC::HIC_location_pq",
-      zip_code: zip,
-      search_type: "ZIP",
+      calling_app: "HIC::HIC_personal_pq",
+      last_name: letter,
+      first_name: "",
     }).toString();
 
-    const res = await fetch(
-      "https://www.dllr.state.md.us/cgi-bin/ElectronicLicensing/OP_search/OP_search.cgi",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "User-Agent": "Mozilla/5.0",
-        },
-        body,
-        signal: AbortSignal.timeout(8000),
-      }
-    );
+    const res = await fetch(MHIC_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0",
+      },
+      body,
+      signal: AbortSignal.timeout(12000),
+    });
     if (!res.ok) return [];
     const html = await res.text();
     return parseMHICResults(html);
@@ -122,15 +77,19 @@ function toCSV(rows: any[]): string {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
-  // Debug mode: return raw HTML from one zip so we can inspect the response
+  // Debug mode: return raw HTML for a single letter search
   if (searchParams.get("debug") === "1") {
-    const zip = searchParams.get("zip") || "21201";
-    const body = new URLSearchParams({ calling_app: "HIC::HIC_location_pq", zip_code: zip, search_type: "ZIP" }).toString();
-    const res = await fetch("https://www.dllr.state.md.us/cgi-bin/ElectronicLicensing/OP_search/OP_search.cgi", {
+    const letter = (searchParams.get("letter") || "A").toUpperCase();
+    const body = new URLSearchParams({
+      calling_app: "HIC::HIC_personal_pq",
+      last_name: letter,
+      first_name: "",
+    }).toString();
+    const res = await fetch(MHIC_URL, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
       body,
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(12000),
     });
     const html = await res.text();
     return new NextResponse(html, { headers: { "Content-Type": "text/html" } });
@@ -140,10 +99,11 @@ export async function GET(request: Request) {
     const seen = new Set<string>();
     const all: any[] = [];
 
-    const BATCH = 5;
-    for (let i = 0; i < MD_ZIPS.length; i += BATCH) {
-      const batch = MD_ZIPS.slice(i, i + BATCH);
-      const results = await Promise.all(batch.map(queryZip));
+    // Process letters in batches of 4 to stay within the 60s timeout
+    const BATCH = 4;
+    for (let i = 0; i < LETTERS.length; i += BATCH) {
+      const batch = LETTERS.slice(i, i + BATCH);
+      const results = await Promise.all(batch.map(queryByLastName));
       for (const contractors of results) {
         for (const c of contractors) {
           if (c.license && !seen.has(c.license)) {
