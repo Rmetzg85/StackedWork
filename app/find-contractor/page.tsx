@@ -211,7 +211,7 @@ export default function FindContractor() {
             <p style={{ fontSize: 13, color: "rgba(245,240,235,0.5)", lineHeight: 1.6, marginBottom: 18, maxWidth: 360, margin: "0 auto 18px" }}>
               Get your contracting business seen by homeowners actively looking for your trade. Featured placement on this page.
             </p>
-            <a href="/" style={{ display: "inline-block", background: `linear-gradient(135deg, ${G}, ${GD})`, color: "#132440", textDecoration: "none", padding: "10px 24px", borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
+            <a href="/advertise" style={{ display: "inline-block", background: `linear-gradient(135deg, ${G}, ${GD})`, color: "#132440", textDecoration: "none", padding: "10px 24px", borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
               Get Featured → $49.99/mo
             </a>
           </div>
