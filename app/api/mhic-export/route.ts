@@ -119,7 +119,23 @@ function toCSV(rows: any[]): string {
   return [header, ...lines].join("\r\n");
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+
+  // Debug mode: return raw HTML from one zip so we can inspect the response
+  if (searchParams.get("debug") === "1") {
+    const zip = searchParams.get("zip") || "21201";
+    const body = new URLSearchParams({ calling_app: "HIC::HIC_location_pq", zip_code: zip, search_type: "ZIP" }).toString();
+    const res = await fetch("https://www.dllr.state.md.us/cgi-bin/ElectronicLicensing/OP_search/OP_search.cgi", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "Mozilla/5.0" },
+      body,
+      signal: AbortSignal.timeout(10000),
+    });
+    const html = await res.text();
+    return new NextResponse(html, { headers: { "Content-Type": "text/html" } });
+  }
+
   try {
     const seen = new Set<string>();
     const all: any[] = [];
