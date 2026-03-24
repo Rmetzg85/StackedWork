@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import ChatWidget from "../components/ChatWidget";
 
 const G = "#C8E64A";
 const GD = "#A8C435";
@@ -316,6 +317,7 @@ export default function FindContractor() {
         </a>
         <p style={{ fontSize: 12, color: "rgba(245,240,235,0.3)", marginTop: 14 }}>$49.99/month · 14-day free trial · No contracts</p>
       </div>
+      <ChatWidget mode="homeowner" />
     </div>
   );
 }
