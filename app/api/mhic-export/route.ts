@@ -3,10 +3,14 @@ import { NextResponse } from "next/server";
 export const maxDuration = 60;
 
 // Maryland MHIC licensee data via the Maryland Open Data Portal (Socrata).
-// Dataset: "Maryland Home Improvement Commission (MHIC) Licensees"
-// Primary ID: ipcm-ikyx   Fallback ID: ps4k-bheb
+// Dataset candidates (try ?debug=1&mode=scan to identify the live one):
+//   gfzb-gya9  "HomeData"  (Business & Economy category — most likely MHIC)
+//   aid9-z2x4  "HomeData3"
+//   ipcm-ikyx  original guess — confirmed 404
+//   ps4k-bheb  secondary guess
+//   gdzy-2fen  "PLC Data Catalog" (all professional licenses)
 const SOCRATA_BASE = "https://opendata.maryland.gov/resource";
-const DATASET_IDS = ["ipcm-ikyx", "ps4k-bheb"];
+const DATASET_IDS = ["gfzb-gya9", "aid9-z2x4", "ps4k-bheb", "gdzy-2fen"];
 const SOCRATA_LIMIT = 50000;
 
 // CGI fallback — broken as of March 2026 but kept for reference
@@ -54,6 +58,25 @@ export async function GET(request: Request) {
   // Debug: probe the Socrata dataset or CGI
   if (searchParams.get("debug") === "1") {
     const mode = searchParams.get("mode") || "socrata";
+
+    // ?debug=1&mode=scan  — probe all candidate IDs and return a status report
+    if (mode === "scan") {
+      const results: any[] = [];
+      for (const id of DATASET_IDS) {
+        try {
+          const url = `${SOCRATA_BASE}/${id}.json?$limit=2`;
+          const res = await fetch(url, { headers: { "Accept": "application/json" }, signal: AbortSignal.timeout(10000) });
+          const body = await res.text();
+          let preview: any = null;
+          try { preview = JSON.parse(body); } catch {}
+          const keys = Array.isArray(preview) && preview[0] ? Object.keys(preview[0]) : null;
+          results.push({ id, status: res.status, rows: Array.isArray(preview) ? preview.length : null, fields: keys });
+        } catch (e: any) {
+          results.push({ id, error: e.message });
+        }
+      }
+      return NextResponse.json(results, { status: 200 });
+    }
 
     if (mode === "socrata") {
       const id = searchParams.get("id") || DATASET_IDS[0];
