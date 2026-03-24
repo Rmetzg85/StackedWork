@@ -1455,6 +1455,7 @@ export default function StackedWork() {
           </p>
         </div>
       </footer>
+      <ChatWidget mode="homeowner" />
     </div>
   );
 }
