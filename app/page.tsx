@@ -1306,6 +1306,16 @@ export default function StackedWork() {
           <button onClick={()=>setPage("app")} style={{background:"transparent",color:G,border:"2px solid rgba(200,230,74,0.25)",padding:"16px 38px",fontSize:17,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>See Live Demo</button>
         </div>
       </section>
+      <section style={{padding:"72px 24px 80px",maxWidth:600,margin:"0 auto",textAlign:"center"}}>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:14}}>Start free today</div>
+        <h2 style={{fontSize:"clamp(26px,4vw,38px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:10}}>Set up in <span style={{color:G}}>5 minutes.</span></h2>
+        <p style={{fontSize:15,color:"rgba(245,240,235,0.5)",marginBottom:32}}>No credit card required. 14-day free trial.</p>
+        <form onSubmit={(e)=>{e.preventDefault();const email=(e.currentTarget.elements.namedItem("email") as HTMLInputElement).value;window.location.href=`/login?email=${encodeURIComponent(email)}`;}} style={{display:"flex",gap:12,maxWidth:460,margin:"0 auto",flexWrap:"wrap",justifyContent:"center"}}>
+          <input name="email" type="email" placeholder="your@email.com" required style={{flex:1,minWidth:220,padding:"14px 18px",borderRadius:8,border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.06)",color:"#fff",fontSize:15,fontFamily:"'DM Sans'",outline:"none"}} />
+          <button type="submit" style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 28px",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",whiteSpace:"nowrap"}}>Get Started →</button>
+        </form>
+        <p style={{marginTop:16,fontSize:12,color:"rgba(245,240,235,0.25)",fontFamily:"'Space Mono'"}}>CANCEL ANYTIME · NO SETUP FEES · ALL 50 STATES</p>
+      </section>
       {AD_VIDEO_URL && (
         <section style={{padding:"80px 24px",maxWidth:900,margin:"0 auto",textAlign:"center"}}>
           <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>See it in action</div>
@@ -1330,6 +1340,27 @@ export default function StackedWork() {
             </div>
           ))}
         </div>
+      </section>
+      <Divider/>
+      <section style={{padding:"100px 24px",maxWidth:1000,margin:"0 auto",textAlign:"center"}}>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>New feature</div>
+        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:16}}>Your AI. <span style={{color:G}}>Always on call.</span></h2>
+        <p style={{fontSize:17,lineHeight:1.7,color:"rgba(245,240,235,0.55)",maxWidth:560,margin:"0 auto 56px"}}>Ask pricing questions, get follow-up scripts, figure out if a job is worth taking. Your AI business assistant is built right into your dashboard — no extra apps, no extra cost.</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:20,textAlign:"left"}}>
+          {[
+            {icon:"💰",title:"Job Pricing Help",desc:"\"What should I charge for a 2-bathroom gut job in Maryland?\" — just ask."},
+            {icon:"📞",title:"Follow-Up Scripts",desc:"Get word-for-word scripts to re-engage leads that went cold."},
+            {icon:"📈",title:"Business Advice",desc:"Profitability tips, when to hire, how to grow — on demand."},
+            {icon:"🏡",title:"Homeowner Assistant",desc:"Homeowners on your find-contractor page get their own AI helper too."},
+          ].map((item,i)=>(
+            <div key={i} style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.15)",borderRadius:12,padding:28}}>
+              <div style={{fontSize:28,marginBottom:12}}>{item.icon}</div>
+              <h3 style={{fontSize:16,fontWeight:700,marginBottom:6}}>{item.title}</h3>
+              <p style={{fontSize:13,lineHeight:1.65,color:"rgba(245,240,235,0.5)"}}>{item.desc}</p>
+            </div>
+          ))}
+        </div>
+        <p style={{marginTop:36,fontSize:13,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>POWERED BY CLAUDE AI · INCLUDED IN YOUR $49.99/MO PLAN</p>
       </section>
       <Divider/>
       <section style={{padding:"100px 24px",maxWidth:800,margin:"0 auto"}}>
@@ -1365,27 +1396,6 @@ export default function StackedWork() {
             </div>
           ))}
         </div>
-      </section>
-      <Divider/>
-      <section style={{padding:"100px 24px",maxWidth:1000,margin:"0 auto",textAlign:"center"}}>
-        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>New feature</div>
-        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:16}}>Your AI. <span style={{color:G}}>Always on call.</span></h2>
-        <p style={{fontSize:17,lineHeight:1.7,color:"rgba(245,240,235,0.55)",maxWidth:560,margin:"0 auto 56px"}}>Ask pricing questions, get follow-up scripts, figure out if a job is worth taking. Your AI business assistant is built right into your dashboard — no extra apps, no extra cost.</p>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:20,textAlign:"left"}}>
-          {[
-            {icon:"💰",title:"Job Pricing Help",desc:"\"What should I charge for a 2-bathroom gut job in Maryland?\" — just ask."},
-            {icon:"📞",title:"Follow-Up Scripts",desc:"Get word-for-word scripts to re-engage leads that went cold."},
-            {icon:"📈",title:"Business Advice",desc:"Profitability tips, when to hire, how to grow — on demand."},
-            {icon:"🏡",title:"Homeowner Assistant",desc:"Homeowners on your find-contractor page get their own AI helper too."},
-          ].map((item,i)=>(
-            <div key={i} style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.15)",borderRadius:12,padding:28}}>
-              <div style={{fontSize:28,marginBottom:12}}>{item.icon}</div>
-              <h3 style={{fontSize:16,fontWeight:700,marginBottom:6}}>{item.title}</h3>
-              <p style={{fontSize:13,lineHeight:1.65,color:"rgba(245,240,235,0.5)"}}>{item.desc}</p>
-            </div>
-          ))}
-        </div>
-        <p style={{marginTop:36,fontSize:13,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>POWERED BY CLAUDE AI · INCLUDED IN YOUR $49.99/MO PLAN</p>
       </section>
       <Divider/>
       <section style={{padding:"100px 24px 140px",textAlign:"center",position:"relative",overflow:"hidden"}}>
