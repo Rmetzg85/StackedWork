@@ -198,6 +198,26 @@ export default function FindContractor() {
         )}
       </div>
 
+      {/* LetsStayStacked Featured Ad Space */}
+      <div style={{ padding: "0 20px 60px", maxWidth: 600, margin: "0 auto" }}>
+        <div style={{ borderRadius: 16, overflow: "hidden", border: "1px solid rgba(200,230,74,0.25)", background: "linear-gradient(135deg, rgba(200,230,74,0.07), rgba(74,130,196,0.07))" }}>
+          <div style={{ background: "rgba(200,230,74,0.1)", borderBottom: "1px solid rgba(200,230,74,0.2)", padding: "6px 16px", display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: G, fontFamily: "'Space Mono'", letterSpacing: "0.1em" }}>LETSTAYSTACKED FEATURED</span>
+            <span style={{ fontSize: 10, color: "rgba(245,240,235,0.3)", fontFamily: "'Space Mono'" }}>· SPONSORED</span>
+          </div>
+          <div style={{ padding: "28px 24px", textAlign: "center" }}>
+            <div style={{ fontSize: 28, marginBottom: 10 }}>🏗️</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 6 }}>Your Business Here</div>
+            <p style={{ fontSize: 13, color: "rgba(245,240,235,0.5)", lineHeight: 1.6, marginBottom: 18, maxWidth: 360, margin: "0 auto 18px" }}>
+              Get your contracting business seen by homeowners actively looking for your trade. Featured placement on this page.
+            </p>
+            <a href="/" style={{ display: "inline-block", background: `linear-gradient(135deg, ${G}, ${GD})`, color: "#132440", textDecoration: "none", padding: "10px 24px", borderRadius: 8, fontSize: 13, fontWeight: 700 }}>
+              Get Featured → $49.99/mo
+            </a>
+          </div>
+        </div>
+      </div>
+
       {/* How it works */}
       <div style={{ background: "#0F1D32", padding: "60px 20px" }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>

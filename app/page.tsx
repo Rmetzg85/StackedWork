@@ -606,6 +606,7 @@ export default function StackedWork() {
           @keyframes toastSlide{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
           @keyframes pulseMk{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
           @keyframes barLoad{from{width:0}to{width:100%}}
+          @keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
           .sw-bn{position:fixed;bottom:0;left:0;right:0;background:#0F1D32;border-top:1px solid rgba(255,255,255,0.08);display:flex;z-index:50;padding:4px 0 env(safe-area-inset-bottom,6px)}
           .sw-bi{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 2px;cursor:pointer;border:none;background:none;font-family:'DM Sans'}
           .sw-bi .sw-ic{font-size:18px}.sw-bi .sw-lb{font-size:9px;font-weight:500;color:#94A3B8}
@@ -800,6 +801,40 @@ export default function StackedWork() {
           <aside className="sw-sd"><div style={{marginBottom:20}}/>{nv.map(n=><div key={n.id} className={`sw-sl ${vw===n.id?"sw-a":""}`} onClick={()=>setVw(n.id)}><span>{n.ic}</span> {n.lb}</div>)}</aside>
           <main style={{flex:1,padding:"20px 16px 100px",maxWidth:960,overflow:"auto"}}>
             {vw==="dashboard"&&<>
+              {(()=>{
+                const tickerLeads = dbHomeownerLeads.length > 0 ? dbHomeownerLeads : [
+                  {name:"Jamie R.",zip_code:"Baltimore, MD",job_type:"kitchen remodel",phone:"(410) 555-0182"},
+                  {name:"Marcus T.",zip_code:"Annapolis, MD",job_type:"deck build",email:"marcus.t@gmail.com"},
+                  {name:"Sarah K.",zip_code:"Columbia, MD",job_type:"bathroom gut",phone:"(443) 555-0344"},
+                  {name:"Derek W.",zip_code:"Towson, MD",job_type:"HVAC replacement",email:"derekw@yahoo.com"},
+                  {name:"Lisa M.",zip_code:"Bowie, MD",job_type:"roof repair",phone:"(301) 555-0561"},
+                ];
+                const items = [...tickerLeads, ...tickerLeads];
+                return (
+                  <div style={{background:"rgba(200,230,74,0.07)",border:"1px solid rgba(200,230,74,0.2)",borderRadius:10,marginBottom:20,overflow:"hidden",position:"relative",height:38}}>
+                    <div style={{position:"absolute",left:0,top:0,bottom:0,width:90,background:`linear-gradient(90deg,#0F172A 60%,transparent)`,zIndex:2,display:"flex",alignItems:"center",paddingLeft:12,gap:6}}>
+                      <span style={{width:7,height:7,borderRadius:"50%",background:"#C8E64A",display:"inline-block",flexShrink:0,boxShadow:"0 0 6px #C8E64A"}} />
+                      <span style={{fontSize:9,fontWeight:700,color:G,fontFamily:"'Space Mono'",letterSpacing:"0.08em",whiteSpace:"nowrap"}}>LIVE LEADS</span>
+                    </div>
+                    <div style={{position:"absolute",right:0,top:0,bottom:0,width:40,background:`linear-gradient(270deg,#0F172A 60%,transparent)`,zIndex:2}} />
+                    <div style={{display:"flex",animation:"tickerScroll 28s linear infinite",whiteSpace:"nowrap",alignItems:"center",height:"100%",paddingLeft:"100%"}}>
+                      {items.map((lead:any,i:number)=>(
+                        <span key={i} style={{fontSize:12,color:"rgba(245,240,235,0.85)",padding:"0 28px",display:"inline-flex",alignItems:"center",gap:7,flexShrink:0}}>
+                          <span style={{fontSize:14}}>🏡</span>
+                          <strong style={{color:"#fff"}}>{lead.name?.split(" ")[0] || "Someone"}</strong>
+                          <span style={{color:"rgba(245,240,235,0.45)"}}>from</span>
+                          <span>{lead.zip_code}</span>
+                          <span style={{color:"rgba(245,240,235,0.45)"}}>wants an estimate for</span>
+                          <strong style={{color:G}}>{lead.job_type}</strong>
+                          {lead.email && <span style={{color:"rgba(245,240,235,0.5)"}}>· {lead.email}</span>}
+                          {lead.phone && <span style={{color:"rgba(245,240,235,0.5)"}}>· {lead.phone}</span>}
+                          <span style={{color:"rgba(245,240,235,0.15)",padding:"0 4px"}}>|</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:18}}>Revenue Dashboard</h1>
               <div className="sw-sg">{[{l:"Today",v:"$0",s:"0 jobs"},{l:"This Week",v:`$${wkR.toLocaleString()}`,s:"last 7 days"},{l:"This Month",v:`$${moR.toLocaleString()}`,s:`$${gl.toLocaleString()} goal`},{l:"YTD 2026",v:`$${ytd.toLocaleString()}`,s:`${done.length} jobs`}].map((s,i)=>
                 <div key={i} style={{background:"linear-gradient(135deg,#0F172A,#1E293B)",borderRadius:12,padding:16,color:"#fff"}}><div style={{fontSize:10,color:"#94A3B8",fontFamily:"'Space Mono'",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:6}}>{s.l}</div><div style={{fontSize:22,fontWeight:700,marginBottom:2}}>{s.v}</div><div style={{fontSize:11,color:"#94A3B8"}}>{s.s}</div></div>
@@ -1306,6 +1341,16 @@ export default function StackedWork() {
           <button onClick={()=>setPage("app")} style={{background:"transparent",color:G,border:"2px solid rgba(200,230,74,0.25)",padding:"16px 38px",fontSize:17,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>See Live Demo</button>
         </div>
       </section>
+      <section style={{padding:"72px 24px 80px",maxWidth:600,margin:"0 auto",textAlign:"center"}}>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:14}}>Start free today</div>
+        <h2 style={{fontSize:"clamp(26px,4vw,38px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:10}}>Set up in <span style={{color:G}}>5 minutes.</span></h2>
+        <p style={{fontSize:15,color:"rgba(245,240,235,0.5)",marginBottom:32}}>No credit card required. 14-day free trial.</p>
+        <form onSubmit={(e)=>{e.preventDefault();const email=(e.currentTarget.elements.namedItem("email") as HTMLInputElement).value;window.location.href=`/login?email=${encodeURIComponent(email)}`;}} style={{display:"flex",gap:12,maxWidth:460,margin:"0 auto",flexWrap:"wrap",justifyContent:"center"}}>
+          <input name="email" type="email" placeholder="your@email.com" required style={{flex:1,minWidth:220,padding:"14px 18px",borderRadius:8,border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.06)",color:"#fff",fontSize:15,fontFamily:"'DM Sans'",outline:"none"}} />
+          <button type="submit" style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 28px",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",whiteSpace:"nowrap"}}>Get Started →</button>
+        </form>
+        <p style={{marginTop:16,fontSize:12,color:"rgba(245,240,235,0.25)",fontFamily:"'Space Mono'"}}>CANCEL ANYTIME · NO SETUP FEES · ALL 50 STATES</p>
+      </section>
       {AD_VIDEO_URL && (
         <section style={{padding:"80px 24px",maxWidth:900,margin:"0 auto",textAlign:"center"}}>
           <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>See it in action</div>
@@ -1330,6 +1375,27 @@ export default function StackedWork() {
             </div>
           ))}
         </div>
+      </section>
+      <Divider/>
+      <section style={{padding:"100px 24px",maxWidth:1000,margin:"0 auto",textAlign:"center"}}>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>New feature</div>
+        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:16}}>Your AI. <span style={{color:G}}>Always on call.</span></h2>
+        <p style={{fontSize:17,lineHeight:1.7,color:"rgba(245,240,235,0.55)",maxWidth:560,margin:"0 auto 56px"}}>Ask pricing questions, get follow-up scripts, figure out if a job is worth taking. Your AI business assistant is built right into your dashboard — no extra apps, no extra cost.</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:20,textAlign:"left"}}>
+          {[
+            {icon:"💰",title:"Job Pricing Help",desc:"\"What should I charge for a 2-bathroom gut job in Maryland?\" — just ask."},
+            {icon:"📞",title:"Follow-Up Scripts",desc:"Get word-for-word scripts to re-engage leads that went cold."},
+            {icon:"📈",title:"Business Advice",desc:"Profitability tips, when to hire, how to grow — on demand."},
+            {icon:"🏡",title:"Homeowner Assistant",desc:"Homeowners on your find-contractor page get their own AI helper too."},
+          ].map((item,i)=>(
+            <div key={i} style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.15)",borderRadius:12,padding:28}}>
+              <div style={{fontSize:28,marginBottom:12}}>{item.icon}</div>
+              <h3 style={{fontSize:16,fontWeight:700,marginBottom:6}}>{item.title}</h3>
+              <p style={{fontSize:13,lineHeight:1.65,color:"rgba(245,240,235,0.5)"}}>{item.desc}</p>
+            </div>
+          ))}
+        </div>
+        <p style={{marginTop:36,fontSize:13,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>POWERED BY CLAUDE AI · INCLUDED IN YOUR $49.99/MO PLAN</p>
       </section>
       <Divider/>
       <section style={{padding:"100px 24px",maxWidth:800,margin:"0 auto"}}>
@@ -1365,27 +1431,6 @@ export default function StackedWork() {
             </div>
           ))}
         </div>
-      </section>
-      <Divider/>
-      <section style={{padding:"100px 24px",maxWidth:1000,margin:"0 auto",textAlign:"center"}}>
-        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>New feature</div>
-        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:16}}>Your AI. <span style={{color:G}}>Always on call.</span></h2>
-        <p style={{fontSize:17,lineHeight:1.7,color:"rgba(245,240,235,0.55)",maxWidth:560,margin:"0 auto 56px"}}>Ask pricing questions, get follow-up scripts, figure out if a job is worth taking. Your AI business assistant is built right into your dashboard — no extra apps, no extra cost.</p>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:20,textAlign:"left"}}>
-          {[
-            {icon:"💰",title:"Job Pricing Help",desc:"\"What should I charge for a 2-bathroom gut job in Maryland?\" — just ask."},
-            {icon:"📞",title:"Follow-Up Scripts",desc:"Get word-for-word scripts to re-engage leads that went cold."},
-            {icon:"📈",title:"Business Advice",desc:"Profitability tips, when to hire, how to grow — on demand."},
-            {icon:"🏡",title:"Homeowner Assistant",desc:"Homeowners on your find-contractor page get their own AI helper too."},
-          ].map((item,i)=>(
-            <div key={i} style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.15)",borderRadius:12,padding:28}}>
-              <div style={{fontSize:28,marginBottom:12}}>{item.icon}</div>
-              <h3 style={{fontSize:16,fontWeight:700,marginBottom:6}}>{item.title}</h3>
-              <p style={{fontSize:13,lineHeight:1.65,color:"rgba(245,240,235,0.5)"}}>{item.desc}</p>
-            </div>
-          ))}
-        </div>
-        <p style={{marginTop:36,fontSize:13,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>POWERED BY CLAUDE AI · INCLUDED IN YOUR $49.99/MO PLAN</p>
       </section>
       <Divider/>
       <section style={{padding:"100px 24px 140px",textAlign:"center",position:"relative",overflow:"hidden"}}>
