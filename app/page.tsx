@@ -1262,9 +1262,27 @@ export default function StackedWork() {
         .sw-f3{animation:fadeUp .8s ease .3s forwards;opacity:0}
         .sw-f4{animation:fadeUp .8s ease .4s forwards;opacity:0}
         @media(max-width:768px){.sw-price{font-size:56px !important}.sw-comp{grid-template-columns:1.5fr 1fr 1fr !important;padding:14px 16px !important;font-size:13px !important}}
-        .feature-box{cursor:pointer;transition:all .3s;} 
+        .feature-box{cursor:pointer;transition:all .3s;}
         .feature-box:hover{transform:translateY(-4px);box-shadow:0 8px 30px rgba(200,230,74,0.15);}
+        .sw-ad-strip{display:none;position:fixed;top:0;bottom:0;width:160px;background:rgba(15,23,42,0.85);border:1px dashed rgba(200,230,74,0.2);zIndex:90;flex-direction:column;align-items:center;justify-content:center;gap:12;padding:16px 8px;}
+        @media(min-width:1380px){.sw-ad-strip{display:flex}}
+        .sw-ad-strip-left{left:0;border-left:none;border-radius:0 12px 12px 0;}
+        .sw-ad-strip-right{right:0;border-right:none;border-radius:12px 0 0 12px;}
       `}</style>
+      <div className="sw-ad-strip sw-ad-strip-left">
+        <span style={{fontSize:9,fontWeight:700,color:"rgba(200,230,74,0.4)",fontFamily:"'Space Mono'",letterSpacing:"0.1em",writingMode:"vertical-rl",textOrientation:"mixed",userSelect:"none"}}>ADVERTISEMENT</span>
+        <div style={{width:130,flex:1,maxHeight:600,background:"rgba(200,230,74,0.04)",border:"1px dashed rgba(200,230,74,0.15)",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <span style={{fontSize:10,color:"rgba(200,230,74,0.25)",fontFamily:"'Space Mono'",textAlign:"center",padding:8}}>AD SPACE</span>
+        </div>
+        <span style={{fontSize:9,fontWeight:700,color:"rgba(200,230,74,0.4)",fontFamily:"'Space Mono'",letterSpacing:"0.1em",writingMode:"vertical-rl",textOrientation:"mixed",userSelect:"none"}}>ADVERTISEMENT</span>
+      </div>
+      <div className="sw-ad-strip sw-ad-strip-right">
+        <span style={{fontSize:9,fontWeight:700,color:"rgba(200,230,74,0.4)",fontFamily:"'Space Mono'",letterSpacing:"0.1em",writingMode:"vertical-rl",textOrientation:"mixed",userSelect:"none"}}>ADVERTISEMENT</span>
+        <div style={{width:130,flex:1,maxHeight:600,background:"rgba(200,230,74,0.04)",border:"1px dashed rgba(200,230,74,0.15)",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <span style={{fontSize:10,color:"rgba(200,230,74,0.25)",fontFamily:"'Space Mono'",textAlign:"center",padding:8}}>AD SPACE</span>
+        </div>
+        <span style={{fontSize:9,fontWeight:700,color:"rgba(200,230,74,0.4)",fontFamily:"'Space Mono'",letterSpacing:"0.1em",writingMode:"vertical-rl",textOrientation:"mixed",userSelect:"none"}}>ADVERTISEMENT</span>
+      </div>
       {authMode&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>{setAuthMode(null);setAuthError(null);setAuthSuccess(null)}}>
         <div style={{background:"#fff",borderRadius:16,padding:36,maxWidth:400,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
           <div style={{textAlign:"center",marginBottom:24}}>
