@@ -606,6 +606,7 @@ export default function StackedWork() {
           @keyframes toastSlide{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
           @keyframes pulseMk{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
           @keyframes barLoad{from{width:0}to{width:100%}}
+          @keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
           .sw-bn{position:fixed;bottom:0;left:0;right:0;background:#0F1D32;border-top:1px solid rgba(255,255,255,0.08);display:flex;z-index:50;padding:4px 0 env(safe-area-inset-bottom,6px)}
           .sw-bi{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 2px;cursor:pointer;border:none;background:none;font-family:'DM Sans'}
           .sw-bi .sw-ic{font-size:18px}.sw-bi .sw-lb{font-size:9px;font-weight:500;color:#94A3B8}
@@ -800,6 +801,40 @@ export default function StackedWork() {
           <aside className="sw-sd"><div style={{marginBottom:20}}/>{nv.map(n=><div key={n.id} className={`sw-sl ${vw===n.id?"sw-a":""}`} onClick={()=>setVw(n.id)}><span>{n.ic}</span> {n.lb}</div>)}</aside>
           <main style={{flex:1,padding:"20px 16px 100px",maxWidth:960,overflow:"auto"}}>
             {vw==="dashboard"&&<>
+              {(()=>{
+                const tickerLeads = dbHomeownerLeads.length > 0 ? dbHomeownerLeads : [
+                  {name:"Jamie R.",zip_code:"Baltimore, MD",job_type:"kitchen remodel",phone:"(410) 555-0182"},
+                  {name:"Marcus T.",zip_code:"Annapolis, MD",job_type:"deck build",email:"marcus.t@gmail.com"},
+                  {name:"Sarah K.",zip_code:"Columbia, MD",job_type:"bathroom gut",phone:"(443) 555-0344"},
+                  {name:"Derek W.",zip_code:"Towson, MD",job_type:"HVAC replacement",email:"derekw@yahoo.com"},
+                  {name:"Lisa M.",zip_code:"Bowie, MD",job_type:"roof repair",phone:"(301) 555-0561"},
+                ];
+                const items = [...tickerLeads, ...tickerLeads];
+                return (
+                  <div style={{background:"rgba(200,230,74,0.07)",border:"1px solid rgba(200,230,74,0.2)",borderRadius:10,marginBottom:20,overflow:"hidden",position:"relative",height:38}}>
+                    <div style={{position:"absolute",left:0,top:0,bottom:0,width:90,background:`linear-gradient(90deg,#0F172A 60%,transparent)`,zIndex:2,display:"flex",alignItems:"center",paddingLeft:12,gap:6}}>
+                      <span style={{width:7,height:7,borderRadius:"50%",background:"#C8E64A",display:"inline-block",flexShrink:0,boxShadow:"0 0 6px #C8E64A"}} />
+                      <span style={{fontSize:9,fontWeight:700,color:G,fontFamily:"'Space Mono'",letterSpacing:"0.08em",whiteSpace:"nowrap"}}>LIVE LEADS</span>
+                    </div>
+                    <div style={{position:"absolute",right:0,top:0,bottom:0,width:40,background:`linear-gradient(270deg,#0F172A 60%,transparent)`,zIndex:2}} />
+                    <div style={{display:"flex",animation:"tickerScroll 28s linear infinite",whiteSpace:"nowrap",alignItems:"center",height:"100%",paddingLeft:"100%"}}>
+                      {items.map((lead:any,i:number)=>(
+                        <span key={i} style={{fontSize:12,color:"rgba(245,240,235,0.85)",padding:"0 28px",display:"inline-flex",alignItems:"center",gap:7,flexShrink:0}}>
+                          <span style={{fontSize:14}}>🏡</span>
+                          <strong style={{color:"#fff"}}>{lead.name?.split(" ")[0] || "Someone"}</strong>
+                          <span style={{color:"rgba(245,240,235,0.45)"}}>from</span>
+                          <span>{lead.zip_code}</span>
+                          <span style={{color:"rgba(245,240,235,0.45)"}}>wants an estimate for</span>
+                          <strong style={{color:G}}>{lead.job_type}</strong>
+                          {lead.email && <span style={{color:"rgba(245,240,235,0.5)"}}>· {lead.email}</span>}
+                          {lead.phone && <span style={{color:"rgba(245,240,235,0.5)"}}>· {lead.phone}</span>}
+                          <span style={{color:"rgba(245,240,235,0.15)",padding:"0 4px"}}>|</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:18}}>Revenue Dashboard</h1>
               <div className="sw-sg">{[{l:"Today",v:"$0",s:"0 jobs"},{l:"This Week",v:`$${wkR.toLocaleString()}`,s:"last 7 days"},{l:"This Month",v:`$${moR.toLocaleString()}`,s:`$${gl.toLocaleString()} goal`},{l:"YTD 2026",v:`$${ytd.toLocaleString()}`,s:`${done.length} jobs`}].map((s,i)=>
                 <div key={i} style={{background:"linear-gradient(135deg,#0F172A,#1E293B)",borderRadius:12,padding:16,color:"#fff"}}><div style={{fontSize:10,color:"#94A3B8",fontFamily:"'Space Mono'",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:6}}>{s.l}</div><div style={{fontSize:22,fontWeight:700,marginBottom:2}}>{s.v}</div><div style={{fontSize:11,color:"#94A3B8"}}>{s.s}</div></div>
