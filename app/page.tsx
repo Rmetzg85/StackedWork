@@ -69,6 +69,8 @@ export default function StackedWork() {
   const [njStatus, setNjStatus] = useState("quoted");
   const [njDate, setNjDate] = useState(new Date().toISOString().split("T")[0]);
   const [njNotes, setNjNotes] = useState("");
+  const [njHours, setNjHours] = useState("");
+  const [njMaterialCost, setNjMaterialCost] = useState("");
   const [njLoading, setNjLoading] = useState(false);
   const [njError, setNjError] = useState<string|null>(null);
   const [dbPhotos, setDbPhotos] = useState<any[]>([]);
@@ -362,12 +364,14 @@ export default function StackedWork() {
       status: njStatus,
       date: njDate,
       notes: njNotes.trim() || null,
+      hours_worked: njHours ? parseFloat(njHours) : null,
+      material_cost: njMaterialCost ? parseFloat(njMaterialCost) : 0,
     }).select().single();
     setNjLoading(false);
     if (error) { setNjError(error.message); return; }
     setDbJobs(prev => [data, ...prev]);
     setNewJobOpen(false);
-    setNjCustomer(""); setNjPhone(""); setNjType("General"); setNjValue(""); setNjStatus("quoted"); setNjDate(new Date().toISOString().split("T")[0]); setNjNotes(""); setNjError(null);
+    setNjCustomer(""); setNjPhone(""); setNjType("General"); setNjValue(""); setNjStatus("quoted"); setNjDate(new Date().toISOString().split("T")[0]); setNjNotes(""); setNjHours(""); setNjMaterialCost(""); setNjError(null);
   };
 
   const updateJobStatus = async (id: string, status: string) => {
@@ -597,7 +601,7 @@ export default function StackedWork() {
   }
 
   if(page==="app"){
-    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"estimates",ic:"📋",lb:"Estimates"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"receipts",ic:"🧾",lb:"Receipts"},{id:"followups",ic:"🔔",lb:"Alerts"}];
+    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"estimates",ic:"📋",lb:"Estimates"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"receipts",ic:"🧾",lb:"Receipts"},{id:"profit",ic:"💰",lb:"Profit"},{id:"followups",ic:"🔔",lb:"Alerts"}];
     return(
       <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh"}}>
         <style>{`
@@ -681,7 +685,17 @@ export default function StackedWork() {
               <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Job Value ($) *</label><input type="number" min="0" step="0.01" value={njValue} onChange={e=>setNjValue(e.target.value)} placeholder="0.00" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
               <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Date</label><input type="date" value={njDate} onChange={e=>setNjDate(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
             </div>
-            <div style={{marginBottom:20}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Notes</label><textarea value={njNotes} onChange={e=>setNjNotes(e.target.value)} placeholder="Job details..." rows={3} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",resize:"vertical",boxSizing:"border-box"}}/></div>
+            <div style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Notes</label><textarea value={njNotes} onChange={e=>setNjNotes(e.target.value)} placeholder="Job details..." rows={3} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",resize:"vertical",boxSizing:"border-box"}}/></div>
+            <div style={{background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:10,padding:"12px 14px",marginBottom:20}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:10}}>Profitability (optional)</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Hours Worked</label><input type="number" min="0" step="0.5" value={njHours} onChange={e=>setNjHours(e.target.value)} placeholder="e.g. 8" style={{width:"100%",padding:"9px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box",background:"#fff"}}/></div>
+                <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Material Cost ($)</label><input type="number" min="0" step="0.01" value={njMaterialCost} onChange={e=>setNjMaterialCost(e.target.value)} placeholder="e.g. 320" style={{width:"100%",padding:"9px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box",background:"#fff"}}/></div>
+              </div>
+              {njValue&&njHours&&njMaterialCost!==undefined&&<div style={{marginTop:10,padding:"8px 10px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534",fontWeight:600}}>
+                Est. profit: ${(parseFloat(njValue||"0")-parseFloat(njMaterialCost||"0")).toFixed(0)} · ${njHours?((parseFloat(njValue||"0")-parseFloat(njMaterialCost||"0"))/parseFloat(njHours)).toFixed(0):"-"}/hr
+              </div>}
+            </div>
             {njError&&<div style={{marginBottom:14,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:13,color:"#991B1B"}}>{njError}</div>}
             <button onClick={handleNewJob} disabled={njLoading||!njCustomer.trim()||!njValue} style={{width:"100%",padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:njLoading||!njCustomer.trim()||!njValue?"not-allowed":"pointer",opacity:njLoading||!njCustomer.trim()||!njValue?0.6:1,fontFamily:"'DM Sans'"}}>{njLoading?"Saving...":"Save Job"}</button>
           </div>
@@ -1238,6 +1252,77 @@ export default function StackedWork() {
                   </div>
                 </div>}
               </>);
+            })()}
+            {vw==="profit"&&(()=>{
+              const jobsWithData = dbJobs.filter((j:any) => j.value);
+              const jobsWithHours = jobsWithData.filter((j:any) => j.hours_worked > 0);
+              const totalRevenue = jobsWithData.reduce((a:number,j:any)=>a+Number(j.value),0);
+              const totalCost = jobsWithData.reduce((a:number,j:any)=>a+Number(j.material_cost||0),0);
+              const totalProfit = totalRevenue - totalCost;
+              const avgMargin = totalRevenue > 0 ? Math.round((totalProfit/totalRevenue)*100) : 0;
+              const avgPPH = jobsWithHours.length > 0
+                ? Math.round(jobsWithHours.reduce((a:number,j:any)=>a+((Number(j.value)-Number(j.material_cost||0))/Number(j.hours_worked)),0)/jobsWithHours.length)
+                : null;
+              // Per job-type breakdown
+              const JOB_TYPES = ["General","Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","Other"];
+              const byType = JOB_TYPES.map(t=>{
+                const jt = jobsWithData.filter((j:any)=>j.type===t);
+                if(!jt.length) return null;
+                const rev = jt.reduce((a:number,j:any)=>a+Number(j.value),0);
+                const cost = jt.reduce((a:number,j:any)=>a+Number(j.material_cost||0),0);
+                const profit = rev - cost;
+                const margin = rev>0?Math.round((profit/rev)*100):0;
+                const withHrs = jt.filter((j:any)=>j.hours_worked>0);
+                const pph = withHrs.length>0?Math.round(withHrs.reduce((a:number,j:any)=>a+((Number(j.value)-Number(j.material_cost||0))/Number(j.hours_worked)),0)/withHrs.length):null;
+                return { type:t, count:jt.length, rev, profit, margin, pph };
+              }).filter(Boolean).sort((a:any,b:any)=>b.margin-a.margin);
+              // Best/worst job types
+              const typesWithMargin = byType.filter((t:any)=>t.count>=1);
+              const best = typesWithMargin[0];
+              const worst = typesWithMargin[typesWithMargin.length-1];
+              // Top jobs by profit/hr
+              const rankedJobs = [...jobsWithHours].map((j:any)=>({...j, pph:Math.round((Number(j.value)-Number(j.material_cost||0))/Number(j.hours_worked))})).sort((a:any,b:any)=>b.pph-a.pph).slice(0,5);
+              return <>
+                <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Profit Intelligence</h1>
+                <p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Know which jobs actually make you money.</p>
+                {jobsWithData.length===0
+                  ? <Card style={{padding:"48px 20px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>💰</div><div style={{fontWeight:700,fontSize:16,color:"#0F172A",marginBottom:6}}>No job data yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Add jobs with material costs and hours to see your profitability breakdown.</div><Btn onClick={()=>{setVw("jobs");setNewJobOpen(true)}}>+ Add First Job</Btn></Card>
+                  : <>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+                      {[
+                        {l:"Total Profit",v:`$${totalProfit.toLocaleString()}`,s:`from ${jobsWithData.length} jobs`},
+                        {l:"Avg Margin",v:`${avgMargin}%`,s:"revenue minus materials"},
+                        {l:"Best Profit/Hr",v:avgPPH?`$${avgPPH}/hr`:"—",s:avgPPH?`avg across ${jobsWithHours.length} jobs`:"add hours to jobs"},
+                        {l:"Top Job Type",v:best?best.type:"—",s:best?`${best.margin}% margin`:"need more data"},
+                      ].map((s,i)=><div key={i} style={{background:"linear-gradient(135deg,#0F172A,#1E293B)",borderRadius:12,padding:16,color:"#fff"}}>
+                        <div style={{fontSize:10,color:"#94A3B8",fontFamily:"'Space Mono'",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:6}}>{s.l}</div>
+                        <div style={{fontSize:20,fontWeight:700,marginBottom:2}}>{s.v}</div>
+                        <div style={{fontSize:11,color:"#94A3B8"}}>{s.s}</div>
+                      </div>)}
+                    </div>
+                    {best&&worst&&best.type!==worst.type&&<Card style={{padding:"14px 16px",marginBottom:16,background:"#FFFBEB",border:"1px solid #FDE68A"}}>
+                      <div style={{fontSize:12,fontWeight:700,color:"#92400E",marginBottom:4}}>AI Insight</div>
+                      <div style={{fontSize:13,color:"#78350F"}}>Your <strong>{best.type}</strong> jobs have a {best.margin}% margin — your best. <strong>{worst.type}</strong> jobs are your lowest at {worst.margin}%. Consider whether low-margin jobs are worth your time.</div>
+                    </Card>}
+                    {byType.length>0&&<Card style={{overflow:"hidden",marginBottom:16}}>
+                      <div style={{padding:"14px 18px",borderBottom:"1px solid #E2E8F0"}}><span style={{fontSize:14,fontWeight:700,color:"#0F172A"}}>Breakdown by Job Type</span></div>
+                      {byType.map((t:any,i:number)=><div key={t.type} style={{padding:"12px 18px",borderBottom:i<byType.length-1?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{t.type}</div><div style={{fontSize:11,color:"#94A3B8"}}>{t.count} job{t.count!==1?"s":""} · ${t.rev.toLocaleString()} revenue</div></div>
+                        <div style={{textAlign:"right",display:"flex",gap:10,alignItems:"center"}}>
+                          {t.pph&&<span style={{fontSize:11,color:"#64748B",fontWeight:600}}>${t.pph}/hr</span>}
+                          <span style={{fontWeight:700,fontSize:13,padding:"3px 10px",borderRadius:20,background:t.margin>=40?"#DCFCE7":t.margin>=20?"#FEF9C3":"#FEE2E2",color:t.margin>=40?"#166534":t.margin>=20?"#92400E":"#991B1B"}}>{t.margin}%</span>
+                        </div>
+                      </div>)}
+                    </Card>}
+                    {rankedJobs.length>0&&<Card style={{overflow:"hidden"}}>
+                      <div style={{padding:"14px 18px",borderBottom:"1px solid #E2E8F0"}}><span style={{fontSize:14,fontWeight:700,color:"#0F172A"}}>Top Jobs by Profit/Hr</span></div>
+                      {rankedJobs.map((j:any,i:number)=><div key={j.id} style={{padding:"12px 18px",borderBottom:i<rankedJobs.length-1?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.hours_worked}hrs · ${Number(j.material_cost||0).toLocaleString()} materials</div></div>
+                        <div style={{fontWeight:700,fontSize:14,color:G}}>${j.pph}/hr</div>
+                      </div>)}
+                    </Card>}
+                  </>}
+              </>;
             })()}
             {vw==="followups"&&<>
               <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Follow-up Reminders</h1><p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Don&apos;t leave money on the table.</p>
