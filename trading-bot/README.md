@@ -11,8 +11,10 @@ Source: https://github.com/ryanfrigo/kalshi-ai-trading-bot
 
 - Python 3.12+
 - Kalshi account with API access enabled
-- xAI API key (for Grok-3) — https://console.x.ai/
-- OpenRouter API key (for Claude/GPT-4o/Gemini/DeepSeek) — https://openrouter.ai/
+- **Anthropic API key** (replaces Grok-3 as the forecaster model) — https://console.anthropic.com/
+- OpenRouter API key (for GPT-4o/Gemini/DeepSeek — 3 of the 5 ensemble models) — https://openrouter.ai/
+
+> **No xAI account needed.** The `apply_patches.sh` script swaps the Grok-3 slot for Claude Sonnet/Opus via the Anthropic API directly.
 
 ---
 
@@ -26,12 +28,15 @@ Source: https://github.com/ryanfrigo/kalshi-ai-trading-bot
 
 ---
 
-## Step 2: Clone the Bot
+## Step 2: Clone the Bot and Apply Patches
 
 ```bash
-git clone https://github.com/ryanfrigo/kalshi-ai-trading-bot.git
-cd kalshi-ai-trading-bot
+# From the trading-bot/ directory:
+bash setup.sh /path/to/kalshi_private_key.pem
+bash apply_patches.sh
 ```
+
+The patches replace the Grok-3/xAI dependency with Claude via the Anthropic API.
 
 ---
 
@@ -126,8 +131,8 @@ python cli.py stats              # trade history and P&L
 
 ## API Key Cost Estimates
 
-| Service | Typical cost |
-|---------|-------------|
-| xAI (Grok-3) | ~$5–15/day depending on volume |
-| OpenRouter | ~$2–8/day (routes to cheapest model per query) |
-| Total AI overhead | Capped at $10/day by default config |
+| Service | Role | Typical cost |
+|---------|------|-------------|
+| Anthropic (Claude Sonnet) | Forecaster — 30% weight | ~$1–4/day |
+| OpenRouter | GPT-4o, Gemini, DeepSeek — 70% weight | ~$1–3/day |
+| **Total AI overhead** | | **Capped at $10/day by default** |
