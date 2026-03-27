@@ -23,6 +23,16 @@ export default function ChatWidget({ mode, accentColor = "#C8E64A" }: ChatWidget
       ? "Hey! I'm your AI assistant. Ask me anything about running your business, pricing jobs, or using StackedWork."
       : "Hi! I can help you find the right contractor and prepare for your project. What kind of work do you need done?";
 
+  const suggestions =
+    mode === "contractor"
+      ? [
+          "Write a follow-up text for a cold lead",
+          "Give me a script to re-engage a past client",
+          "How should I price a bathroom remodel?",
+          "Write a professional estimate email",
+        ]
+      : [];
+
   useEffect(() => {
     if (open && messages.length === 0) {
       setMessages([{ role: "assistant", content: greeting }]);
@@ -179,6 +189,30 @@ export default function ChatWidget({ mode, accentColor = "#C8E64A" }: ChatWidget
                       animation: `bounce 1.2s ${i * 0.2}s infinite`,
                     }}
                   />
+                ))}
+              </div>
+            )}
+            {suggestions.length > 0 && messages.length <= 1 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                {suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setInput(s); }}
+                    style={{
+                      textAlign: "left",
+                      padding: "8px 12px",
+                      borderRadius: 8,
+                      border: `1px solid ${isDark ? "rgba(200,230,74,0.25)" : "#E2E8F0"}`,
+                      background: isDark ? "rgba(200,230,74,0.06)" : "#F8FAFC",
+                      color: isDark ? "rgba(245,240,235,0.75)" : "#374151",
+                      fontSize: 12,
+                      cursor: "pointer",
+                      fontFamily: "'DM Sans', sans-serif",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {s}
+                  </button>
                 ))}
               </div>
             )}
