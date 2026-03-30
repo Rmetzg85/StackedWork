@@ -1594,7 +1594,8 @@ export default function StackedWork() {
           </div>
           <div style={{display:"flex",gap:20,flexWrap:"wrap",alignItems:"center"}}>
             <a href="/find-contractor" style={{color:"rgba(200,230,74,0.8)",fontSize:12,fontWeight:600,textDecoration:"none"}}>🏡 Find a Contractor</a>
-            <a href="mailto:Rmetzgar@REMVentures.Tech" style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>Contact: Rmetzgar@REMVentures.Tech</a>
+            <a href="mailto:ryan@remventures.tech" style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>Contact: ryan@remventures.tech</a>
+            <a href="tel:4105306456" style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>410-530-6456</a>
             {["Privacy","Terms"].map(l=><span key={l} style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer"}}>{l}</span>)}
           </div>
         </div>
