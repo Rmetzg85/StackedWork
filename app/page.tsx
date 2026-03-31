@@ -97,6 +97,7 @@ export default function StackedWork() {
   const [rcDesc, setRcDesc] = useState("");
   const [rcUploading, setRcUploading] = useState(false);
   const [rcErr, setRcErr] = useState<string|null>(null);
+  const [rcScanning, setRcScanning] = useState(false);
   const [rcFilter, setRcFilter] = useState("all");
   const [dbEstimates, setDbEstimates] = useState<any[]>([]);
   const [newEstimateOpen, setNewEstimateOpen] = useState(false);
@@ -267,6 +268,37 @@ export default function StackedWork() {
     if (!confirm("Delete this photo?")) return;
     await supabase.from("portfolio").delete().eq("id", photo.id);
     setDbPhotos(prev => prev.filter(p => p.id !== photo.id));
+  };
+
+  const handleReceiptScan = async (file: File) => {
+    if (!file.type.startsWith("image/")) { setRcErr("AI scan only works on image files."); return; }
+    setRcScanning(true); setRcErr(null);
+    try {
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => res(ev.target?.result as string);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      const base64 = dataUrl.split(",")[1];
+      const response = await fetch("/api/scan-receipt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
+      });
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+      if (data.usd_total) setRcAmount(String(data.usd_total));
+      else if (data.total) setRcAmount(String(data.total));
+      if (data.date) setRcDate(data.date);
+      if (data.category) setRcCategory(data.category);
+      const desc = [data.vendor, data.description].filter(Boolean).join(" — ");
+      if (desc) setRcDesc(desc.slice(0, 120));
+    } catch (err: any) {
+      setRcErr("Scan failed — please fill in manually.");
+    } finally {
+      setRcScanning(false);
+    }
   };
 
   const handleReceiptFile = (file: File) => {
@@ -609,6 +641,7 @@ export default function StackedWork() {
           *{margin:0;padding:0;box-sizing:border-box}
           @keyframes toastSlide{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
           @keyframes pulseMk{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+          @keyframes spin{to{transform:rotate(360deg)}}
           @keyframes barLoad{from{width:0}to{width:100%}}
           @keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
           .sw-bn{position:fixed;bottom:0;left:0;right:0;background:#0F1D32;border-top:1px solid rgba(255,255,255,0.08);display:flex;z-index:50;padding:4px 0 env(safe-area-inset-bottom,6px)}
@@ -1092,6 +1125,15 @@ export default function StackedWork() {
                           : <><div style={{fontSize:28,marginBottom:8}}>📸</div><div style={{fontSize:13,fontWeight:600,color:"#374151"}}>Tap to upload receipt</div><div style={{fontSize:11,color:"#94A3B8",marginTop:4}}>Photo or PDF</div></>
                       }
                     </div>
+
+                    {/* AI Scan button */}
+                    {rcFile&&rcFile.type.startsWith("image/")&&<button
+                      onClick={()=>handleReceiptScan(rcFile)}
+                      disabled={rcScanning}
+                      style={{width:"100%",marginBottom:14,padding:"10px",background:rcScanning?"#F1F5F9":`linear-gradient(135deg,${G},${GD})`,color:rcScanning?"#94A3B8":"#132440",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:rcScanning?"not-allowed":"pointer",fontFamily:"'DM Sans'",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}
+                    >
+                      {rcScanning?<><span style={{display:"inline-block",width:12,height:12,border:"2px solid #94A3B8",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>Scanning receipt...</>:<>✨ Scan with AI — auto-fill form</>}
+                    </button>}
 
                     {/* Amount + Date */}
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
