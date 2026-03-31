@@ -48,6 +48,7 @@ export default function StackedWork() {
   const [authSuccess, setAuthSuccess] = useState<string|null>(null);
   const [scrollY, setScrollY] = useState(0);
   const [af, setAf] = useState(0);
+  const [lang, setLang] = useState<"en"|"es">("en");
   const [vw, setVw] = useState("dashboard");
   const [jf, setJf] = useState("all");
   const [ntf, setNtf] = useState(false);
@@ -1377,6 +1378,100 @@ export default function StackedWork() {
       </div>
     );
   }
+  const es = lang==="es";
+  const t = {
+    navDemo: es?"Demo":"Demo",
+    navFind: es?"Encontrar Contratista":"Find a Contractor",
+    navSignIn: es?"Iniciar sesión":"Sign In",
+    navStart: es?"Comenzar":"Get Started",
+    heroBadge: es?"Hecho para contratistas":"Built for contractors",
+    heroTitle: es?"Tu CRM. Tu IA.\nUn precio.":"Your CRM. Your AI.\nOne price.",
+    heroDesc: es?"Deja de hacer malabares con hojas de cálculo y apps que nunca usas. StackedWork administra tu negocio en un solo lugar — CRM, seguimiento de leads, portafolio de fotos y paneles de ingresos.":"Stop juggling spreadsheets and apps you never open. StackedWork runs your contracting business in one place — CRM, lead tracking, before & after portfolio, and revenue dashboards.",
+    pricingSub: es?"CRM + ENTRADA POR VOZ + GESTIÓN DE LEADS. SIN CARGOS DE INSTALACIÓN.":"CRM + VOICE-TO-JOB + LEAD TRACKING. NO SETUP FEES.",
+    pricingWebsite: es?"¿Necesitas un sitio web? Pregúntanos sobre nuestros servicios de sitios web con IA.":"Need a website? Ask us about our AI website building services.",
+    btnTrial: es?"Iniciar prueba gratis":"Start Free Trial",
+    btnDemo: es?"Ver demo en vivo":"See Live Demo",
+    signupLabel: es?"Empieza gratis hoy":"Start free today",
+    signupTitle: es?"Listo en":"Set up in",
+    signupTitleGreen: es?"5 minutos.":"5 minutes.",
+    signupSub: es?"Prueba gratuita de 14 días. Se requiere tarjeta de crédito.":"14-day free trial. Credit card required to start.",
+    signupPlaceholder: es?"tu@email.com":"your@email.com",
+    signupBtn: es?"Comenzar →":"Get Started →",
+    signupSmall: es?"CANCELA CUANDO QUIERAS · SIN CARGOS · LOS 50 ESTADOS":"CANCEL ANYTIME · NO SETUP FEES · ALL 50 STATES",
+    videoLabel: es?"Míralo en acción":"See it in action",
+    videoTitle: es?"Administra tu negocio desde la camioneta.":"Run your business from the truck.",
+    featLabel: es?"Lo que obtienes":"What you get",
+    featTitle: es?"Todo lo que un contratista necesita.":"Everything a contractor needs.",
+    featSub: es?"Nada que no necesites.":"Nothing you don't.",
+    featClick: es?"PROBAR →":"CLICK TO TRY →",
+    aiLabel: es?"Nueva función":"New feature",
+    aiTitle: es?"Tu IA.":"Your AI.",
+    aiTitleGreen: es?"Siempre disponible.":"Always on call.",
+    aiDesc: es?"Haz preguntas sobre precios, obtén guiones de seguimiento, averigua si vale la pena tomar un trabajo. Tu asistente de negocios con IA está integrado en tu panel — sin apps adicionales, sin costo extra.":"Ask pricing questions, get follow-up scripts, figure out if a job is worth taking. Your AI business assistant is built right into your dashboard — no extra apps, no extra cost.",
+    aiPowered: es?"CON TECNOLOGÍA DE CLAUDE AI · INCLUIDO EN TU PLAN DE $49.99/MES":"POWERED BY CLAUDE AI · INCLUDED IN YOUR $49.99/MO PLAN",
+    mathLabel: es?"Los números":"The math",
+    mathTitle: es?"Ya estás pagando de más.":"You are already overpaying.",
+    mathDesc: es?"Lo que los contratistas pagan con herramientas separadas vs. StackedWork.":"What contractors pay cobbling together tools vs. StackedWork.",
+    mathWithout: es?"Sin nosotros":"Without Us",
+    fieldLabel: es?"Del campo":"From the field",
+    fieldTitle: es?"Hecho para los oficios.":"Built for the trades.",
+    fieldQuote: es?"Las herramientas construidas para cómo realmente trabajas — desde la camioneta, en el trabajo, cerrando tratos en el momento.":"The tools built for how you actually work — from the truck, on the job, closing deals on the spot.",
+    howLabel: es?"Cómo funciona":"How it works",
+    howTitle: es?"En línea en":"Live in",
+    howTitleGreen: es?"48 horas.":"48 hours.",
+    ctaTitle: es?"¿Listo para dejar de trabajar al revés?":"Ready to stop hustling backwards?",
+    ctaDesc: es?"$49.99/mes. CRM + portafolio + seguimiento de leads. Cancela cuando quieras. Sin contratos.":"$49.99/month. CRM + photo portfolio + lead tracking. Cancel anytime. No contracts. No setup fees.",
+    ctaBtn: es?"Inicia tu prueba gratis":"Start Your Free Trial",
+    ctaSmall: es?"PRUEBA GRATUITA DE 14 DÍAS — CANCELA CUANDO QUIERAS":"14-DAY FREE TRIAL — CANCEL ANYTIME",
+    homeTitle: es?"¿Buscas un contratista con licencia?":"Looking for a Licensed Contractor?",
+    homeDesc: es?"Describe tu proyecto y conéctate con contratistas con licencia estatal en tu área — gratis, rápido y sin compromiso. Los 50 estados.":"Describe your project and get connected with state-licensed contractors in your area — free, fast, and no obligation. All 50 states.",
+    homeBtn: es?"Encontrar un Contratista →":"Find a Licensed Contractor →",
+    shareLabel: es?"Corre la voz":"Spread the word",
+    shareTitle: es?"¿Conoces a un contratista que necesite esto?":"Know a contractor who needs this?",
+    shareDesc: es?"Comparte StackedWork y ayúdalos a administrar un negocio más eficiente.":"Share StackedWork and help them run a tighter business.",
+    shareFb: es?"Compartir en Facebook":"Share on Facebook",
+    shareIg: es?"Compartir en Instagram":"Share on Instagram",
+    privacy: es?"Privacidad":"Privacy",
+    terms: es?"Términos":"Terms",
+    features: es ? [
+      {icon:"🏗️",title:"CRM con IA",desc:"Rastrea cada trabajo, cliente y dólar. Entrada por voz para registrar trabajos desde la camioneta.",link:"dashboard"},
+      {icon:"🤖",title:"Asistente de Negocios IA",desc:"Pregúntale cualquier cosa — precios, consejos de seguimiento, consejos de negocios. Integrado en tu panel.",link:"dashboard"},
+      {icon:"🌐",title:"Servicio de Sitio Web IA",desc:"¿Necesitas un sitio web construido o actualizado? Ofrecemos servicios con IA para contratistas.",link:"https://REMVentures.Tech"},
+      {icon:"📸",title:"Portafolio Antes y Después",desc:"Sube fotos, construye tu portafolio y comparte imágenes antes y después en Facebook, Instagram y TikTok.",link:"photos"},
+      {icon:"📊",title:"Panel de Ingresos",desc:"Ve lo que ganaste esta semana, mes y año. Sabe qué trabajos son rentables.",link:"dashboard"},
+      {icon:"📲",title:"Gestión de Leads",desc:"Rastrea cada lead, haz seguimiento a tiempo y nunca pierdas un trabajo.",link:"leads"},
+      {icon:"💬",title:"Envíanos un Texto",desc:"¿Necesitas cambiar algo en tu sitio? Solo envíanos un texto. Nosotros lo manejamos.",link:"sms:+14105306456"},
+    ] : FEATURES,
+    comparisons: es ? [
+      {item:"Software CRM",them:"$50-100/mes",us:"Incluido"},
+      {item:"Portafolio antes y después + redes sociales",them:"$20-40/mes",us:"Incluido"},
+      {item:"Gestión de leads",them:"$30/mes plugin",us:"Incluido"},
+      {item:"Seguimiento de ingresos",them:"$20-40/mes",us:"Incluido"},
+      {item:"Sitio web con IA",them:"$75/hr freelancer",us:"Adicional"},
+      {item:"Total",them:"$200+/mes",us:"$49.99/mes"},
+    ] : COMPARISONS,
+    howSteps: es ? [
+      {s:"01",t:"Regístrate en 5 minutos",d:"Crea tu usuario y contraseña, agrega tu oficio y área de servicio. Eso es todo."},
+      {s:"02",t:"Tu CRM está listo",d:"La IA configura tu panel, seguimiento de trabajos y gestión de leads al instante."},
+      {s:"03",t:"Empieza a cerrar trabajos",d:"CRM. Portafolio de fotos. Seguimiento de ingresos. Recordatorios. Todo en vivo."},
+    ] : [
+      {s:"01",t:"Sign up in 5 minutes",d:"Create your username and password, add your trade and service area. That's it."},
+      {s:"02",t:"Your CRM is ready",d:"AI sets up your dashboard, job tracking, and lead management instantly."},
+      {s:"03",t:"Start closing jobs",d:"CRM. Photo portfolio. Revenue tracking. Follow-up reminders. All live."},
+    ],
+    aiFeatures: es ? [
+      {icon:"💰",title:"Ayuda con Precios",desc:"\"¿Cuánto cobrar por un baño completo en Maryland?\" — solo pregunta."},
+      {icon:"📞",title:"Guiones de Seguimiento",desc:"Guiones palabra por palabra para volver a conectar con leads que se enfriaron."},
+      {icon:"📈",title:"Consejos de Negocios",desc:"Tips de rentabilidad, cuándo contratar, cómo crecer — a pedido."},
+      {icon:"🏡",title:"Asistente para Propietarios",desc:"Los propietarios en tu página también tienen su propio asistente IA."},
+    ] : [
+      {icon:"💰",title:"Job Pricing Help",desc:"\"What should I charge for a 2-bathroom gut job in Maryland?\" — just ask."},
+      {icon:"📞",title:"Follow-Up Scripts",desc:"Get word-for-word scripts to re-engage leads that went cold."},
+      {icon:"📈",title:"Business Advice",desc:"Profitability tips, when to hire, how to grow — on demand."},
+      {icon:"🏡",title:"Homeowner Assistant",desc:"Homeowners on your find-contractor page get their own AI helper too."},
+    ],
+  };
+
   return(
     <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",color:"#F5F0EB",minHeight:"100vh"}}>
       <style>{`
@@ -1465,42 +1560,43 @@ export default function StackedWork() {
       <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:100,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",background:scrollY>50?"rgba(19,36,64,0.92)":"transparent",backdropFilter:scrollY>50?"blur(20px)":"none",transition:"all .3s",borderBottom:scrollY>50?"1px solid rgba(255,255,255,0.05)":"none"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:34,height:34,background:"#4A82C4",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,color:"#fff",fontFamily:"'DM Sans'",letterSpacing:"-0.03em"}}>SW</div><span style={{fontWeight:700,fontSize:17,letterSpacing:"-0.02em"}}>StackedWork</span></div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <span onClick={()=>setPage("app")} style={{color:G,fontSize:14,fontWeight:500,cursor:"pointer"}}>Demo</span>
-          <a href="/find-contractor" style={{color:"rgba(245,240,235,0.7)",fontSize:13,fontWeight:500,textDecoration:"none",display:"inline-block"}}>Find a Contractor</a>
-          <a href="/login?mode=signin" style={{background:"transparent",color:"#fff",border:"1px solid rgba(255,255,255,0.3)",padding:"8px 18px",fontSize:13,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer",textDecoration:"none",display:"inline-block"}}>Sign In</a>
-          <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"10px 20px",fontSize:13,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Get Started</button>
+          <button onClick={()=>setLang(lang==="en"?"es":"en")} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",padding:"6px 12px",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Space Mono'",letterSpacing:"0.05em"}}>{lang==="en"?"ES":"EN"}</button>
+          <span onClick={()=>setPage("app")} style={{color:G,fontSize:14,fontWeight:500,cursor:"pointer"}}>{t.navDemo}</span>
+          <a href="/find-contractor" style={{color:"rgba(245,240,235,0.7)",fontSize:13,fontWeight:500,textDecoration:"none",display:"inline-block"}}>{t.navFind}</a>
+          <a href="/login?mode=signin" style={{background:"transparent",color:"#fff",border:"1px solid rgba(255,255,255,0.3)",padding:"8px 18px",fontSize:13,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer",textDecoration:"none",display:"inline-block"}}>{t.navSignIn}</a>
+          <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"10px 20px",fontSize:13,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>{t.navStart}</button>
         </div>
       </nav>
       <section style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"120px 24px 80px",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",inset:0,backgroundImage:"url(https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1400&q=80)",backgroundSize:"cover",backgroundPosition:"center",filter:"brightness(0.3)"}} />
         <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(19,36,64,0.7) 0%,rgba(19,36,64,0.9) 70%,#132440 100%)"}} />
-        <div className="sw-f0" style={{position:"relative",zIndex:1}}><div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(200,230,74,0.15)",border:"1px solid rgba(200,230,74,0.35)",borderRadius:100,padding:"8px 20px",fontSize:13,fontWeight:500,color:G,fontFamily:"'Space Mono'",marginBottom:32}}>Built for contractors</div></div>
-        <h1 className="sw-f1" style={{position:"relative",zIndex:1,fontSize:"clamp(38px,6vw,72px)",fontWeight:700,lineHeight:1.05,letterSpacing:"-0.03em",maxWidth:800,marginBottom:24}}>Your CRM. <span style={{color:G}}>Your AI.</span><br/>One price.</h1>
-        <p className="sw-f2" style={{position:"relative",zIndex:1,fontSize:18,lineHeight:1.7,color:"rgba(245,240,235,0.6)",maxWidth:560,marginBottom:16}}>Stop juggling spreadsheets and apps you never open. StackedWork runs your contracting business in one place — CRM, lead tracking, before & after portfolio, and revenue dashboards.</p>
+        <div className="sw-f0" style={{position:"relative",zIndex:1}}><div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(200,230,74,0.15)",border:"1px solid rgba(200,230,74,0.35)",borderRadius:100,padding:"8px 20px",fontSize:13,fontWeight:500,color:G,fontFamily:"'Space Mono'",marginBottom:32}}>{t.heroBadge}</div></div>
+        <h1 className="sw-f1" style={{position:"relative",zIndex:1,fontSize:"clamp(38px,6vw,72px)",fontWeight:700,lineHeight:1.05,letterSpacing:"-0.03em",maxWidth:800,marginBottom:24,whiteSpace:"pre-line"}}>{t.heroTitle.split("\n")[0]} <span style={{color:G}}>{t.heroTitle.split("\n")[1]}</span></h1>
+        <p className="sw-f2" style={{position:"relative",zIndex:1,fontSize:18,lineHeight:1.7,color:"rgba(245,240,235,0.6)",maxWidth:560,marginBottom:16}}>{t.heroDesc}</p>
         <div className="sw-f3" style={{position:"relative",zIndex:1,marginBottom:48}}>
           <div className="sw-price" style={{fontFamily:"'Space Mono'",fontSize:72,fontWeight:700,color:G,lineHeight:1,marginBottom:4}}>$49.99<span style={{fontSize:24,color:"rgba(245,240,235,0.4)"}}>/mo</span></div>
-          <p style={{fontFamily:"'Space Mono'",fontSize:13,color:"rgba(245,240,235,0.4)",letterSpacing:"0.05em"}}>CRM + VOICE-TO-JOB + LEAD TRACKING. NO SETUP FEES.</p>
-          <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"rgba(245,240,235,0.35)",marginTop:10}}>Need a website? Ask us about our AI website building services.</p>
+          <p style={{fontFamily:"'Space Mono'",fontSize:13,color:"rgba(245,240,235,0.4)",letterSpacing:"0.05em"}}>{t.pricingSub}</p>
+          <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"rgba(245,240,235,0.35)",marginTop:10}}>{t.pricingWebsite}</p>
         </div>
         <div className="sw-f4" style={{position:"relative",zIndex:1,display:"flex",gap:16,flexWrap:"wrap",justifyContent:"center"}}>
-          <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"18px 40px",fontSize:17,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Start Free Trial</button>
-          <button onClick={()=>setPage("app")} style={{background:"transparent",color:G,border:"2px solid rgba(200,230,74,0.25)",padding:"16px 38px",fontSize:17,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>See Live Demo</button>
+          <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"18px 40px",fontSize:17,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>{t.btnTrial}</button>
+          <button onClick={()=>setPage("app")} style={{background:"transparent",color:G,border:"2px solid rgba(200,230,74,0.25)",padding:"16px 38px",fontSize:17,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>{t.btnDemo}</button>
         </div>
       </section>
       <section style={{padding:"72px 24px 80px",maxWidth:600,margin:"0 auto",textAlign:"center"}}>
-        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:14}}>Start free today</div>
-        <h2 style={{fontSize:"clamp(26px,4vw,38px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:10}}>Set up in <span style={{color:G}}>5 minutes.</span></h2>
-        <p style={{fontSize:15,color:"rgba(245,240,235,0.5)",marginBottom:32}}>14-day free trial. Credit card required to start.</p>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:14}}>{t.signupLabel}</div>
+        <h2 style={{fontSize:"clamp(26px,4vw,38px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:10}}>{t.signupTitle} <span style={{color:G}}>{t.signupTitleGreen}</span></h2>
+        <p style={{fontSize:15,color:"rgba(245,240,235,0.5)",marginBottom:32}}>{t.signupSub}</p>
         <form onSubmit={(e)=>{e.preventDefault();const email=(e.currentTarget.elements.namedItem("email") as HTMLInputElement).value;window.location.href=`/login?email=${encodeURIComponent(email)}`;}} style={{display:"flex",gap:12,maxWidth:460,margin:"0 auto",flexWrap:"wrap",justifyContent:"center"}}>
-          <input name="email" type="email" placeholder="your@email.com" required style={{flex:1,minWidth:220,padding:"14px 18px",borderRadius:8,border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.06)",color:"#fff",fontSize:15,fontFamily:"'DM Sans'",outline:"none"}} />
-          <button type="submit" style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 28px",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",whiteSpace:"nowrap"}}>Get Started →</button>
+          <input name="email" type="email" placeholder={t.signupPlaceholder} required style={{flex:1,minWidth:220,padding:"14px 18px",borderRadius:8,border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.06)",color:"#fff",fontSize:15,fontFamily:"'DM Sans'",outline:"none"}} />
+          <button type="submit" style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 28px",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",whiteSpace:"nowrap"}}>{t.signupBtn}</button>
         </form>
-        <p style={{marginTop:16,fontSize:12,color:"rgba(245,240,235,0.25)",fontFamily:"'Space Mono'"}}>CANCEL ANYTIME · NO SETUP FEES · ALL 50 STATES</p>
+        <p style={{marginTop:16,fontSize:12,color:"rgba(245,240,235,0.25)",fontFamily:"'Space Mono'"}}>{t.signupSmall}</p>
       </section>
       {AD_VIDEO_URL && (
         <section style={{padding:"80px 24px",maxWidth:900,margin:"0 auto",textAlign:"center"}}>
-          <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>See it in action</div>
-          <h2 style={{fontSize:"clamp(26px,4vw,42px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:40}}>Run your business from the truck.</h2>
+          <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.videoLabel}</div>
+          <h2 style={{fontSize:"clamp(26px,4vw,42px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:40}}>{t.videoTitle}</h2>
           <div style={{borderRadius:16,overflow:"hidden",border:`1px solid rgba(200,230,74,0.2)`,boxShadow:`0 0 60px rgba(200,230,74,0.08)`}}>
             <video src={AD_VIDEO_URL} autoPlay muted loop playsInline style={{width:"100%",display:"block"}} />
           </div>
@@ -1508,13 +1604,13 @@ export default function StackedWork() {
       )}
       <section style={{padding:"100px 24px",maxWidth:1100,margin:"0 auto",position:"relative"}}>
         <div style={{position:"absolute",top:0,right:0,width:"50%",height:"100%",backgroundImage:"url(/living.jpg)",backgroundSize:"cover",backgroundPosition:"center",opacity:0.1,maskImage:"linear-gradient(to left,rgba(0,0,0,0.5),transparent)",WebkitMaskImage:"linear-gradient(to left,rgba(0,0,0,0.5),transparent)"}} />
-        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>What you get</div>
-        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:56,maxWidth:500}}>Everything a contractor needs. <span style={{color:"rgba(245,240,235,0.3)"}}>Nothing you don&apos;t.</span></h2>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.featLabel}</div>
+        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:56,maxWidth:500}}>{t.featTitle} <span style={{color:"rgba(245,240,235,0.3)"}}>{t.featSub}</span></h2>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:20}}>
-          {FEATURES.map((f,i)=>(
+          {t.features.map((f:any,i:number)=>(
             <div key={i} className="feature-box" onMouseEnter={()=>setAf(i)} onClick={()=>{ if(f.link.startsWith("http")){window.open(f.link,"_blank");} else {setPage("app"); setVw(f.link);} }}
               style={{background:i===af?"rgba(200,230,74,0.08)":"rgba(255,255,255,0.03)",border:i===af?"1px solid rgba(200,230,74,0.25)":"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:32,transition:"all .4s",position:"relative"}}>
-              <div style={{position:"absolute",top:12,right:12,fontSize:10,color:"rgba(200,230,74,0.5)",fontFamily:"'Space Mono'"}}>CLICK TO TRY →</div>
+              <div style={{position:"absolute",top:12,right:12,fontSize:10,color:"rgba(200,230,74,0.5)",fontFamily:"'Space Mono'"}}>{t.featClick}</div>
               <div style={{fontSize:30,marginBottom:14}}>{f.icon}</div>
               <h3 style={{fontSize:18,fontWeight:600,marginBottom:8}}>{f.title}</h3>
               <p style={{fontSize:14,lineHeight:1.7,color:"rgba(245,240,235,0.5)"}}>{f.desc}</p>
@@ -1524,16 +1620,11 @@ export default function StackedWork() {
       </section>
       <Divider/>
       <section style={{padding:"100px 24px",maxWidth:1000,margin:"0 auto",textAlign:"center"}}>
-        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>New feature</div>
-        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:16}}>Your AI. <span style={{color:G}}>Always on call.</span></h2>
-        <p style={{fontSize:17,lineHeight:1.7,color:"rgba(245,240,235,0.55)",maxWidth:560,margin:"0 auto 56px"}}>Ask pricing questions, get follow-up scripts, figure out if a job is worth taking. Your AI business assistant is built right into your dashboard — no extra apps, no extra cost.</p>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.aiLabel}</div>
+        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:16}}>{t.aiTitle} <span style={{color:G}}>{t.aiTitleGreen}</span></h2>
+        <p style={{fontSize:17,lineHeight:1.7,color:"rgba(245,240,235,0.55)",maxWidth:560,margin:"0 auto 56px"}}>{t.aiDesc}</p>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:20,textAlign:"left"}}>
-          {[
-            {icon:"💰",title:"Job Pricing Help",desc:"\"What should I charge for a 2-bathroom gut job in Maryland?\" — just ask."},
-            {icon:"📞",title:"Follow-Up Scripts",desc:"Get word-for-word scripts to re-engage leads that went cold."},
-            {icon:"📈",title:"Business Advice",desc:"Profitability tips, when to hire, how to grow — on demand."},
-            {icon:"🏡",title:"Homeowner Assistant",desc:"Homeowners on your find-contractor page get their own AI helper too."},
-          ].map((item,i)=>(
+          {t.aiFeatures.map((item:any,i:number)=>(
             <div key={i} style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.15)",borderRadius:12,padding:28}}>
               <div style={{fontSize:28,marginBottom:12}}>{item.icon}</div>
               <h3 style={{fontSize:16,fontWeight:700,marginBottom:6}}>{item.title}</h3>
@@ -1541,36 +1632,36 @@ export default function StackedWork() {
             </div>
           ))}
         </div>
-        <p style={{marginTop:36,fontSize:13,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>POWERED BY CLAUDE AI · INCLUDED IN YOUR $49.99/MO PLAN</p>
+        <p style={{marginTop:36,fontSize:13,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>{t.aiPowered}</p>
       </section>
       <Divider/>
       <section style={{padding:"100px 24px",maxWidth:800,margin:"0 auto"}}>
-        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>The math</div>
-        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:14}}>You are already overpaying.</h2>
-        <p style={{fontSize:16,color:"rgba(245,240,235,0.5)",marginBottom:44,maxWidth:500}}>What contractors pay cobbling together tools vs. StackedWork.</p>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.mathLabel}</div>
+        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:14}}>{t.mathTitle}</h2>
+        <p style={{fontSize:16,color:"rgba(245,240,235,0.5)",marginBottom:44,maxWidth:500}}>{t.mathDesc}</p>
         <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,overflow:"hidden"}}>
-          <div className="sw-comp" style={{display:"grid",gridTemplateColumns:"2fr 1.2fr 1.2fr",padding:"18px 24px",background:"rgba(255,255,255,0.03)",fontFamily:"'Space Mono'",fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase",color:"rgba(245,240,235,0.4)",fontWeight:700}}><div></div><div>Without Us</div><div style={{color:G}}>StackedWork</div></div>
-          {COMPARISONS.map((c,i)=><div key={i} className="sw-comp" style={{display:"grid",gridTemplateColumns:"2fr 1.2fr 1.2fr",padding:"18px 24px",borderBottom:i<COMPARISONS.length-1?"1px solid rgba(255,255,255,0.06)":"none",...(i===COMPARISONS.length-1?{background:"rgba(200,230,74,0.08)",fontSize:17,fontWeight:700}:{})}}><div style={{fontWeight:i===COMPARISONS.length-1?700:400}}>{c.item}</div><div style={{color:"rgba(245,240,235,0.4)",textDecoration:i<COMPARISONS.length-1?"line-through":"none"}}>{c.them}</div><div style={{color:G,fontWeight:600}}>{c.us}</div></div>)}
+          <div className="sw-comp" style={{display:"grid",gridTemplateColumns:"2fr 1.2fr 1.2fr",padding:"18px 24px",background:"rgba(255,255,255,0.03)",fontFamily:"'Space Mono'",fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase",color:"rgba(245,240,235,0.4)",fontWeight:700}}><div></div><div>{t.mathWithout}</div><div style={{color:G}}>StackedWork</div></div>
+          {t.comparisons.map((c:any,i:number)=><div key={i} className="sw-comp" style={{display:"grid",gridTemplateColumns:"2fr 1.2fr 1.2fr",padding:"18px 24px",borderBottom:i<t.comparisons.length-1?"1px solid rgba(255,255,255,0.06)":"none",...(i===t.comparisons.length-1?{background:"rgba(200,230,74,0.08)",fontSize:17,fontWeight:700}:{})}}><div style={{fontWeight:i===t.comparisons.length-1?700:400}}>{c.item}</div><div style={{color:"rgba(245,240,235,0.4)",textDecoration:i<t.comparisons.length-1?"line-through":"none"}}>{c.them}</div><div style={{color:G,fontWeight:600}}>{c.us}</div></div>)}
         </div>
       </section>
       <Divider/>
       <section style={{padding:"80px 24px",maxWidth:1100,margin:"0 auto",position:"relative"}}>
-        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>From the field</div>
-        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:40}}>Built for the trades.</h2>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.fieldLabel}</div>
+        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:40}}>{t.fieldTitle}</h2>
         <div style={{borderRadius:16,overflow:"hidden",maxHeight:500,position:"relative"}}>
           <img src={AD_IMAGE_URL || "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80"} alt="Contractor on the job" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} />
           <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,transparent 50%,rgba(19,36,64,0.85) 100%)"}}/>
           <div style={{position:"absolute",bottom:32,left:32,right:32}}>
-            <p style={{fontSize:"clamp(16px,2.5vw,22px)",fontWeight:600,color:"#fff",lineHeight:1.5,maxWidth:600,textShadow:"0 2px 8px rgba(0,0,0,0.5)"}}>The tools built for how you actually work — from the truck, on the job, closing deals on the spot.</p>
+            <p style={{fontSize:"clamp(16px,2.5vw,22px)",fontWeight:600,color:"#fff",lineHeight:1.5,maxWidth:600,textShadow:"0 2px 8px rgba(0,0,0,0.5)"}}>{t.fieldQuote}</p>
           </div>
         </div>
       </section>
       <Divider/>
       <section style={{padding:"100px 24px",maxWidth:800,margin:"0 auto",textAlign:"center"}}>
-        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>How it works</div>
-        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:56}}>Live in <span style={{color:G}}>48 hours.</span></h2>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.howLabel}</div>
+        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:56}}>{t.howTitle} <span style={{color:G}}>{t.howTitleGreen}</span></h2>
         <div style={{display:"flex",flexDirection:"column",gap:40,textAlign:"left"}}>
-          {[{s:"01",t:"Sign up in 5 minutes",d:"Create your username and password, add your trade and service area. That's it."},{s:"02",t:"Your CRM is ready",d:"AI sets up your dashboard, job tracking, and lead management instantly."},{s:"03",t:"Start closing jobs",d:"CRM. Photo portfolio. Revenue tracking. Follow-up reminders. All live."}].map((x,i)=>(
+          {t.howSteps.map((x:any,i:number)=>(
             <div key={i} style={{display:"flex",gap:20,alignItems:"flex-start"}}>
               <div style={{fontFamily:"'Space Mono'",fontSize:14,color:G,fontWeight:700,minWidth:36,paddingTop:3}}>{x.s}</div>
               <div><h3 style={{fontSize:20,fontWeight:600,marginBottom:6}}>{x.t}</h3><p style={{fontSize:15,lineHeight:1.7,color:"rgba(245,240,235,0.5)"}}>{x.d}</p></div>
@@ -1582,23 +1673,23 @@ export default function StackedWork() {
       <section style={{padding:"100px 24px 140px",textAlign:"center",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",inset:0,backgroundImage:"url(https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80)",backgroundSize:"cover",backgroundPosition:"center top",filter:"brightness(0.2)"}} />
         <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,#132440 0%,rgba(19,36,64,0.85) 50%,#132440 100%)"}} />
-        <h2 style={{position:"relative",zIndex:1,fontSize:"clamp(34px,5vw,56px)",fontWeight:700,letterSpacing:"-0.03em",maxWidth:600,margin:"0 auto 16px"}}>Ready to stop hustling backwards?</h2>
-        <p style={{position:"relative",zIndex:1,fontSize:17,color:"rgba(245,240,235,0.5)",maxWidth:480,margin:"0 auto 44px"}}>$49.99/month. CRM + photo portfolio + lead tracking. Cancel anytime. No contracts. No setup fees.</p>
-        <button onClick={handleSubscribe} style={{position:"relative",zIndex:1,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"20px 48px",fontSize:18,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>Start Your Free Trial</button>
-        <p style={{position:"relative",zIndex:1,marginTop:22,fontSize:12,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>14-DAY FREE TRIAL — CANCEL ANYTIME</p>
+        <h2 style={{position:"relative",zIndex:1,fontSize:"clamp(34px,5vw,56px)",fontWeight:700,letterSpacing:"-0.03em",maxWidth:600,margin:"0 auto 16px"}}>{t.ctaTitle}</h2>
+        <p style={{position:"relative",zIndex:1,fontSize:17,color:"rgba(245,240,235,0.5)",maxWidth:480,margin:"0 auto 44px"}}>{t.ctaDesc}</p>
+        <button onClick={handleSubscribe} style={{position:"relative",zIndex:1,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"20px 48px",fontSize:18,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>{t.ctaBtn}</button>
+        <p style={{position:"relative",zIndex:1,marginTop:22,fontSize:12,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>{t.ctaSmall}</p>
       </section>
       <div style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.15)",borderRadius:0,padding:"48px 24px",textAlign:"center"}}>
         <div style={{maxWidth:560,margin:"0 auto"}}>
           <div style={{fontSize:32,marginBottom:12}}>🏡</div>
-          <h3 style={{fontSize:22,fontWeight:800,marginBottom:8}}>Looking for a Licensed Contractor?</h3>
-          <p style={{fontSize:15,color:"rgba(245,240,235,0.6)",marginBottom:24,lineHeight:1.7}}>Describe your project and get connected with state-licensed contractors in your area — free, fast, and no obligation. All 50 states.</p>
-          <a href="/find-contractor" style={{display:"inline-block",background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",textDecoration:"none",padding:"14px 36px",borderRadius:10,fontSize:15,fontWeight:800}}>Find a Licensed Contractor →</a>
+          <h3 style={{fontSize:22,fontWeight:800,marginBottom:8}}>{t.homeTitle}</h3>
+          <p style={{fontSize:15,color:"rgba(245,240,235,0.6)",marginBottom:24,lineHeight:1.7}}>{t.homeDesc}</p>
+          <a href="/find-contractor" style={{display:"inline-block",background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",textDecoration:"none",padding:"14px 36px",borderRadius:10,fontSize:15,fontWeight:800}}>{t.homeBtn}</a>
         </div>
       </div>
       <section style={{padding:"60px 24px",textAlign:"center",borderTop:"1px solid rgba(255,255,255,0.05)"}}>
-        <p style={{fontSize:11,fontFamily:"'Space Mono'",color:"rgba(245,240,235,0.3)",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>Spread the word</p>
-        <h3 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:8}}>Know a contractor who needs this?</h3>
-        <p style={{fontSize:14,color:"rgba(245,240,235,0.45)",marginBottom:28}}>Share StackedWork and help them run a tighter business.</p>
+        <p style={{fontSize:11,fontFamily:"'Space Mono'",color:"rgba(245,240,235,0.3)",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>{t.shareLabel}</p>
+        <h3 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:8}}>{t.shareTitle}</h3>
+        <p style={{fontSize:14,color:"rgba(245,240,235,0.45)",marginBottom:28}}>{t.shareDesc}</p>
         <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}}>
           <button
             onClick={()=>{
@@ -1609,14 +1700,14 @@ export default function StackedWork() {
             style={{display:"flex",alignItems:"center",gap:10,padding:"12px 22px",background:"#1877F2",color:"#fff",borderRadius:10,fontSize:14,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"'DM Sans'"}}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.27h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
-            Share on Facebook
+            {t.shareFb}
           </button>
           <button
             onClick={()=>{navigator.clipboard.writeText("https://letstaystacked.com").then(()=>{window.open("https://www.instagram.com/","_blank")});}}
             style={{display:"flex",alignItems:"center",gap:10,padding:"12px 22px",background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",color:"#fff",borderRadius:10,fontSize:14,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"'DM Sans'"}}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
-            Share on Instagram
+            {t.shareIg}
           </button>
           <a
             href={`https://twitter.com/intent/tweet?text=${encodeURIComponent("Just found StackedWork — a CRM built for contractors. Job tracking, lead management, before & after portfolio, and revenue dashboards. All for $49.99/mo. Check it out:")}&url=${encodeURIComponent("https://letstaystacked.com")}`}
@@ -1638,7 +1729,7 @@ export default function StackedWork() {
             <a href="/find-contractor" style={{color:"rgba(200,230,74,0.8)",fontSize:12,fontWeight:600,textDecoration:"none"}}>🏡 Find a Contractor</a>
             <a href="mailto:ryan@remventures.tech" style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>Contact: ryan@remventures.tech</a>
             <a href="tel:4105306456" style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>410-530-6456</a>
-            {["Privacy","Terms"].map(l=><span key={l} style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer"}}>{l}</span>)}
+            {[[t.privacy,"Privacy"],[t.terms,"Terms"]].map(([label,key])=><span key={key} style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer"}}>{label}</span>)}
           </div>
         </div>
         <div style={{borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:20}}>
