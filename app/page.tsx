@@ -21,12 +21,13 @@ const FEATURES = [
   { icon: "💬", title: "Text Us To Update Anything", desc: "Need your phone number changed on your site? New photo? Just text us. We handle it.", link: "sms:+14105306456" },
 ];
 const COMPARISONS = [
-  { item: "CRM software", them: "$50-100/mo", us: "Included" },
-  { item: "Before & after portfolio + social sharing", them: "$20-40/mo", us: "Included" },
-  { item: "Lead management", them: "$30/mo plugin", us: "Included" },
-  { item: "Revenue tracking", them: "$20-40/mo", us: "Included" },
-  { item: "AI website build/updates", them: "$75/hr freelancer", us: "Add-on" },
-  { item: "Total", them: "$200+/mo", us: "$49.99/mo" },
+  { item: "Monthly base price", them: "$398–$600+/mo", us: "$49.99/mo" },
+  { item: "Setup & onboarding fee", them: "$1,000–$5,000", us: "Free" },
+  { item: "AI business assistant", them: "Not included", us: "Included" },
+  { item: "Before & after photo portfolio", them: "Not included", us: "Included" },
+  { item: "Social media sharing", them: "Not included", us: "Included" },
+  { item: "Ready to use", them: "Weeks of training", us: "5 minutes" },
+  { item: "Total first year cost", them: "$6,000–$12,000+", us: "$599/yr" },
 ];
 const JOBS = [ { id:1, customer:"John Smith", phone:"(410) 555-0122", type:"Plumbing", value:450, status:"quoted", date:"2026-02-20", completed:null }, { id:2, customer:"Sarah Johnson", phone:"(410) 555-0188", type:"Drywall", value:1200, status:"scheduled", date:"2026-02-25", completed:null }, { id:3, customer:"Mike Davis", phone:"(443) 555-0301", type:"Electrical", value:650, status:"in-progress", date:"2026-02-18", completed:null }, { id:4, customer:"Lisa Brown", phone:"(410) 555-0445", type:"General", value:300, status:"complete", date:"2026-02-10", completed:"2026-02-14" }, { id:5, customer:"Tom Wilson", phone:"(443) 555-0567", type:"Plumbing", value:890, status:"complete", date:"2026-02-08", completed:"2026-02-12" }, { id:6, customer:"Emma Davis", phone:"(410) 555-0678", type:"Painting", value:1250, status:"complete", date:"2026-02-05", completed:"2026-02-09" }, { id:7, customer:"Robert Garcia", phone:"(443) 555-0789", type:"HVAC", value:2100, status:"complete", date:"2026-01-28", completed:"2026-02-02" }, { id:8, customer:"Angela White", phone:"(410) 555-0890", type:"Roofing", value:3500, status:"complete", date:"2026-01-20", completed:"2026-01-26" }, ];
 const LEADS = [ { id:1, name:"Chris Mitchell", phone:"(410) 555-2211", email:"chris.m@gmail.com", msg:"Need a quote for bathroom remodel - 2 bath, gut job. Available weekends.", time:"2 hours ago", ts:"2h", urgent:false }, { id:2, name:"Tanya Washington", phone:"(443) 555-3344", email:"tanya.w@yahoo.com", msg:"Do you do commercial HVAC? We have a 3-unit strip mall that needs service.", time:"1 day ago", ts:"1d", urgent:false }, { id:3, name:"Derek Johnson", phone:"(410) 555-9087", email:"djohnson88@gmail.com", msg:"Emergency pipe burst in basement - need help ASAP. Water everywhere.", time:"3 days ago", ts:"3d", urgent:true }, { id:4, name:"Maria Santos", phone:"(443) 555-6712", email:"maria.santos@outlook.com", msg:"Looking for someone to finish my deck before summer. About 400 sq ft.", time:"5 days ago", ts:"5d", urgent:false }, ];
@@ -1409,10 +1410,10 @@ export default function StackedWork() {
     aiTitleGreen: es?"Siempre disponible.":"Always on call.",
     aiDesc: es?"Haz preguntas sobre precios, obtén guiones de seguimiento, averigua si vale la pena tomar un trabajo. Tu asistente de negocios con IA está integrado en tu panel — sin apps adicionales, sin costo extra.":"Ask pricing questions, get follow-up scripts, figure out if a job is worth taking. Your AI business assistant is built right into your dashboard — no extra apps, no extra cost.",
     aiPowered: es?"CON TECNOLOGÍA DE CLAUDE AI · INCLUIDO EN TU PLAN DE $49.99/MES":"POWERED BY CLAUDE AI · INCLUDED IN YOUR $49.99/MO PLAN",
-    mathLabel: es?"Los números":"The math",
-    mathTitle: es?"Ya estás pagando de más.":"You are already overpaying.",
-    mathDesc: es?"Lo que los contratistas pagan con herramientas separadas vs. StackedWork.":"What contractors pay cobbling together tools vs. StackedWork.",
-    mathWithout: es?"Sin nosotros":"Without Us",
+    mathLabel: es?"StackedWork vs. ServiceTitan":"StackedWork vs. ServiceTitan",
+    mathTitle: es?"ServiceTitan cobra demasiado.":"ServiceTitan charges too much.",
+    mathDesc: es?"ServiceTitan está hecho para grandes empresas. StackedWork está hecho para el contratista que trabaja todos los días.":"ServiceTitan is built for large enterprises. StackedWork is built for the contractor who works every day.",
+    mathWithout: es?"ServiceTitan":"ServiceTitan",
     fieldLabel: es?"Del campo":"From the field",
     fieldTitle: es?"Hecho para los oficios.":"Built for the trades.",
     fieldQuote: es?"Las herramientas construidas para cómo realmente trabajas — desde la camioneta, en el trabajo, cerrando tratos en el momento.":"The tools built for how you actually work — from the truck, on the job, closing deals on the spot.",
@@ -1443,12 +1444,13 @@ export default function StackedWork() {
       {icon:"💬",title:"Envíanos un Texto",desc:"¿Necesitas cambiar algo en tu sitio? Solo envíanos un texto. Nosotros lo manejamos.",link:"sms:+14105306456"},
     ] : FEATURES,
     comparisons: es ? [
-      {item:"Software CRM",them:"$50-100/mes",us:"Incluido"},
-      {item:"Portafolio antes y después + redes sociales",them:"$20-40/mes",us:"Incluido"},
-      {item:"Gestión de leads",them:"$30/mes plugin",us:"Incluido"},
-      {item:"Seguimiento de ingresos",them:"$20-40/mes",us:"Incluido"},
-      {item:"Sitio web con IA",them:"$75/hr freelancer",us:"Adicional"},
-      {item:"Total",them:"$200+/mes",us:"$49.99/mes"},
+      {item:"Precio base mensual",them:"$398–$600+/mes",us:"$49.99/mes"},
+      {item:"Cargo de instalación",them:"$1,000–$5,000",us:"Gratis"},
+      {item:"Asistente IA de negocios",them:"No incluido",us:"Incluido"},
+      {item:"Portafolio antes y después",them:"No incluido",us:"Incluido"},
+      {item:"Compartir en redes sociales",them:"No incluido",us:"Incluido"},
+      {item:"Listo para usar",them:"Semanas de entrenamiento",us:"5 minutos"},
+      {item:"Costo total primer año",them:"$6,000–$12,000+",us:"$599/año"},
     ] : COMPARISONS,
     howSteps: es ? [
       {s:"01",t:"Regístrate en 5 minutos",d:"Crea tu usuario y contraseña, agrega tu oficio y área de servicio. Eso es todo."},
@@ -1638,7 +1640,21 @@ export default function StackedWork() {
       <section style={{padding:"100px 24px",maxWidth:800,margin:"0 auto"}}>
         <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.mathLabel}</div>
         <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:14}}>{t.mathTitle}</h2>
-        <p style={{fontSize:16,color:"rgba(245,240,235,0.5)",marginBottom:44,maxWidth:500}}>{t.mathDesc}</p>
+        <p style={{fontSize:16,color:"rgba(245,240,235,0.5)",marginBottom:32,maxWidth:500}}>{t.mathDesc}</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:44}}>
+          {[
+            {icon:"💸",label:es?"10x más barato":"10x Cheaper",sub:es?"$49.99/mes vs. $398–$600+":"$49.99/mo vs. $398–$600+/mo"},
+            {icon:"⚡",label:es?"Listo en 5 min":"Live in 5 Min",sub:es?"Sin semanas de configuración":"No weeks of training required"},
+            {icon:"🤖",label:es?"IA incluida":"AI Included",sub:es?"ServiceTitan no tiene esto":"ServiceTitan doesn't have this"},
+            {icon:"📸",label:es?"Portafolio incluido":"Portfolio Included",sub:es?"Comparte en redes directamente":"Share to social media directly"},
+          ].map((c,i)=>(
+            <div key={i} style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.2)",borderRadius:12,padding:"18px 16px",textAlign:"center"}}>
+              <div style={{fontSize:28,marginBottom:8}}>{c.icon}</div>
+              <div style={{fontWeight:700,fontSize:14,color:G,marginBottom:4}}>{c.label}</div>
+              <div style={{fontSize:11,color:"rgba(245,240,235,0.45)",lineHeight:1.4}}>{c.sub}</div>
+            </div>
+          ))}
+        </div>
         <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,overflow:"hidden"}}>
           <div className="sw-comp" style={{display:"grid",gridTemplateColumns:"2fr 1.2fr 1.2fr",padding:"18px 24px",background:"rgba(255,255,255,0.03)",fontFamily:"'Space Mono'",fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase",color:"rgba(245,240,235,0.4)",fontWeight:700}}><div></div><div>{t.mathWithout}</div><div style={{color:G}}>StackedWork</div></div>
           {t.comparisons.map((c:any,i:number)=><div key={i} className="sw-comp" style={{display:"grid",gridTemplateColumns:"2fr 1.2fr 1.2fr",padding:"18px 24px",borderBottom:i<t.comparisons.length-1?"1px solid rgba(255,255,255,0.06)":"none",...(i===t.comparisons.length-1?{background:"rgba(200,230,74,0.08)",fontSize:17,fontWeight:700}:{})}}><div style={{fontWeight:i===t.comparisons.length-1?700:400}}>{c.item}</div><div style={{color:"rgba(245,240,235,0.4)",textDecoration:i<t.comparisons.length-1?"line-through":"none"}}>{c.them}</div><div style={{color:G,fontWeight:600}}>{c.us}</div></div>)}
