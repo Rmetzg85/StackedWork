@@ -31,7 +31,7 @@ export async function POST(request) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
       body: JSON.stringify({
         from: "StackedWork <notifications@stackedwork.com>",
-        to: "Rmetzgar@REMVentures.Tech",
+        to: "ryan@remventures.tech",
         subject,
         html,
       }),

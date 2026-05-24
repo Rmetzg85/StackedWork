@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     },
     body: JSON.stringify({
       from: "StackedWork <notifications@stackedwork.com>",
-      to: "Rmetzgar@REMVentures.Tech",
+      to: "ryan@remventures.tech",
       subject: `New StackedWork signup: ${username || email}`,
       html: `
         <h2>New contractor signed up</h2>

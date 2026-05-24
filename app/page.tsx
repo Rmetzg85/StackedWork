@@ -1750,7 +1750,7 @@ export default function StackedWork() {
         </div>
         <div style={{borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:20}}>
           <p style={{fontSize:11,color:"rgba(245,240,235,0.25)",lineHeight:1.7,maxWidth:800}}>
-            <strong style={{color:"rgba(245,240,235,0.35)"}}>Privacy Policy:</strong> StackedWork, a REM Ventures product, collects information you provide when signing up and using our services, including name, email, business details, and usage data. We use this information solely to provide and improve our services. We do not sell your personal information to third parties. Your data is secured using industry-standard encryption. By using StackedWork, you agree to this policy. For questions, contact Rmetzgar@REMVentures.Tech. StackedWork uses Stripe for payment processing — your payment information is handled securely by Stripe and never stored on our servers.
+            <strong style={{color:"rgba(245,240,235,0.35)"}}>Privacy Policy:</strong> StackedWork, a REM Ventures product, collects information you provide when signing up and using our services, including name, email, business details, and usage data. We use this information solely to provide and improve our services. We do not sell your personal information to third parties. Your data is secured using industry-standard encryption. By using StackedWork, you agree to this policy. For questions, contact ryan@remventures.tech. StackedWork uses Stripe for payment processing — your payment information is handled securely by Stripe and never stored on our servers.
           </p>
         </div>
       </footer>
