@@ -38,8 +38,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                                                               gtag('js', new Date());
                                                                           gtag('config', 'G-MF35DJK57X');
                                                                                     `}
-                        </Script>Script>
-                </body>body>
-          </html>html>
+                        </Script>
+                </body>
+          </html>
         );
-}</html>
+}
