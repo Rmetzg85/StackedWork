@@ -33,10 +33,14 @@ function LoginForm() {
     try {
       if (mode === "signup") {
         if (!username.trim()) throw new Error("Please enter a username.");
+        const rawWebsite = website.trim();
+        const normalizedWebsite = rawWebsite
+          ? (/^https?:\/\//i.test(rawWebsite) ? rawWebsite : `https://${rawWebsite.replace(/^\/+/, "")}`)
+          : "";
         const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { username: username.trim(), phone: phone.trim(), website: website.trim() } },
+          options: { data: { username: username.trim(), phone: phone.trim(), website: normalizedWebsite } },
         });
         if (signUpError) throw signUpError;
 
@@ -44,7 +48,7 @@ function LoginForm() {
         await fetch("/api/notify-signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: username.trim(), email, phone: phone.trim(), website: website.trim() }),
+          body: JSON.stringify({ username: username.trim(), email, phone: phone.trim(), website: normalizedWebsite }),
         }).catch(() => {});
 
         // After signup, send them to Stripe checkout
@@ -154,8 +158,9 @@ function LoginForm() {
                 </label>
                 <input
                   className="auth-input"
-                  type="url"
-                  placeholder="https://yourcompany.com"
+                  type="text"
+                  inputMode="url"
+                  placeholder="www.yourcompany.com"
                   value={website}
                   onChange={(e) => setWebsite(e.target.value)}
                   autoComplete="url"

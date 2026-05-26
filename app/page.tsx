@@ -60,6 +60,8 @@ export default function StackedWork() {
   const [userId, setUserId] = useState<string|null>(null);
   const [userEmail, setUserEmail] = useState<string|null>(null);
   const [subStatus, setSubStatus] = useState<string|null>(null);
+  const [stripeCustomerId, setStripeCustomerId] = useState<string|null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
   const [dbLeads, setDbLeads] = useState<any[]>([]);
   const [dbJobs, setDbJobs] = useState<any[]>([]);
   const [dbHomeownerLeads, setDbHomeownerLeads] = useState<any[]>([]);
@@ -210,8 +212,35 @@ export default function StackedWork() {
   };
 
   const checkSub = async (email: string) => {
-    const { data } = await supabase.from("subscriptions").select("status").eq("email", email).maybeSingle();
+    const { data } = await supabase.from("subscriptions").select("status, stripe_customer_id").eq("email", email).maybeSingle();
     setSubStatus(data?.status ?? "none");
+    setStripeCustomerId(data?.stripe_customer_id ?? null);
+  };
+
+  const handleManageBilling = async () => {
+    if (billingLoading) return;
+    if (!stripeCustomerId) {
+      alert("We couldn't find your billing account. Please contact support@stackedwork.com.");
+      return;
+    }
+    setBillingLoading(true);
+    try {
+      const res = await fetch("/api/manage-billing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stripeCustomerId }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || "Couldn't open billing portal. Please try again.");
+      }
+    } catch {
+      alert("Couldn't open billing portal. Please try again.");
+    } finally {
+      setBillingLoading(false);
+    }
   };
 
   const handlePhotoFile = (file: File, side: "before"|"after") => {
@@ -628,7 +657,10 @@ export default function StackedWork() {
         </p>
         <div style={{display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center"}}>
           <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 32px",fontSize:15,fontWeight:700,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'"}}>Reactivate Subscription</button>
-          <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);}} style={{background:"transparent",color:"rgba(245,240,235,0.5)",border:"1px solid rgba(255,255,255,0.15)",padding:"14px 32px",fontSize:15,fontWeight:600,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
+          {stripeCustomerId && (
+            <button onClick={handleManageBilling} disabled={billingLoading} style={{background:"transparent",color:"#F5F0EB",border:"1px solid rgba(255,255,255,0.25)",padding:"14px 32px",fontSize:15,fontWeight:600,borderRadius:6,cursor:billingLoading?"wait":"pointer",fontFamily:"'DM Sans'",opacity:billingLoading?0.6:1}}>{billingLoading?"Opening...":"Manage Billing"}</button>
+          )}
+          <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);}} style={{background:"transparent",color:"rgba(245,240,235,0.5)",border:"1px solid rgba(255,255,255,0.15)",padding:"14px 32px",fontSize:15,fontWeight:600,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
         </div>
       </div>
     );
@@ -680,8 +712,11 @@ export default function StackedWork() {
               </div>}
             </div>
             <button onClick={()=>setSms(true)} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>📱</button>
+            {userId && stripeCustomerId && (
+              <button onClick={handleManageBilling} disabled={billingLoading} title="Manage subscription or cancel" style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:billingLoading?"wait":"pointer",fontFamily:"'DM Sans'",opacity:billingLoading?0.6:1}}>{billingLoading?"Opening...":"Manage Subscription"}</button>
+            )}
             {userId
-              ? <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);}} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
+              ? <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);}} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
               : <button onClick={()=>setPage("landing")} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>Back</button>
             }
           </div>
