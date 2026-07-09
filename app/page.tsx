@@ -61,6 +61,7 @@ export default function StackedWork() {
   const [userEmail, setUserEmail] = useState<string|null>(null);
   const [subStatus, setSubStatus] = useState<string|null>(null);
   const [stripeCustomerId, setStripeCustomerId] = useState<string|null>(null);
+  const [subDetail, setSubDetail] = useState<{plan?:string|null;current_period_end?:string|null;trial_end?:string|null;cancel_at?:string|null;cancelled_at?:string|null}|null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
   const [dbLeads, setDbLeads] = useState<any[]>([]);
   const [dbJobs, setDbJobs] = useState<any[]>([]);
@@ -212,9 +213,10 @@ export default function StackedWork() {
   };
 
   const checkSub = async (email: string) => {
-    const { data } = await supabase.from("subscriptions").select("status, stripe_customer_id").eq("email", email).maybeSingle();
+    const { data } = await supabase.from("subscriptions").select("status, stripe_customer_id, plan, current_period_end, trial_end, cancel_at, cancelled_at").eq("email", email).maybeSingle();
     setSubStatus(data?.status ?? "none");
     setStripeCustomerId(data?.stripe_customer_id ?? null);
+    setSubDetail(data ? { plan: data.plan, current_period_end: data.current_period_end, trial_end: data.trial_end, cancel_at: data.cancel_at, cancelled_at: data.cancelled_at } : null);
   };
 
   const handleManageBilling = async () => {
@@ -660,14 +662,14 @@ export default function StackedWork() {
           {stripeCustomerId && (
             <button onClick={handleManageBilling} disabled={billingLoading} style={{background:"transparent",color:"#F5F0EB",border:"1px solid rgba(255,255,255,0.25)",padding:"14px 32px",fontSize:15,fontWeight:600,borderRadius:6,cursor:billingLoading?"wait":"pointer",fontFamily:"'DM Sans'",opacity:billingLoading?0.6:1}}>{billingLoading?"Opening...":"Manage Billing"}</button>
           )}
-          <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);}} style={{background:"transparent",color:"rgba(245,240,235,0.5)",border:"1px solid rgba(255,255,255,0.15)",padding:"14px 32px",fontSize:15,fontWeight:600,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
+          <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);setSubDetail(null);}} style={{background:"transparent",color:"rgba(245,240,235,0.5)",border:"1px solid rgba(255,255,255,0.15)",padding:"14px 32px",fontSize:15,fontWeight:600,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
         </div>
       </div>
     );
   }
 
   if(page==="app"){
-    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"estimates",ic:"📋",lb:"Estimates"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"receipts",ic:"🧾",lb:"Receipts"},{id:"profit",ic:"💰",lb:"Profit"},{id:"followups",ic:"🔔",lb:"Alerts"}];
+    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"estimates",ic:"📋",lb:"Estimates"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"receipts",ic:"🧾",lb:"Receipts"},{id:"profit",ic:"💰",lb:"Profit"},{id:"followups",ic:"🔔",lb:"Alerts"},{id:"account",ic:"⚙️",lb:"Account"}];
     return(
       <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh"}}>
         <style>{`
@@ -712,11 +714,11 @@ export default function StackedWork() {
               </div>}
             </div>
             <button onClick={()=>setSms(true)} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>📱</button>
-            {userId && stripeCustomerId && (
-              <button onClick={handleManageBilling} disabled={billingLoading} title="Manage subscription or cancel" style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:billingLoading?"wait":"pointer",fontFamily:"'DM Sans'",opacity:billingLoading?0.6:1}}>{billingLoading?"Opening...":"Manage Subscription"}</button>
+            {userId && (
+              <button onClick={()=>setVw("account")} title="Account & subscription" style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>⚙️</button>
             )}
             {userId
-              ? <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);}} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
+              ? <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);setSubDetail(null);}} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
               : <button onClick={()=>setPage("landing")} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>Back</button>
             }
           </div>
@@ -1407,6 +1409,99 @@ export default function StackedWork() {
               <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Follow-up Reminders</h1><p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Don&apos;t leave money on the table.</p>
               <div style={{padding:"40px 20px",textAlign:"center",color:"#94A3B8"}}><div style={{fontSize:36,marginBottom:12}}>🔔</div><div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>No follow-ups yet</div><div style={{fontSize:12}}>Completed jobs will appear here as reminders to re-engage past clients.</div></div>
             </>}
+            {vw==="account"&&(()=>{
+              const fmtDate = (iso?: string|null) => iso ? new Date(iso).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}) : null;
+              const statusLabel = subStatus==="trialing" ? "Free Trial" : subStatus==="active" ? "Active" : subStatus==="past_due" ? "Past Due" : subStatus==="cancelled" ? "Cancelled" : subStatus==="incomplete" || subStatus==="incomplete_expired" ? "Incomplete" : subStatus==="unpaid" ? "Unpaid" : "No active subscription";
+              const statusColor = subStatus==="active"||subStatus==="trialing" ? "#22C55E" : subStatus==="past_due"||subStatus==="unpaid" ? "#F59E0B" : subStatus==="cancelled" ? "#EF4444" : "#94A3B8";
+              const trialEnd = fmtDate(subDetail?.trial_end);
+              const periodEnd = fmtDate(subDetail?.current_period_end);
+              const cancelAt = fmtDate(subDetail?.cancel_at);
+              const cancelledAt = fmtDate(subDetail?.cancelled_at);
+              return <>
+                <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Account Settings</h1>
+                <p style={{fontSize:13,color:"#94A3B8",marginBottom:22}}>Manage your profile, subscription, and billing.</p>
+
+                <Card style={{padding:22,marginBottom:16}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:12}}>Profile</div>
+                  <div style={{display:"grid",gridTemplateColumns:"110px 1fr",rowGap:10,fontSize:14}}>
+                    <div style={{color:"#64748B"}}>Email</div><div style={{color:"#0F172A",fontWeight:600,wordBreak:"break-all"}}>{userEmail || "—"}</div>
+                    <div style={{color:"#64748B"}}>User ID</div><div style={{color:"#64748B",fontFamily:"'Space Mono'",fontSize:11,wordBreak:"break-all"}}>{userId || "—"}</div>
+                  </div>
+                </Card>
+
+                <Card style={{padding:22,marginBottom:16}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:12,flexWrap:"wrap"}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase"}}>Subscription</div>
+                    <span style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 10px",background:`${statusColor}18`,color:statusColor,fontSize:11,fontWeight:700,borderRadius:100,textTransform:"uppercase",letterSpacing:"0.04em"}}>
+                      <span style={{width:6,height:6,borderRadius:"50%",background:statusColor}}/>{statusLabel}
+                    </span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"140px 1fr",rowGap:10,fontSize:14,marginBottom:16}}>
+                    <div style={{color:"#64748B"}}>Plan</div><div style={{color:"#0F172A",fontWeight:600}}>StackedWork {subDetail?.plan==="base" || !subDetail?.plan ? "Base" : subDetail.plan} — $49.99 / month</div>
+                    {trialEnd && subStatus==="trialing" && (<>
+                      <div style={{color:"#64748B"}}>Trial ends</div><div style={{color:"#0F172A",fontWeight:600}}>{trialEnd}</div>
+                    </>)}
+                    {periodEnd && subStatus!=="cancelled" && (<>
+                      <div style={{color:"#64748B"}}>Next renewal</div><div style={{color:"#0F172A",fontWeight:600}}>{periodEnd}</div>
+                    </>)}
+                    {cancelAt && (<>
+                      <div style={{color:"#64748B"}}>Ends on</div><div style={{color:"#EF4444",fontWeight:600}}>{cancelAt}</div>
+                    </>)}
+                    {cancelledAt && subStatus==="cancelled" && (<>
+                      <div style={{color:"#64748B"}}>Cancelled on</div><div style={{color:"#0F172A",fontWeight:600}}>{cancelledAt}</div>
+                    </>)}
+                  </div>
+                  {stripeCustomerId ? (
+                    <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                      <Btn onClick={handleManageBilling} disabled={billingLoading} style={{padding:"11px 20px",fontSize:13}}>{billingLoading?"Opening…":"Update Payment Method"}</Btn>
+                      <BtnO onClick={handleManageBilling} disabled={billingLoading} style={{padding:"11px 20px",fontSize:13}}>{billingLoading?"Opening…":"Change Plan"}</BtnO>
+                    </div>
+                  ) : (
+                    <div style={{padding:"12px 14px",background:"#FEF3C7",border:"1px solid #FDE68A",borderRadius:8,fontSize:12,color:"#92400E"}}>
+                      We couldn&apos;t find your billing account. If this looks wrong, email <a href="mailto:ryan@remventures.tech" style={{color:"#92400E",fontWeight:700}}>ryan@remventures.tech</a>.
+                    </div>
+                  )}
+                </Card>
+
+                <Card style={{padding:22,marginBottom:16,border:"1px solid #FECACA",background:"#FFF5F5"}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#B91C1C",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8}}>Danger Zone</div>
+                  <div style={{fontWeight:700,fontSize:15,color:"#0F172A",marginBottom:4}}>Cancel Membership</div>
+                  <p style={{fontSize:13,color:"#64748B",lineHeight:1.6,marginBottom:14}}>
+                    Cancel any time. You&apos;ll keep access until <strong>{periodEnd || "the end of your current billing period"}</strong>, then your account will be closed. Your jobs, photos, and lead history stay backed up — reactivate any time to pick up where you left off.
+                  </p>
+                  {subStatus==="cancelled" ? (
+                    <div style={{padding:"10px 14px",background:"#fff",border:"1px solid #E2E8F0",borderRadius:8,fontSize:13,color:"#64748B"}}>
+                      Your membership is already cancelled{cancelledAt?` (${cancelledAt})`:""}. Head to the reactivate screen from the header to sign back up.
+                    </div>
+                  ) : cancelAt ? (
+                    <div style={{padding:"10px 14px",background:"#fff",border:"1px solid #FCA5A5",borderRadius:8,fontSize:13,color:"#B91C1C"}}>
+                      Cancellation scheduled — access ends {cancelAt}. Change your mind? Click <strong>Manage Billing</strong> below to resume.
+                    </div>
+                  ) : null}
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:14}}>
+                    <button
+                      onClick={()=>{
+                        if(!stripeCustomerId){alert("We couldn't find your billing account. Please contact support@stackedwork.com.");return;}
+                        if(confirm("Open the Stripe billing portal to cancel your StackedWork membership? You'll still have access until the end of your current billing period.")){
+                          handleManageBilling();
+                        }
+                      }}
+                      disabled={billingLoading || !stripeCustomerId}
+                      style={{background:"#B91C1C",color:"#fff",border:"none",padding:"12px 22px",borderRadius:8,fontSize:13,fontWeight:700,cursor:(billingLoading||!stripeCustomerId)?"not-allowed":"pointer",fontFamily:"'DM Sans'",opacity:(billingLoading||!stripeCustomerId)?0.5:1}}
+                    >{billingLoading?"Opening…":"Cancel Membership"}</button>
+                    <BtnO onClick={handleManageBilling} disabled={billingLoading || !stripeCustomerId} style={{padding:"12px 22px",fontSize:13}}>Manage Billing</BtnO>
+                  </div>
+                  <p style={{fontSize:11,color:"#94A3B8",marginTop:12,lineHeight:1.5}}>
+                    Cancellations are handled securely through Stripe. Need help? Email <a href="mailto:ryan@remventures.tech" style={{color:GD,fontWeight:600}}>ryan@remventures.tech</a> or call (410) 530-6456.
+                  </p>
+                </Card>
+
+                <Card style={{padding:22}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:12}}>Session</div>
+                  <BtnO onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);setSubDetail(null);}} style={{padding:"11px 22px",fontSize:13}}>Sign Out</BtnO>
+                </Card>
+              </>;
+            })()}
           </main>
         </div>
         <div className="sw-bn">{nv.map(n=><button key={n.id} className={`sw-bi ${vw===n.id?"sw-a":""}`} onClick={()=>setVw(n.id)}><span className="sw-ic">{n.ic}</span><span className="sw-lb">{n.lb}</span></button>)}</div>
