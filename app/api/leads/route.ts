@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://vyqbhpuqduaugxmhbtbk.supabase.co";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 export async function POST(request: Request) {
-  if (!SERVICE_ROLE_KEY) {
-    return NextResponse.json({ error: "Server misconfiguration: missing service role key" }, { status: 500 });
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    return NextResponse.json({ error: "Server misconfiguration: missing Supabase env" }, { status: 500 });
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { contractor_id, name, phone, email, message, urgent } = body;
+  const { contractor_id, name, phone, email, message, urgent, job_type, source } = body;
 
   if (!contractor_id || !name) {
     return NextResponse.json(
@@ -27,17 +27,21 @@ export async function POST(request: Request) {
     );
   }
 
+  const row: Record<string, any> = {
+    contractor_id,
+    name,
+    phone: phone || null,
+    email: email || null,
+    message: message || null,
+    urgent: urgent || false,
+    read: false,
+    source: source || "website",
+  };
+  if (job_type) row.job_type = job_type;
+
   const { data, error } = await supabase
     .from("leads")
-    .insert({
-      contractor_id,
-      name,
-      phone: phone || null,
-      email: email || null,
-      message: message || null,
-      urgent: urgent || false,
-      source: "website",
-    })
+    .insert(row)
     .select()
     .single();
 

@@ -3,8 +3,8 @@ import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import ChatWidget from "./components/ChatWidget";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://vyqbhpuqduaugxmhbtbk.supabase.co";
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5cWJocHVxZHVhdWd4bWhidGJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMDQ0MzUsImV4cCI6MjA4ODc4MDQzNX0.wW4uaZJwIvl6TGZYkVZo9EuG2Ek713Y8F4jACuMxwSI";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const G = "#C8E64A";
 const GD = "#A8C435";
@@ -34,8 +34,8 @@ const LEADS = [ { id:1, name:"Chris Mitchell", phone:"(410) 555-2211", email:"ch
 const FOLLOW_UPS = [ { customer:"Diana Ross", lastJob:"Kitchen remodel - $4,200", months:4 }, { customer:"James Carter", lastJob:"Bathroom plumbing - $1,100", months:5 }, { customer:"Patricia Neal", lastJob:"Deck repair - $2,800", months:6 }, ];
 const STC: Record<string, {bg:string;text:string;label:string}> = { quoted:{ bg:"#FEF3C7", text:"#92400E", label:"Quoted" }, scheduled:{ bg:"#DBEAFE", text:"#1E40AF", label:"Scheduled" }, "in-progress":{ bg:"#E0E7FF", text:"#3730A3", label:"In Progress" }, complete:{ bg:"#D1FAE5", text:"#065F46", label:"Complete" }, };
 const Badge = ({ s }: {s:string}) => <span style={{ display:"inline-block", padding:"4px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:STC[s].bg, color:STC[s].text }}>{STC[s].label}</span>;
-const Btn = ({ children, onClick, style }: any) => <button onClick={onClick} style={{ padding:"8px 18px", background:G, color:"#132440", border:"none", borderRadius:8, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"'DM Sans'", ...style }}>{children}</button>;
-const BtnO = ({ children, onClick, style }: any) => <button onClick={onClick} style={{ padding:"8px 18px", background:"#fff", color:"#64748B", border:"1px solid #E2E8F0", borderRadius:8, fontSize:13, fontWeight:500, cursor:"pointer", fontFamily:"'DM Sans'", ...style }}>{children}</button>;
+const Btn = ({ children, onClick, style, ...rest }: any) => <button onClick={onClick} style={{ padding:"8px 18px", background:G, color:"#132440", border:"none", borderRadius:8, fontSize:13, fontWeight:700, cursor:rest.disabled?"not-allowed":"pointer", fontFamily:"'DM Sans'", opacity:rest.disabled?0.7:1, ...style }} {...rest}>{children}</button>;
+const BtnO = ({ children, onClick, style, ...rest }: any) => <button onClick={onClick} style={{ padding:"8px 18px", background:"#fff", color:"#64748B", border:"1px solid #E2E8F0", borderRadius:8, fontSize:13, fontWeight:500, cursor:rest.disabled?"not-allowed":"pointer", fontFamily:"'DM Sans'", opacity:rest.disabled?0.7:1, ...style }} {...rest}>{children}</button>;
 const Card = ({ children, style }: any) => <div style={{ background:"#fff", border:"1px solid #E2E8F0", borderRadius:12, ...style }}>{children}</div>;
 const Divider = () => <div style={{ height:1, background:"linear-gradient(90deg,transparent,rgba(200,230,74,0.25),transparent)", margin:"0 auto", maxWidth:600 }} />;
 export default function StackedWork() {
@@ -63,6 +63,17 @@ export default function StackedWork() {
   const [stripeCustomerId, setStripeCustomerId] = useState<string|null>(null);
   const [subDetail, setSubDetail] = useState<{plan?:string|null;current_period_end?:string|null;trial_end?:string|null;cancel_at?:string|null;cancelled_at?:string|null}|null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileTrade, setProfileTrade] = useState("");
+  const [profileArea, setProfileArea] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<string|null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwError, setPwError] = useState<string|null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [dbLeads, setDbLeads] = useState<any[]>([]);
   const [dbJobs, setDbJobs] = useState<any[]>([]);
   const [dbHomeownerLeads, setDbHomeownerLeads] = useState<any[]>([]);
@@ -245,6 +256,97 @@ export default function StackedWork() {
     }
   };
 
+  const loadProfile = async (uid: string, meta?: Record<string, any>) => {
+    const m = meta || {};
+    setProfileName(m.full_name || m.name || "");
+    setProfileTrade(m.trade || "");
+    setProfileArea(m.service_area || m.zip || "");
+    setProfilePhone(m.phone || "");
+    try {
+      const { data } = await supabase.from("profiles").select("name, trade, service_area, phone").eq("id", uid).maybeSingle();
+      if (data) {
+        if (data.name) setProfileName(data.name);
+        if (data.trade) setProfileTrade(data.trade);
+        if (data.service_area) setProfileArea(data.service_area);
+        if (data.phone) setProfilePhone(data.phone);
+      }
+    } catch { /* profiles table optional */ }
+  };
+
+  const saveProfile = async () => {
+    if (!userId) return;
+    setProfileSaving(true); setProfileMsg(null);
+    try {
+      const payload = {
+        full_name: profileName.trim(),
+        name: profileName.trim(),
+        trade: profileTrade.trim(),
+        service_area: profileArea.trim(),
+        phone: profilePhone.trim(),
+      };
+      const { error: authErr } = await supabase.auth.updateUser({ data: payload });
+      if (authErr) throw authErr;
+      const { error: profErr } = await supabase.from("profiles").upsert({
+        id: userId,
+        name: payload.name || null,
+        trade: payload.trade || null,
+        service_area: payload.service_area || null,
+        phone: payload.phone || null,
+        updated_at: new Date().toISOString(),
+      });
+      // Ignore missing-table errors; user_metadata already saved
+      if (profErr && !/relation|does not exist|schema cache/i.test(profErr.message)) {
+        console.warn("profiles upsert:", profErr.message);
+      }
+      setProfileMsg("Profile saved.");
+      setTimeout(() => setProfileMsg(null), 2500);
+    } catch (err: any) {
+      setProfileMsg(err.message || "Could not save profile.");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPwError(null);
+    if (newPassword.length < 6) { setPwError("Password must be at least 6 characters."); return; }
+    if (newPassword !== confirmPassword) { setPwError("Passwords do not match."); return; }
+    setPwLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      await supabase.auth.signOut();
+      setPage("landing"); setUserId(null); setUserEmail(null); setSubStatus(null); setStripeCustomerId(null); setSubDetail(null);
+      setNewPassword(""); setConfirmPassword("");
+      alert("Password updated. Please sign in with your new password.");
+    } catch (err: any) {
+      setPwError(err.message || "Could not update password.");
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
+  const leadFormUrl = () => (typeof window !== "undefined" && userId ? `${window.location.origin}/l/${userId}` : "");
+  const copyLeadLink = async () => {
+    const url = leadFormUrl();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      prompt("Copy your lead form link:", url);
+    }
+  };
+  const shareLeadLink = async () => {
+    const url = leadFormUrl();
+    if (!url) return;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try { await navigator.share({ title: "Request a quote", text: "Send me a project request:", url }); return; } catch {}
+    }
+    await copyLeadLink();
+  };
+
   const handlePhotoFile = (file: File, side: "before"|"after") => {
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -395,7 +497,7 @@ export default function StackedWork() {
       } else {
         const { data: signInData, error } = await withTimeout(supabase.auth.signInWithPassword({ email: authEmail, password: authPassword }));
         if (error) throw error;
-        if (signInData?.user) { setUserId(signInData.user.id); setUserEmail(signInData.user.email ?? null); checkSub(signInData.user.email!).catch(() => {}); }
+        if (signInData?.user) { setUserId(signInData.user.id); setUserEmail(signInData.user.email ?? null); checkSub(signInData.user.email!).catch(() => {}); loadProfile(signInData.user.id, signInData.user.user_metadata || {}); }
         setAuthMode(null); setPage("app");
       }
     } catch (err: any) { setAuthError(err.message || "Something went wrong. Please try again."); }
@@ -413,6 +515,7 @@ export default function StackedWork() {
         setUserId(session.user.id);
         setUserEmail(session.user.email ?? null);
         checkSub(session.user.email!);
+        loadProfile(session.user.id, session.user.user_metadata || {});
       }
     });
     return () => authSub.unsubscribe();
@@ -669,7 +772,7 @@ export default function StackedWork() {
   }
 
   if(page==="app"){
-    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"estimates",ic:"📋",lb:"Estimates"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"receipts",ic:"🧾",lb:"Receipts"},{id:"profit",ic:"💰",lb:"Profit"},{id:"followups",ic:"🔔",lb:"Alerts"},{id:"account",ic:"⚙️",lb:"Account"}];
+    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"estimates",ic:"📋",lb:"Estimates"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"receipts",ic:"🧾",lb:"Receipts"},{id:"profit",ic:"💰",lb:"Profit"},{id:"followups",ic:"🔔",lb:"Alerts"},{id:"settings",ic:"⚙️",lb:"Settings"}];
     return(
       <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh"}}>
         <style>{`
@@ -715,7 +818,7 @@ export default function StackedWork() {
             </div>
             <button onClick={()=>setSms(true)} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>📱</button>
             {userId && (
-              <button onClick={()=>setVw("account")} title="Account & subscription" style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>⚙️</button>
+              <button onClick={()=>setVw("settings")} title="Settings & subscription" style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>⚙️</button>
             )}
             {userId
               ? <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);setSubDetail(null);}} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
@@ -1008,14 +1111,17 @@ export default function StackedWork() {
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                 <h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Leads</h1>
               </div>
-              <p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{activeLeads.filter((l:any)=>!l.read).length} unread from your site</p>
-              {activeLeads.length===0?<Card style={{padding:40,textAlign:"center",marginBottom:24}}><div style={{fontSize:36,marginBottom:12}}>📥</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No leads yet</div><div style={{fontSize:13,color:"#94A3B8"}}>Leads submitted through your website will appear here in real time.</div></Card>
+              <p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{activeLeads.filter((l:any)=>!l.read).length} unread · share your form link to get more</p>
+              {activeLeads.length===0?<Card style={{padding:40,textAlign:"center",marginBottom:24}}><div style={{fontSize:36,marginBottom:12}}>📥</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No leads yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:16,maxWidth:360,marginLeft:"auto",marginRight:"auto"}}>Share your personal lead form. Submissions appear here in real time — no website needed.</div><div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}><Btn onClick={copyLeadLink} style={{fontSize:13,padding:"10px 18px"}}>{linkCopied?"Copied!":"Copy link"}</Btn><BtnO onClick={shareLeadLink} style={{fontSize:13,padding:"10px 18px"}}>Share</BtnO></div>{userId&&<div style={{fontSize:11,color:"#94A3B8",marginTop:12,wordBreak:"break-all",fontFamily:"'Space Mono'"}}>{typeof window!=="undefined"?`${window.location.origin}/l/${userId}`:""}</div>}</Card>
               :<div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
                 {activeLeads.map((l:any,i:number)=>(
                   <Card key={l.id||i} style={{padding:16,borderLeft:l.urgent?`4px solid #EF4444`:`4px solid ${G}`,opacity:l.read?0.6:1}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                       <div>
-                        <div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>{l.name}</div>
+                        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                          <div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>{l.name}</div>
+                          {l.job_type&&<span style={{fontSize:10,fontWeight:700,color:"#64748B",background:"#F1F5F9",padding:"2px 8px",borderRadius:100,textTransform:"uppercase"}}>{l.job_type}</span>}
+                        </div>
                         <div style={{fontSize:12,color:"#64748B",marginTop:2}}>{[l.phone,l.email].filter(Boolean).join(" · ")}</div>
                       </div>
                       <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
@@ -1409,7 +1515,7 @@ export default function StackedWork() {
               <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Follow-up Reminders</h1><p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Don&apos;t leave money on the table.</p>
               <div style={{padding:"40px 20px",textAlign:"center",color:"#94A3B8"}}><div style={{fontSize:36,marginBottom:12}}>🔔</div><div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>No follow-ups yet</div><div style={{fontSize:12}}>Completed jobs will appear here as reminders to re-engage past clients.</div></div>
             </>}
-            {vw==="account"&&(()=>{
+            {vw==="settings"&&(()=>{
               const fmtDate = (iso?: string|null) => iso ? new Date(iso).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}) : null;
               const statusLabel = subStatus==="trialing" ? "Free Trial" : subStatus==="active" ? "Active" : subStatus==="past_due" ? "Past Due" : subStatus==="cancelled" ? "Cancelled" : subStatus==="incomplete" || subStatus==="incomplete_expired" ? "Incomplete" : subStatus==="unpaid" ? "Unpaid" : "No active subscription";
               const statusColor = subStatus==="active"||subStatus==="trialing" ? "#22C55E" : subStatus==="past_due"||subStatus==="unpaid" ? "#F59E0B" : subStatus==="cancelled" ? "#EF4444" : "#94A3B8";
@@ -1418,20 +1524,73 @@ export default function StackedWork() {
               const cancelAt = fmtDate(subDetail?.cancel_at);
               const cancelledAt = fmtDate(subDetail?.cancelled_at);
               return <>
-                <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Account Settings</h1>
-                <p style={{fontSize:13,color:"#94A3B8",marginBottom:22}}>Manage your profile, subscription, and billing.</p>
+                <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Settings</h1>
+                <p style={{fontSize:13,color:"#94A3B8",marginBottom:22}}>Manage your profile, password, subscription, and lead form.</p>
 
                 <Card style={{padding:22,marginBottom:16}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:12}}>Profile</div>
-                  <div style={{display:"grid",gridTemplateColumns:"110px 1fr",rowGap:10,fontSize:14}}>
-                    <div style={{color:"#64748B"}}>Email</div><div style={{color:"#0F172A",fontWeight:600,wordBreak:"break-all"}}>{userEmail || "—"}</div>
-                    <div style={{color:"#64748B"}}>User ID</div><div style={{color:"#64748B",fontFamily:"'Space Mono'",fontSize:11,wordBreak:"break-all"}}>{userId || "—"}</div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:14}}>Profile</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Name</label>
+                      <input value={profileName} onChange={e=>setProfileName(e.target.value)} placeholder="Your name or business name" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Trade</label>
+                      <input value={profileTrade} onChange={e=>setProfileTrade(e.target.value)} placeholder="e.g. Plumbing, HVAC, Remodeling" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Service area / zip</label>
+                      <input value={profileArea} onChange={e=>setProfileArea(e.target.value)} placeholder="e.g. Baltimore · 21201" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Phone</label>
+                      <input value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} placeholder="(410) 555-0100" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Email</label>
+                      <input value={userEmail || ""} readOnly style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box",background:"#F8FAFC",color:"#64748B"}}/>
+                      <div style={{fontSize:11,color:"#94A3B8",marginTop:4}}>Email is tied to your login and can&apos;t be changed here.</div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                      <Btn onClick={saveProfile} disabled={profileSaving} style={{padding:"11px 20px",fontSize:13}}>{profileSaving?"Saving…":"Save Profile"}</Btn>
+                      {profileMsg&&<span style={{fontSize:13,color:profileMsg.includes("saved")?"#065F46":"#B91C1C"}}>{profileMsg}</span>}
+                    </div>
+                  </div>
+                </Card>
+
+                <Card style={{padding:22,marginBottom:16}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8}}>Get leads</div>
+                  <p style={{fontSize:13,color:"#64748B",lineHeight:1.6,marginBottom:12}}>Share your personal form link. Submissions show up in your Leads tab in real time — no website required.</p>
+                  <div style={{padding:"10px 12px",background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:8,fontSize:12,color:"#475569",wordBreak:"break-all",marginBottom:12,fontFamily:"'Space Mono'"}}>{leadFormUrl()||"Sign in to see your link"}</div>
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                    <Btn onClick={copyLeadLink} style={{padding:"11px 20px",fontSize:13}}>{linkCopied?"Copied!":"Copy link"}</Btn>
+                    <BtnO onClick={shareLeadLink} style={{padding:"11px 20px",fontSize:13}}>Share</BtnO>
+                  </div>
+                </Card>
+
+                <Card style={{padding:22,marginBottom:16}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:14}}>Login</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:16}}>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>New password</label>
+                      <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="••••••••" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Confirm password</label>
+                      <input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="••••••••" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    {pwError&&<div style={{background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#991B1B"}}>{pwError}</div>}
+                    <Btn onClick={handleChangePassword} disabled={pwLoading} style={{padding:"11px 20px",fontSize:13,alignSelf:"flex-start"}}>{pwLoading?"Updating…":"Change password"}</Btn>
+                    <div style={{fontSize:11,color:"#94A3B8"}}>You&apos;ll be signed out after changing your password.</div>
+                  </div>
+                  <div style={{borderTop:"1px solid #F1F5F9",paddingTop:14}}>
+                    <BtnO onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);setSubDetail(null);}} style={{padding:"11px 22px",fontSize:13}}>Log out</BtnO>
                   </div>
                 </Card>
 
                 <Card style={{padding:22,marginBottom:16}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:12,flexWrap:"wrap"}}>
-                    <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase"}}>Subscription</div>
+                    <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase"}}>Membership</div>
                     <span style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 10px",background:`${statusColor}18`,color:statusColor,fontSize:11,fontWeight:700,borderRadius:100,textTransform:"uppercase",letterSpacing:"0.04em"}}>
                       <span style={{width:6,height:6,borderRadius:"50%",background:statusColor}}/>{statusLabel}
                     </span>
@@ -1453,8 +1612,8 @@ export default function StackedWork() {
                   </div>
                   {stripeCustomerId ? (
                     <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                      <Btn onClick={handleManageBilling} disabled={billingLoading} style={{padding:"11px 20px",fontSize:13}}>{billingLoading?"Opening…":"Update Payment Method"}</Btn>
-                      <BtnO onClick={handleManageBilling} disabled={billingLoading} style={{padding:"11px 20px",fontSize:13}}>{billingLoading?"Opening…":"Change Plan"}</BtnO>
+                      <Btn onClick={handleManageBilling} disabled={billingLoading} style={{padding:"11px 20px",fontSize:13}}>{billingLoading?"Opening…":"Manage billing"}</Btn>
+                      <BtnO onClick={handleManageBilling} disabled={billingLoading} style={{padding:"11px 20px",fontSize:13}}>{billingLoading?"Opening…":"Update payment"}</BtnO>
                     </div>
                   ) : (
                     <div style={{padding:"12px 14px",background:"#FEF3C7",border:"1px solid #FDE68A",borderRadius:8,fontSize:12,color:"#92400E"}}>
@@ -1464,24 +1623,24 @@ export default function StackedWork() {
                 </Card>
 
                 <Card style={{padding:22,marginBottom:16,border:"1px solid #FECACA",background:"#FFF5F5"}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#B91C1C",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8}}>Danger Zone</div>
+                  <div style={{fontSize:11,fontWeight:700,color:"#B91C1C",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8}}>Cancel</div>
                   <div style={{fontWeight:700,fontSize:15,color:"#0F172A",marginBottom:4}}>Cancel Membership</div>
                   <p style={{fontSize:13,color:"#64748B",lineHeight:1.6,marginBottom:14}}>
-                    Cancel any time. You&apos;ll keep access until <strong>{periodEnd || "the end of your current billing period"}</strong>, then your account will be closed. Your jobs, photos, and lead history stay backed up — reactivate any time to pick up where you left off.
+                    Cancel any time via Stripe. You&apos;ll keep access until <strong>{periodEnd || "the end of your current billing period"}</strong>, then your account will be closed.
                   </p>
                   {subStatus==="cancelled" ? (
                     <div style={{padding:"10px 14px",background:"#fff",border:"1px solid #E2E8F0",borderRadius:8,fontSize:13,color:"#64748B"}}>
-                      Your membership is already cancelled{cancelledAt?` (${cancelledAt})`:""}. Head to the reactivate screen from the header to sign back up.
+                      Your membership is already cancelled{cancelledAt?` (${cancelledAt})`:""}.
                     </div>
                   ) : cancelAt ? (
                     <div style={{padding:"10px 14px",background:"#fff",border:"1px solid #FCA5A5",borderRadius:8,fontSize:13,color:"#B91C1C"}}>
-                      Cancellation scheduled — access ends {cancelAt}. Change your mind? Click <strong>Manage Billing</strong> below to resume.
+                      Cancellation scheduled — access ends {cancelAt}. Change your mind? Click <strong>Manage billing</strong> to resume.
                     </div>
                   ) : null}
                   <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:14}}>
                     <button
                       onClick={()=>{
-                        if(!stripeCustomerId){alert("We couldn't find your billing account. Please contact support@stackedwork.com.");return;}
+                        if(!stripeCustomerId){alert("We couldn't find your billing account. Please contact ryan@remventures.tech.");return;}
                         if(confirm("Open the Stripe billing portal to cancel your StackedWork membership? You'll still have access until the end of your current billing period.")){
                           handleManageBilling();
                         }
@@ -1489,16 +1648,17 @@ export default function StackedWork() {
                       disabled={billingLoading || !stripeCustomerId}
                       style={{background:"#B91C1C",color:"#fff",border:"none",padding:"12px 22px",borderRadius:8,fontSize:13,fontWeight:700,cursor:(billingLoading||!stripeCustomerId)?"not-allowed":"pointer",fontFamily:"'DM Sans'",opacity:(billingLoading||!stripeCustomerId)?0.5:1}}
                     >{billingLoading?"Opening…":"Cancel Membership"}</button>
-                    <BtnO onClick={handleManageBilling} disabled={billingLoading || !stripeCustomerId} style={{padding:"12px 22px",fontSize:13}}>Manage Billing</BtnO>
+                    <BtnO onClick={handleManageBilling} disabled={billingLoading || !stripeCustomerId} style={{padding:"12px 22px",fontSize:13}}>Manage billing</BtnO>
                   </div>
-                  <p style={{fontSize:11,color:"#94A3B8",marginTop:12,lineHeight:1.5}}>
-                    Cancellations are handled securely through Stripe. Need help? Email <a href="mailto:ryan@remventures.tech" style={{color:GD,fontWeight:600}}>ryan@remventures.tech</a> or call (410) 530-6456.
-                  </p>
                 </Card>
 
                 <Card style={{padding:22}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:12}}>Session</div>
-                  <BtnO onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);setSubDetail(null);}} style={{padding:"11px 22px",fontSize:13}}>Sign Out</BtnO>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:10}}>Support</div>
+                  <p style={{fontSize:14,color:"#0F172A",lineHeight:1.7,marginBottom:0}}>
+                    <a href="mailto:ryan@remventures.tech" style={{color:GD,fontWeight:700,textDecoration:"none"}}>ryan@remventures.tech</a>
+                    <span style={{color:"#94A3B8"}}> · </span>
+                    <a href="tel:+14105306456" style={{color:"#0F172A",fontWeight:600,textDecoration:"none"}}>(410) 530-6456</a>
+                  </p>
                 </Card>
               </>;
             })()}
