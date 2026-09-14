@@ -49,7 +49,7 @@ export default function StackedWork() {
   const [authSuccess, setAuthSuccess] = useState<string|null>(null);
   const [scrollY, setScrollY] = useState(0);
   const [af, setAf] = useState(0);
-  const [lang, setLang] = useState<"en"|"es">("en");
+  const lang = "en" as const; // homepage lock: English only
   const [vw, setVw] = useState("dashboard");
   const [jf, setJf] = useState("all");
   const [ntf, setNtf] = useState(false);
@@ -746,7 +746,7 @@ export default function StackedWork() {
   };
 
   const handleSubscribe = () => {
-    window.location.href = "/login";
+    window.location.href = "/login?mode=signup";
   };
   const BLOCKED = ["cancelled","incomplete_expired","unpaid","past_due"];
   if(page==="app" && subStatus && BLOCKED.includes(subStatus)){
@@ -1142,12 +1142,12 @@ export default function StackedWork() {
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                 <div>
                   <h2 style={{fontSize:17,fontWeight:700,color:"#fff",marginBottom:2}}>Looking for a Licensed Contractor?</h2>
-                  <p style={{fontSize:12,color:"#94A3B8"}}>Project requests submitted by homeowners at letstaystacked.com/find-contractor</p>
+                  <p style={{fontSize:12,color:"#94A3B8"}}>Project requests submitted by homeowners (marketplace coming soon)</p>
                 </div>
-                <a href="/find-contractor" target="_blank" rel="noopener noreferrer" style={{fontSize:11,color:G,fontWeight:700,textDecoration:"none",whiteSpace:"nowrap"}}>View Page ↗</a>
+                {/* View Page hidden while marketplace /find-contractor is off */}
               </div>
               {dbHomeownerLeads.length===0
-                ? <Card style={{padding:"28px 20px",textAlign:"center"}}><div style={{fontSize:32,marginBottom:10}}>🏡</div><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:4}}>No homeowner requests yet</div><div style={{fontSize:12,color:"#94A3B8"}}>Share letstaystacked.com/find-contractor to start receiving project leads from homeowners in your area.</div></Card>
+                ? <Card style={{padding:"28px 20px",textAlign:"center"}}><div style={{fontSize:32,marginBottom:10}}>🏡</div><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:4}}>No homeowner requests yet</div><div style={{fontSize:12,color:"#94A3B8"}}>Homeowner project requests will show here when the marketplace is available.</div></Card>
                 : <div style={{display:"flex",flexDirection:"column",gap:10}}>
                     {dbHomeownerLeads.map((l:any,i:number)=>{
                       const d=l.created_at?new Date(l.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
@@ -1688,7 +1688,7 @@ export default function StackedWork() {
     signupSub: es?"Prueba gratuita de 14 días. Se requiere tarjeta de crédito.":"14-day free trial. Credit card required to start.",
     signupPlaceholder: es?"tu@email.com":"your@email.com",
     signupBtn: es?"Comenzar →":"Get Started →",
-    signupSmall: es?"CANCELA CUANDO QUIERAS · SIN CARGOS · LOS 50 ESTADOS":"CANCEL ANYTIME · NO SETUP FEES · ALL 50 STATES",
+    signupSmall: es?"$49.99/MES · PRUEBA GRATIS 14 DÍAS · SIN CARGO DE INSTALACIÓN · CANCELA CUANDO QUIERAS":"$49.99/MO · 14-DAY FREE TRIAL · NO SETUP FEE · CANCEL ANYTIME",
     videoLabel: es?"Míralo en acción":"See it in action",
     videoTitle: es?"Administra tu negocio desde la camioneta.":"Run your business from the truck.",
     featLabel: es?"Lo que obtienes":"What you get",
@@ -1700,10 +1700,10 @@ export default function StackedWork() {
     aiTitleGreen: es?"Siempre disponible.":"Always on call.",
     aiDesc: es?"Haz preguntas sobre precios, obtén guiones de seguimiento, averigua si vale la pena tomar un trabajo. Tu asistente de negocios con IA está integrado en tu panel — sin apps adicionales, sin costo extra.":"Ask pricing questions, get follow-up scripts, figure out if a job is worth taking. Your AI business assistant is built right into your dashboard — no extra apps, no extra cost.",
     aiPowered: es?"CON TECNOLOGÍA DE CLAUDE AI · INCLUIDO EN TU PLAN DE $49.99/MES":"POWERED BY CLAUDE AI · INCLUDED IN YOUR $49.99/MO PLAN",
-    mathLabel: es?"StackedWork vs. ServiceTitan":"StackedWork vs. ServiceTitan",
-    mathTitle: es?"ServiceTitan cobra demasiado.":"ServiceTitan charges too much.",
-    mathDesc: es?"ServiceTitan está hecho para grandes empresas. StackedWork está hecho para el contratista que trabaja todos los días.":"ServiceTitan is built for large enterprises. StackedWork is built for the contractor who works every day.",
-    mathWithout: es?"ServiceTitan":"ServiceTitan",
+    mathLabel: es?"Hecho para equipos pequeños":"Built for small crews",
+    mathTitle: es?"Las herramientas empresariales cobran precios empresariales.":"Enterprise tools charge enterprise prices.",
+    mathDesc: es?"StackedWork da a los equipos pequeños las herramientas que necesitan — sin precios de empresa.":"StackedWork gives small crews the tools they need — without enterprise pricing.",
+    mathWithout: es?"Herramientas empresariales":"Enterprise tools",
     fieldLabel: es?"Del campo":"From the field",
     fieldTitle: es?"Hecho para los oficios.":"Built for the trades.",
     fieldQuote: es?"Las herramientas construidas para cómo realmente trabajas — desde la camioneta, en el trabajo, cerrando tratos en el momento.":"The tools built for how you actually work — from the truck, on the job, closing deals on the spot.",
@@ -1711,9 +1711,9 @@ export default function StackedWork() {
     howTitle: es?"En línea en":"Live in",
     howTitleGreen: es?"48 horas.":"48 hours.",
     ctaTitle: es?"¿Listo para dejar de trabajar al revés?":"Ready to stop hustling backwards?",
-    ctaDesc: es?"$49.99/mes. CRM + portafolio + seguimiento de leads. Cancela cuando quieras. Sin contratos.":"$49.99/month. CRM + photo portfolio + lead tracking. Cancel anytime. No contracts. No setup fees.",
+    ctaDesc: es?"$49.99/mes · Prueba gratis de 14 días · Sin cargo de instalación · Cancela cuando quieras.":"$49.99/mo · 14-day free trial · no setup fee · cancel anytime.",
     ctaBtn: es?"Inicia tu prueba gratis":"Start Your Free Trial",
-    ctaSmall: es?"PRUEBA GRATUITA DE 14 DÍAS — CANCELA CUANDO QUIERAS":"14-DAY FREE TRIAL — CANCEL ANYTIME",
+    ctaSmall: es?"$49.99/MES · PRUEBA GRATIS 14 DÍAS · SIN CARGO DE INSTALACIÓN · CANCELA CUANDO QUIERAS":"$49.99/MO · 14-DAY FREE TRIAL · NO SETUP FEE · CANCEL ANYTIME",
     homeTitle: es?"¿Buscas un contratista con licencia?":"Looking for a Licensed Contractor?",
     homeDesc: es?"Describe tu proyecto y conéctate con contratistas con licencia estatal en tu área — gratis, rápido y sin compromiso. Los 50 estados.":"Describe your project and get connected with state-licensed contractors in your area — free, fast, and no obligation. All 50 states.",
     homeBtn: es?"Encontrar un Contratista →":"Find a Licensed Contractor →",
@@ -1755,12 +1755,12 @@ export default function StackedWork() {
       {icon:"💰",title:"Ayuda con Precios",desc:"\"¿Cuánto cobrar por un baño completo en Maryland?\" — solo pregunta."},
       {icon:"📞",title:"Guiones de Seguimiento",desc:"Guiones palabra por palabra para volver a conectar con leads que se enfriaron."},
       {icon:"📈",title:"Consejos de Negocios",desc:"Tips de rentabilidad, cuándo contratar, cómo crecer — a pedido."},
-      {icon:"🏡",title:"Asistente para Propietarios",desc:"Los propietarios en tu página también tienen su propio asistente IA."},
+      {icon:"🏡",title:"Asistente para Propietarios",desc:"Respuestas claras sobre alcance, tiempos y siguientes pasos — incluido en tu plan."},
     ] : [
       {icon:"💰",title:"Job Pricing Help",desc:"\"What should I charge for a 2-bathroom gut job in Maryland?\" — just ask."},
       {icon:"📞",title:"Follow-Up Scripts",desc:"Get word-for-word scripts to re-engage leads that went cold."},
       {icon:"📈",title:"Business Advice",desc:"Profitability tips, when to hire, how to grow — on demand."},
-      {icon:"🏡",title:"Homeowner Assistant",desc:"Homeowners on your find-contractor page get their own AI helper too."},
+      {icon:"🏡",title:"Homeowner Assistant",desc:"Give homeowners clear answers on scope, timing, and next steps — built into your plan."},
     ],
   };
 
@@ -1778,25 +1778,7 @@ export default function StackedWork() {
         @media(max-width:768px){.sw-price{font-size:56px !important}.sw-comp{grid-template-columns:1.5fr 1fr 1fr !important;padding:14px 16px !important;font-size:13px !important}}
         .feature-box{cursor:pointer;transition:all .3s;}
         .feature-box:hover{transform:translateY(-4px);box-shadow:0 8px 30px rgba(200,230,74,0.15);}
-        .sw-ad-strip{display:none;position:fixed;top:0;bottom:0;width:160px;background:rgba(15,23,42,0.85);border:1px dashed rgba(200,230,74,0.2);zIndex:90;flex-direction:column;align-items:center;justify-content:center;gap:12;padding:16px 8px;}
-        @media(min-width:1380px){.sw-ad-strip{display:flex}}
-        .sw-ad-strip-left{left:0;border-left:none;border-radius:0 12px 12px 0;}
-        .sw-ad-strip-right{right:0;border-right:none;border-radius:12px 0 0 12px;}
       `}</style>
-      <div className="sw-ad-strip sw-ad-strip-left">
-        <span style={{fontSize:9,fontWeight:700,color:"rgba(200,230,74,0.4)",fontFamily:"'Space Mono'",letterSpacing:"0.1em",writingMode:"vertical-rl",textOrientation:"mixed",userSelect:"none"}}>ADVERTISEMENT</span>
-        <div style={{width:130,flex:1,maxHeight:600,background:"rgba(200,230,74,0.04)",border:"1px dashed rgba(200,230,74,0.15)",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <span style={{fontSize:10,color:"rgba(200,230,74,0.25)",fontFamily:"'Space Mono'",textAlign:"center",padding:8}}>AD SPACE</span>
-        </div>
-        <span style={{fontSize:9,fontWeight:700,color:"rgba(200,230,74,0.4)",fontFamily:"'Space Mono'",letterSpacing:"0.1em",writingMode:"vertical-rl",textOrientation:"mixed",userSelect:"none"}}>ADVERTISEMENT</span>
-      </div>
-      <div className="sw-ad-strip sw-ad-strip-right">
-        <span style={{fontSize:9,fontWeight:700,color:"rgba(200,230,74,0.4)",fontFamily:"'Space Mono'",letterSpacing:"0.1em",writingMode:"vertical-rl",textOrientation:"mixed",userSelect:"none"}}>ADVERTISEMENT</span>
-        <div style={{width:130,flex:1,maxHeight:600,background:"rgba(200,230,74,0.04)",border:"1px dashed rgba(200,230,74,0.15)",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <span style={{fontSize:10,color:"rgba(200,230,74,0.25)",fontFamily:"'Space Mono'",textAlign:"center",padding:8}}>AD SPACE</span>
-        </div>
-        <span style={{fontSize:9,fontWeight:700,color:"rgba(200,230,74,0.4)",fontFamily:"'Space Mono'",letterSpacing:"0.1em",writingMode:"vertical-rl",textOrientation:"mixed",userSelect:"none"}}>ADVERTISEMENT</span>
-      </div>
       {authMode&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>{setAuthMode(null);setAuthError(null);setAuthSuccess(null)}}>
         <div style={{background:"#fff",borderRadius:16,padding:36,maxWidth:400,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
           <div style={{textAlign:"center",marginBottom:24}}>
@@ -1852,9 +1834,7 @@ export default function StackedWork() {
       <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:100,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",background:scrollY>50?"rgba(19,36,64,0.92)":"transparent",backdropFilter:scrollY>50?"blur(20px)":"none",transition:"all .3s",borderBottom:scrollY>50?"1px solid rgba(255,255,255,0.05)":"none"}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:34,height:34,background:"#4A82C4",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,color:"#fff",fontFamily:"'DM Sans'",letterSpacing:"-0.03em"}}>SW</div><span style={{fontWeight:700,fontSize:17,letterSpacing:"-0.02em"}}>StackedWork</span></div>
         <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <button onClick={()=>setLang(lang==="en"?"es":"en")} style={{background:"rgba(255,255,255,0.08)",border:"1px solid rgba(255,255,255,0.15)",color:"#fff",padding:"6px 12px",borderRadius:6,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'Space Mono'",letterSpacing:"0.05em"}}>{lang==="en"?"ES":"EN"}</button>
           <span onClick={()=>setPage("app")} style={{color:G,fontSize:14,fontWeight:500,cursor:"pointer"}}>{t.navDemo}</span>
-          <a href="/find-contractor" style={{color:"rgba(245,240,235,0.7)",fontSize:13,fontWeight:500,textDecoration:"none",display:"inline-block"}}>{t.navFind}</a>
           <a href="/login?mode=signin" style={{background:"transparent",color:"#fff",border:"1px solid rgba(255,255,255,0.3)",padding:"8px 18px",fontSize:13,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer",textDecoration:"none",display:"inline-block"}}>{t.navSignIn}</a>
           <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"10px 20px",fontSize:13,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>{t.navStart}</button>
         </div>
@@ -1879,7 +1859,7 @@ export default function StackedWork() {
         <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:14}}>{t.signupLabel}</div>
         <h2 style={{fontSize:"clamp(26px,4vw,38px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:10}}>{t.signupTitle} <span style={{color:G}}>{t.signupTitleGreen}</span></h2>
         <p style={{fontSize:15,color:"rgba(245,240,235,0.5)",marginBottom:32}}>{t.signupSub}</p>
-        <form onSubmit={(e)=>{e.preventDefault();const email=(e.currentTarget.elements.namedItem("email") as HTMLInputElement).value;window.location.href=`/login?email=${encodeURIComponent(email)}`;}} style={{display:"flex",gap:12,maxWidth:460,margin:"0 auto",flexWrap:"wrap",justifyContent:"center"}}>
+        <form onSubmit={(e)=>{e.preventDefault();const email=(e.currentTarget.elements.namedItem("email") as HTMLInputElement).value;window.location.href=`/login?mode=signup&email=${encodeURIComponent(email)}`;}} style={{display:"flex",gap:12,maxWidth:460,margin:"0 auto",flexWrap:"wrap",justifyContent:"center"}}>
           <input name="email" type="email" placeholder={t.signupPlaceholder} required style={{flex:1,minWidth:220,padding:"14px 18px",borderRadius:8,border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.06)",color:"#fff",fontSize:15,fontFamily:"'DM Sans'",outline:"none"}} />
           <button type="submit" style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 28px",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",whiteSpace:"nowrap"}}>{t.signupBtn}</button>
         </form>
@@ -1935,7 +1915,7 @@ export default function StackedWork() {
           {[
             {icon:"💸",label:es?"10x más barato":"10x Cheaper",sub:es?"$49.99/mes vs. $398–$600+":"$49.99/mo vs. $398–$600+/mo"},
             {icon:"⚡",label:es?"Listo en 5 min":"Live in 5 Min",sub:es?"Sin semanas de configuración":"No weeks of training required"},
-            {icon:"🤖",label:es?"IA incluida":"AI Included",sub:es?"ServiceTitan no tiene esto":"ServiceTitan doesn't have this"},
+            {icon:"🤖",label:es?"IA incluida":"AI Included",sub:es?"Sin asiento de IA adicional":"No add-on AI seat"},
             {icon:"📸",label:es?"Portafolio incluido":"Portfolio Included",sub:es?"Comparte en redes directamente":"Share to social media directly"},
           ].map((c,i)=>(
             <div key={i} style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.2)",borderRadius:12,padding:"18px 16px",textAlign:"center"}}>
@@ -1984,14 +1964,6 @@ export default function StackedWork() {
         <button onClick={handleSubscribe} style={{position:"relative",zIndex:1,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"20px 48px",fontSize:18,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>{t.ctaBtn}</button>
         <p style={{position:"relative",zIndex:1,marginTop:22,fontSize:12,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>{t.ctaSmall}</p>
       </section>
-      <div style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.15)",borderRadius:0,padding:"48px 24px",textAlign:"center"}}>
-        <div style={{maxWidth:560,margin:"0 auto"}}>
-          <div style={{fontSize:32,marginBottom:12}}>🏡</div>
-          <h3 style={{fontSize:22,fontWeight:800,marginBottom:8}}>{t.homeTitle}</h3>
-          <p style={{fontSize:15,color:"rgba(245,240,235,0.6)",marginBottom:24,lineHeight:1.7}}>{t.homeDesc}</p>
-          <a href="/find-contractor" style={{display:"inline-block",background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",textDecoration:"none",padding:"14px 36px",borderRadius:10,fontSize:15,fontWeight:800}}>{t.homeBtn}</a>
-        </div>
-      </div>
       <section style={{padding:"60px 24px",textAlign:"center",borderTop:"1px solid rgba(255,255,255,0.05)"}}>
         <p style={{fontSize:11,fontFamily:"'Space Mono'",color:"rgba(245,240,235,0.3)",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>{t.shareLabel}</p>
         <h3 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:8}}>{t.shareTitle}</h3>
@@ -2032,7 +2004,6 @@ export default function StackedWork() {
             <span style={{fontSize:13,color:"rgba(245,240,235,0.3)"}}>StackedWork — A <span style={{color:"rgba(245,240,235,0.5)"}}>REM Ventures</span> product</span>
           </div>
           <div style={{display:"flex",gap:20,flexWrap:"wrap",alignItems:"center"}}>
-            <a href="/find-contractor" style={{color:"rgba(200,230,74,0.8)",fontSize:12,fontWeight:600,textDecoration:"none"}}>🏡 Find a Contractor</a>
             <a href="mailto:ryan@remventures.tech" style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>Contact: ryan@remventures.tech</a>
             <a href="tel:4105306456" style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>410-530-6456</a>
             {[[t.privacy,"Privacy"],[t.terms,"Terms"]].map(([label,key])=><span key={key} style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer"}}>{label}</span>)}
