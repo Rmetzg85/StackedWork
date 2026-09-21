@@ -9,3 +9,4 @@ const nextConfig: NextConfig = {
   },
 };
 export default nextConfig;
+// redeploy trigger: homepage-lock-2026-09-13
