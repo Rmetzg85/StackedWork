@@ -115,7 +115,7 @@ function LoginForm() {
         </h1>
         <p style={{ fontSize: 13, color: "rgba(245,240,235,0.45)", marginBottom: 24 }}>
           {mode === "signup"
-            ? "14-day free trial. Credit card required."
+            ? "$0 due today · 14-day trial · cancel anytime"
             : mode === "signin"
             ? "Sign in to access your StackedWork dashboard."
             : "Enter your email and we'll send you a reset link."}
