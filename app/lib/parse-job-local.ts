@@ -19,7 +19,15 @@ export type LocalParsedJob = {
   service: string; // short description, e.g. "lawn mow"
 };
 
-export const JOB_TYPES = ["General", "Plumbing", "Electrical", "HVAC", "Roofing", "Drywall", "Painting", "Deck", "Flooring", "Other"];
+export const JOB_TYPES = ["General", "Plumbing", "Electrical", "HVAC", "Roofing", "Drywall", "Painting", "Deck", "Flooring", "Landscaping", "Other"];
+
+/** Map a free-text service ("water heater replacement", "AC not cooling", "lawn mow") to a JOB_TYPES value. */
+export function jobTypeFromText(text: string | null | undefined): string {
+  const t = String(text || "").toLowerCase();
+  let jobType = "General";
+  for (const [jt, re] of TYPE_RULES) if (re.test(t)) jobType = jt;
+  return jobType;
+}
 
 const WORD_NUMS: Record<string, number> = {
   zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -63,6 +71,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 // Order matters: later rules win (more specific trades override generic words).
 const TYPE_RULES: [string, RegExp][] = [
+  ["Landscaping", /\b(lawn|lawns|mow|mowing|landscap\w*|yard work|yard cleanup|mulch|hedges?|sod|leaf|leaves|tree trimming|trim(?:ming)? trees|weeding|sprinklers?|irrigation)\b/],
   ["Painting", /\b(paint|painting|painted|repaint)\b/],
   ["Flooring", /\b(floor|floors|flooring|tile|tiling|carpet|hardwood|laminate|lvp)\b/],
   ["Drywall", /\b(drywall|sheetrock|plaster|patch(?:ing)? (?:the )?wall)\b/],
@@ -187,8 +196,7 @@ export function parseVoiceToJobLocal(text: string, today: string = todayNY()): L
   work = work.replace(/\b(?:scheduled|schedule|booked|in progress|started|done|finished|completed?|quoted?)\b(?:\s+for\b)?/gi, " ");
 
   // --- Job type ---
-  let jobType = "General";
-  for (const [jt, re] of TYPE_RULES) if (re.test(t)) jobType = jt;
+  const jobType = jobTypeFromText(t);
 
   // --- Customer name ---
   const clean = work.replace(FILLER_LEAD, "").replace(/^[\s,.;]+/, "");

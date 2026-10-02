@@ -2,7 +2,7 @@
 // address/phone/date/time checks. Run: npm run test:parser
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseVoiceToJobLocal } = require("../.tmp-test/lib/parse-job-local.js");
+const { parseVoiceToJobLocal, jobTypeFromText } = require("../.tmp-test/lib/parse-job-local.js");
 
 const TODAY = "2026-10-02"; // a Friday
 const cases = [
@@ -42,5 +42,12 @@ test("lowercase transcript still gets a name", () => {
 test("quantities are not prices", () => {
   assert.equal(parseVoiceToJobLocal("Ann Lee 300 sq ft tile floor", TODAY).value, "");
   assert.equal(parseVoiceToJobLocal("Ann Lee floor 3k", TODAY).value, "3000");
+});
+test("job-type keyword mapping (QA: water heater / AC / lawn were General)", () => {
+  const m = { "water heater replacement": "Plumbing", "replace water heater": "Plumbing", "AC not cooling": "HVAC", "furnace tune-up": "HVAC", "HVAC service": "HVAC",
+    "lawn mow": "Landscaping", "landscaping cleanup": "Landscaping", "electrical panel upgrade": "Electrical", "roof repair": "Roofing", "kitchen repaint": "Painting",
+    "drywall patch": "Drywall", "deck stain": "Deck", "tile floor": "Flooring", "leaky faucet": "Plumbing", "kitchen remodel": "General" };
+  for (const [k, v] of Object.entries(m)) assert.equal(jobTypeFromText(k), v, k);
+  assert.equal(parseVoiceToJobLocal("Mike Johnson, 123 Oak St, lawn mow Friday 2pm", TODAY).jobType, "Landscaping");
 });
 test.after(() => console.log(`\nQA phrase score: ${pass}/${cases.length}`));
