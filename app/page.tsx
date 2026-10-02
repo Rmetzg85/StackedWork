@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import ChatWidget from "./components/ChatWidget";
+import { captureFirstTouch } from "./lib/first-touch";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -43,7 +44,6 @@ export default function StackedWork() {
   const [authMode, setAuthMode] = useState<"login"|"signup"|"forgot"|null>(null);
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
-  const [authUsername, setAuthUsername] = useState("");
   const [authError, setAuthError] = useState<string|null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [authSuccess, setAuthSuccess] = useState<string|null>(null);
@@ -146,6 +146,20 @@ export default function StackedWork() {
   const [editError, setEditError] = useState<string|null>(null);
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [firstRun, setFirstRun] = useState(false);
+  const [typedJob, setTypedJob] = useState("");
+  const voiceBtnRef = useRef<HTMLButtonElement>(null);
+  const endFirstRun = () => {
+    setFirstRun(false);
+    try { window.localStorage.removeItem("sw_firstrun"); } catch { /* ignore */ }
+  };
+  const applyParsedJob = (text: string) => {
+    const parsed = parseVoiceToJob(text);
+    if (parsed.name) setNjCustomer(parsed.name);
+    if (parsed.value) setNjValue(parsed.value);
+    if (parsed.jobType) setNjType(parsed.jobType);
+    if (parsed.status) setNjStatus(parsed.status);
+  };
 
   const parseVoiceToJob = (text: string) => {
     const t = text.toLowerCase();
@@ -193,7 +207,7 @@ export default function StackedWork() {
     let remaining = text;
     for (const w of stripWords) remaining = remaining.replace(new RegExp(w,"gi"),"");
     if (value) remaining = remaining.replace(new RegExp("\\$?"+value.replace(/\./,"\\.")+"\\s*(dollars?|bucks?)?","i"),"");
-    const name = remaining.replace(/[^a-zA-Z\s]/g,"").trim().replace(/\s+/g," ").split(" ").slice(0,4).join(" ").trim();
+    const name = remaining.replace(/[^a-zA-Z\s]/g,"").trim().replace(/\s+/g," ").split(" ").filter(w => !(value && wordNums[w.toLowerCase()] !== undefined)).slice(0,4).join(" ").trim();
     return { name, jobType, value, status };
   };
 
@@ -210,11 +224,7 @@ export default function StackedWork() {
       const transcript = Array.from(e.results).map((r: any) => r[0].transcript).join("");
       setVoiceTranscript(transcript);
       if (e.results[e.results.length - 1].isFinal) {
-        const parsed = parseVoiceToJob(transcript);
-        if (parsed.name) setNjCustomer(parsed.name);
-        if (parsed.value) setNjValue(parsed.value);
-        if (parsed.jobType) setNjType(parsed.jobType);
-        if (parsed.status) setNjStatus(parsed.status);
+        applyParsedJob(transcript);
         setVoiceListening(false);
       }
     };
@@ -492,7 +502,7 @@ export default function StackedWork() {
         if (error) throw error;
         setAuthSuccess("Password reset email sent! Check your inbox.");
       } else if (authMode === "signup") {
-        window.location.href = "/login";
+        window.location.href = `/login?mode=signup${authEmail ? `&email=${encodeURIComponent(authEmail)}` : ""}`;
         return;
       } else {
         const { data: signInData, error } = await withTimeout(supabase.auth.signInWithPassword({ email: authEmail, password: authPassword }));
@@ -504,6 +514,8 @@ export default function StackedWork() {
     finally { setAuthLoading(false); }
   };
 
+  useEffect(() => { captureFirstTouch(); }, []);
+  useEffect(() => { if (firstRun && newJobOpen) setTimeout(() => voiceBtnRef.current?.focus(), 50); }, [firstRun, newJobOpen]);
   useEffect(() => { const h = () => setScrollY(window.scrollY); window.addEventListener("scroll",h); return () => window.removeEventListener("scroll",h); }, []);
   useEffect(() => { const i = setInterval(() => setAf(p=>(p+1)%FEATURES.length),4000); return () => clearInterval(i); }, []);
   useEffect(() => { /* demo toast removed */ }, [page,vw,td]);
@@ -516,6 +528,13 @@ export default function StackedWork() {
         setUserEmail(session.user.email ?? null);
         checkSub(session.user.email!);
         loadProfile(session.user.id, session.user.user_metadata || {});
+        // First-run: right after signup (/welcome → /?firstrun=1, email-confirm link, or first sign-in)
+        let fr = false;
+        try {
+          fr = new URLSearchParams(window.location.search).get("firstrun") === "1" || window.localStorage.getItem("sw_firstrun") === "1";
+          if (window.location.search.includes("firstrun")) window.history.replaceState(null, "", window.location.pathname);
+        } catch { /* ignore */ }
+        if (fr) { setVw("dashboard"); setFirstRun(true); setNewJobOpen(true); }
       }
     });
     return () => authSub.unsubscribe();
@@ -539,6 +558,8 @@ export default function StackedWork() {
     if (error) { setNjError(error.message); return; }
     setDbJobs(prev => [data, ...prev]);
     setNewJobOpen(false);
+    if (firstRun) { endFirstRun(); setVw("jobs"); }
+    setTypedJob("");
     setNjCustomer(""); setNjPhone(""); setNjType("General"); setNjValue(""); setNjStatus("quoted"); setNjDate(new Date().toISOString().split("T")[0]); setNjNotes(""); setNjHours(""); setNjMaterialCost(""); setNjError(null);
   };
 
@@ -831,23 +852,27 @@ export default function StackedWork() {
           <div style={{fontWeight:600,fontSize:13,color:"#0F172A",marginBottom:2}}>{tst.name}</div><div style={{fontSize:12,color:"#64748B",marginBottom:10}}>{tst.msg}</div>
           <div style={{display:"flex",gap:8}}><Btn onClick={()=>{setTd(true);setTst(null);setVw("leads")}} style={{flex:1,fontSize:11,padding:6}}>View Lead</Btn><BtnO onClick={()=>{setTd(true);setSms(true)}} style={{flex:1,fontSize:11,padding:6}}>SMS Alert</BtnO></div>
         </div>}
-        {newJobOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setNewJobOpen(false)}>
+        {newJobOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>{setNewJobOpen(false);if(firstRun)endFirstRun();}}>
           <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-              <h2 style={{fontSize:18,fontWeight:700,color:"#0F172A"}}>New Job</h2>
+              <h2 style={{fontSize:18,fontWeight:700,color:"#0F172A"}}>{firstRun?"Log your first job by voice":"New Job"}</h2>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <button onClick={startVoiceEntry} title="Speak job details" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:voiceListening?`linear-gradient(135deg,${G},${GD})`:"#F1F5F9",color:voiceListening?"#132440":"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",transition:"all .2s"}}>
+                <button ref={voiceBtnRef} onClick={startVoiceEntry} title="Speak job details" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:voiceListening?`linear-gradient(135deg,${G},${GD})`:"#F1F5F9",color:voiceListening?"#132440":"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",transition:"all .2s"}}>
                   {voiceListening
                     ? <><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#132440",animation:"pulseMk 1s infinite"}}/>Listening...</>
                     : <>🎤 Voice Entry</>}
                 </button>
-                <button onClick={()=>{setNewJobOpen(false);setVoiceTranscript("");}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button>
+                <button onClick={()=>{setNewJobOpen(false);setVoiceTranscript("");if(firstRun)endFirstRun();}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button>
               </div>
             </div>
             {voiceTranscript&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534"}}>
               <span style={{fontWeight:700}}>Heard: </span>{voiceTranscript}
             </div>}
-            {!voiceTranscript&&<p style={{fontSize:11,color:"#94A3B8",marginBottom:14}}>Tap <strong>Voice Entry</strong> and say something like: <em>&quot;John Smith, plumbing, $850, scheduled&quot;</em></p>}
+            {!voiceTranscript&&<p style={{fontSize:firstRun?13:11,color:firstRun?"#475569":"#94A3B8",marginBottom:14}}>Tap <strong>Voice Entry</strong> and say something like: <em>&quot;John Smith, plumbing, $850, scheduled&quot;</em></p>}
+            <div style={{display:"flex",gap:8,marginBottom:14}}>
+              <input value={typedJob} onChange={e=>setTypedJob(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&typedJob.trim()){e.preventDefault();applyParsedJob(typedJob);}}} placeholder="Or type it: John Smith, plumbing, $850" aria-label="Type the job instead of speaking" style={{flex:1,padding:"9px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+              <button type="button" onClick={()=>typedJob.trim()&&applyParsedJob(typedJob)} disabled={!typedJob.trim()} style={{padding:"9px 14px",background:"#F1F5F9",color:"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:typedJob.trim()?"pointer":"not-allowed",fontFamily:"'DM Sans'",opacity:typedJob.trim()?1:0.6}}>Fill in</button>
+            </div>
             {[
               {label:"Customer Name *",val:njCustomer,set:setNjCustomer,placeholder:"John Smith",type:"text"},
               {label:"Phone",val:njPhone,set:setNjPhone,placeholder:"(410) 555-0100",type:"tel"},
@@ -1669,7 +1694,7 @@ export default function StackedWork() {
       </div>
     );
   }
-  const es = lang==="es";
+  const es = (lang as string)==="es"; // homepage lock: always false
   const t = {
     navDemo: es?"Demo":"Demo",
     navFind: es?"Encontrar Contratista":"Find a Contractor",
@@ -1685,7 +1710,7 @@ export default function StackedWork() {
     signupLabel: es?"Empieza gratis hoy":"Start free today",
     signupTitle: es?"Listo en":"Set up in",
     signupTitleGreen: es?"5 minutos.":"5 minutes.",
-    signupSub: es?"Prueba gratuita de 14 días. Se requiere tarjeta de crédito.":"14-day free trial. Credit card required to start.",
+    signupSub: es?"Prueba gratuita de 14 días. Sin tarjeta de crédito.":"14-day free trial. No credit card required.",
     signupPlaceholder: es?"tu@email.com":"your@email.com",
     signupBtn: es?"Comenzar →":"Get Started →",
     signupSmall: es?"$49.99/MES · PRUEBA GRATIS 14 DÍAS · SIN CARGO DE INSTALACIÓN · CANCELA CUANDO QUIERAS":"$49.99/MO · 14-DAY FREE TRIAL · NO SETUP FEE · CANCEL ANYTIME",
@@ -1743,11 +1768,11 @@ export default function StackedWork() {
       {item:"Costo total primer año",them:"$6,000–$12,000+",us:"$599/año"},
     ] : COMPARISONS,
     howSteps: es ? [
-      {s:"01",t:"Regístrate en 5 minutos",d:"Crea tu usuario y contraseña, agrega tu oficio y área de servicio. Eso es todo."},
+      {s:"01",t:"Regístrate en 5 minutos",d:"Solo tu email y una contraseña. Sin tarjeta de crédito. Luego registra tu primer trabajo por voz."},
       {s:"02",t:"Tu CRM está listo",d:"La IA configura tu panel, seguimiento de trabajos y gestión de leads al instante."},
       {s:"03",t:"Empieza a cerrar trabajos",d:"CRM. Portafolio de fotos. Seguimiento de ingresos. Recordatorios. Todo en vivo."},
     ] : [
-      {s:"01",t:"Sign up in 5 minutes",d:"Create your username and password, add your trade and service area. That's it."},
+      {s:"01",t:"Sign up in 5 minutes",d:"Just your email and a password. No credit card. Then log your first job by voice."},
       {s:"02",t:"Your CRM is ready",d:"AI sets up your dashboard, job tracking, and lead management instantly."},
       {s:"03",t:"Start closing jobs",d:"CRM. Photo portfolio. Revenue tracking. Follow-up reminders. All live."},
     ],
@@ -1797,12 +1822,6 @@ export default function StackedWork() {
             </div>
           ) : (
             <>
-              {authMode==="signup"&&(
-                <div style={{marginBottom:14}}>
-                  <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Username</label>
-                  <input value={authUsername} onChange={e=>setAuthUsername(e.target.value)} placeholder="yourname" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
-                </div>
-              )}
               <div style={{marginBottom:14}}>
                 <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Email address</label>
                 <input type="email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="you@example.com" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>

@@ -2,23 +2,33 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 const G = "#C8E64A";
 const GD = "#A8C435";
 
 function WelcomeContent() {
+  // Works with or without a card on the Stripe session: this page never reads
+  // payment details. session_id is kept in the URL only for reference.
   const searchParams = useSearchParams();
-  const sessionId = searchParams.get("session_id");
-  const [countdown, setCountdown] = useState(10);
+  void searchParams.get("session_id");
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    if (countdown <= 0) {
-      window.location.href = "/";
-      return;
-    }
-    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [countdown]);
+    // Signed in already (email confirmation off) → go straight to the first-run
+    // "Log your first job by voice" screen. Otherwise ask them to confirm email;
+    // the confirmation link (or their first sign-in) opens the same screen.
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) { setChecking(false); return; }
+    const supabase = createClient(url, key);
+    supabase.auth.getSession()
+      .then(({ data }) => {
+        if (data.session) window.location.replace("/?firstrun=1");
+        else setChecking(false);
+      })
+      .catch(() => setChecking(false));
+  }, []);
 
   return (
     <div
@@ -96,8 +106,9 @@ function WelcomeContent() {
             lineHeight: 1.7,
           }}
         >
-          Your 14-day free trial has started. We&apos;ll reach out shortly to get your
-          CRM set up. You&apos;ll be live in 48 hours.
+          {checking
+            ? "Opening your dashboard…"
+            : <>Your 14-day free trial has started. No credit card on file. Next up: <strong style={{ color: G }}>log your first job by voice</strong>.</>}
         </p>
 
         <div
@@ -123,9 +134,9 @@ function WelcomeContent() {
             What happens next
           </div>
           {[
-            { icon: "📧", text: "Check your email for a confirmation receipt" },
-            { icon: "📞", text: "Our team will reach out within 24 hours to get you set up" },
-            { icon: "🚀", text: "Your dashboard will be live within 48 hours" },
+            { icon: "📧", text: "Open the confirmation email we just sent and tap the link" },
+            { icon: "🎤", text: "You'll land on \u201cLog your first job by voice\u201d \u2014 or type it instead" },
+            { icon: "🚀", text: "Your dashboard is ready right away — no setup call needed" },
           ].map((item, i) => (
             <div
               key={i}
@@ -146,7 +157,7 @@ function WelcomeContent() {
         </div>
 
         <a
-          href="/"
+          href="/login?mode=signin"
           style={{
             display: "inline-block",
             background: `linear-gradient(135deg, ${G}, ${GD})`,
@@ -159,19 +170,9 @@ function WelcomeContent() {
             cursor: "pointer",
           }}
         >
-          Back to Home
+          I&apos;ve confirmed — sign in
         </a>
 
-        <p
-          style={{
-            marginTop: 20,
-            fontSize: 12,
-            color: "rgba(245,240,235,0.25)",
-            fontFamily: "'Space Mono'",
-          }}
-        >
-          Redirecting in {countdown}s...
-        </p>
       </div>
     </div>
   );
