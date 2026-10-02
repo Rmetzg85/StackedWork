@@ -68,6 +68,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ reply: text });
   } catch (err: any) {
     console.error("Chat error:", err);
-    return NextResponse.json({ error: err.message || "Chat failed" }, { status: 500 });
+    return NextResponse.json({ error: "The assistant couldn't answer right now. Please try again." }, { status: 500 });
   }
 }
