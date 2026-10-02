@@ -661,7 +661,12 @@ export default function StackedWork() {
     if (!userId) return;
     supabase.from("leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load leads", error); else if (data) setDbLeads(data); });
     supabase.from("jobs").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load jobs", error); else if (data) setDbJobs(data); });
-    supabase.from("homeowner_leads").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => { if (data) setDbHomeownerLeads(data); });
+    // homeowner_leads is service-role only under RLS (no client policies). Scope by contractor anyway so this
+    // can never list other contractors' requests; 42703 = contractor_id column not added yet (see migration).
+    supabase.from("homeowner_leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).limit(50).then(({ data, error }) => {
+      if (error) { if (error.code !== "42703") console.warn("homeowner_leads:", error.message); setDbHomeownerLeads([]); return; }
+      setDbHomeownerLeads(data || []);
+    });
     supabase.from("portfolio").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load photos", error); else if (data) setDbPhotos(data); });
     supabase.from("receipts").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load receipts", error); else if (data) setDbReceipts(data); });
     supabase.from("estimates").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load estimates", error); else if (data) setDbEstimates(data); });
@@ -1155,13 +1160,16 @@ export default function StackedWork() {
           <main style={{flex:1,padding:"20px 16px 100px",maxWidth:960,overflow:"auto"}}>
             {vw==="dashboard"&&<>
               {(()=>{
-                const tickerLeads = dbHomeownerLeads.length > 0 ? dbHomeownerLeads : [
-                  {name:"Jamie R.",zip_code:"Baltimore, MD",job_type:"kitchen remodel",phone:"(410) 555-0182"},
-                  {name:"Marcus T.",zip_code:"Annapolis, MD",job_type:"deck build",email:"marcus.t@gmail.com"},
-                  {name:"Sarah K.",zip_code:"Columbia, MD",job_type:"bathroom gut",phone:"(443) 555-0344"},
-                  {name:"Derek W.",zip_code:"Towson, MD",job_type:"HVAC replacement",email:"derekw@yahoo.com"},
-                  {name:"Lisa M.",zip_code:"Bowie, MD",job_type:"roof repair",phone:"(301) 555-0561"},
-                ];
+                // Real leads only (this contractor's own leads + scoped homeowner requests). No sample data.
+                const tickerLeads = userId ? [...activeLeads, ...dbHomeownerLeads].slice(0, 10) : [];
+                if (tickerLeads.length === 0) {
+                  return (
+                    <div style={{background:"rgba(200,230,74,0.05)",border:"1px dashed rgba(200,230,74,0.25)",borderRadius:10,marginBottom:20,padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+                      <span style={{fontSize:12,color:"rgba(245,240,235,0.7)"}}>📥 No leads yet. Share your lead form link and new requests will show up here.</span>
+                      {userId&&<button onClick={copyLeadLink} style={{fontSize:11,fontWeight:700,padding:"5px 12px",borderRadius:6,border:"none",background:G,color:"#132440",cursor:"pointer",fontFamily:"'DM Sans'"}}>{linkCopied?"Copied!":"Copy lead link"}</button>}
+                    </div>
+                  );
+                }
                 const items = [...tickerLeads, ...tickerLeads];
                 return (
                   <div style={{background:"rgba(200,230,74,0.07)",border:"1px solid rgba(200,230,74,0.2)",borderRadius:10,marginBottom:20,overflow:"hidden",position:"relative",height:38}}>
@@ -1175,10 +1183,9 @@ export default function StackedWork() {
                         <span key={i} style={{fontSize:12,color:"rgba(245,240,235,0.85)",padding:"0 28px",display:"inline-flex",alignItems:"center",gap:7,flexShrink:0}}>
                           <span style={{fontSize:14}}>🏡</span>
                           <strong style={{color:"#fff"}}>{lead.name?.split(" ")[0] || "Someone"}</strong>
-                          <span style={{color:"rgba(245,240,235,0.45)"}}>from</span>
-                          <span>{lead.zip_code}</span>
-                          <span style={{color:"rgba(245,240,235,0.45)"}}>wants an estimate for</span>
-                          <strong style={{color:G}}>{lead.job_type}</strong>
+                          {lead.zip_code&&<><span style={{color:"rgba(245,240,235,0.45)"}}>from</span><span>{lead.zip_code}</span></>}
+                          <span style={{color:"rgba(245,240,235,0.45)"}}>{lead.job_type?"wants an estimate for":"sent a request"}</span>
+                          {lead.job_type&&<strong style={{color:G}}>{lead.job_type}</strong>}
                           {lead.email && <span style={{color:"rgba(245,240,235,0.5)"}}>· {lead.email}</span>}
                           {lead.phone && <span style={{color:"rgba(245,240,235,0.5)"}}>· {lead.phone}</span>}
                           <span style={{color:"rgba(245,240,235,0.15)",padding:"0 4px"}}>|</span>
