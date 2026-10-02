@@ -13,6 +13,7 @@ function WelcomeContent() {
   const searchParams = useSearchParams();
   void searchParams.get("session_id");
   const [checking, setChecking] = useState(true);
+  const [signupEmail, setSignupEmail] = useState<string | null>(null);
 
   useEffect(() => {
     // Signed in already (email confirmation off) → go straight to the first-run
@@ -21,7 +22,8 @@ function WelcomeContent() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     if (!url || !key) { setChecking(false); return; }
-    const supabase = createClient(url, key);
+    try { setSignupEmail(window.localStorage.getItem("sw_signup_email")); } catch { /* ignore */ }
+    const supabase = createClient(url, key, { auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true } });
     supabase.auth.getSession()
       .then(({ data }) => {
         if (data.session) window.location.replace("/?firstrun=1");
@@ -83,7 +85,7 @@ function WelcomeContent() {
             marginBottom: 14,
           }}
         >
-          You&apos;re in
+          {checking ? "You\u2019re in" : "One more step"}
         </div>
         <h1
           style={{
@@ -94,8 +96,9 @@ function WelcomeContent() {
             lineHeight: 1.1,
           }}
         >
-          Welcome to{" "}
-          <span style={{ color: G }}>StackedWork</span>
+          {checking
+            ? <>Welcome to{" "}<span style={{ color: G }}>StackedWork</span></>
+            : <>Check your email to <span style={{ color: G }}>confirm your account</span></>}
         </h1>
         <p
           style={{
@@ -108,7 +111,7 @@ function WelcomeContent() {
         >
           {checking
             ? "Opening your dashboard…"
-            : <>Your 14-day free trial has started. No credit card on file. Next up: <strong style={{ color: G }}>log your first job by voice</strong>.</>}
+            : <>We sent a confirmation link to <strong style={{ color: "#F5F0EB" }}>{signupEmail || "the email you signed up with"}</strong>. Tap it to open StackedWork. It works on any device. Your 14-day free trial has started (no credit card on file), and the link takes you straight to <strong style={{ color: G }}>log your first job by voice</strong>.</>}
         </p>
 
         <div

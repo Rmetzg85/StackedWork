@@ -8,7 +8,22 @@ import { todayNY, daysAgoNY, toDateKeyNY, fmtDateNY, yearNY, APP_TZ } from "./li
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Read the landing URL BEFORE the Supabase client initialises (it strips the #access_token hash).
+// /?firstrun=1 is the email-confirmation redirect target, so this works on any device, not just the
+// one that signed up (localStorage sw_firstrun is only a same-device fallback).
+const LANDING = typeof window !== "undefined" ? { search: window.location.search, hash: window.location.hash } : { search: "", hash: "" };
+const LANDING_FIRSTRUN = new URLSearchParams(LANDING.search).get("firstrun") === "1" || /(^|[#&])type=signup(&|$)/.test(LANDING.hash);
+const LANDING_AUTH_ERROR = (() => {
+  const h = new URLSearchParams(LANDING.hash.replace(/^#/, ""));
+  const q = new URLSearchParams(LANDING.search);
+  return h.get("error_description") || q.get("error_description") || null;
+})();
+// Implicit flow (supabase-js default, made explicit): the confirmation link carries the session in the URL hash,
+// so it signs the user in even on a different device/browser than the one used to sign up (PKCE would not).
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true, autoRefreshToken: true },
+});
+let landingFirstRunConsumed = false;
 const G = "#C8E64A";
 const GD = "#A8C435";
 // Paste your Replicate-generated ad video URL here:
@@ -167,6 +182,8 @@ export default function StackedWork() {
   const endFirstRun = () => {
     setFirstRun(false);
     try { window.localStorage.removeItem("sw_firstrun"); } catch { /* ignore */ }
+    // Remember across devices so the first-run screen doesn't reappear elsewhere.
+    supabase.auth.updateUser({ data: { first_run_done: true } }).catch(() => {});
   };
   // Map a free-text service ("water heater swap") onto one of the Job Type options.
   const serviceToJobType = (service: string|null|undefined): string|null => {
@@ -650,17 +667,26 @@ export default function StackedWork() {
   useEffect(() => { /* demo toast removed */ }, [page,vw,td]);
   useEffect(() => {
     // onAuthStateChange fires INITIAL_SESSION on mount and catches redirects from /login
-    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Token refreshes / profile updates don't need the full re-init (and would re-trigger first-run).
+      if (event !== "INITIAL_SESSION" && event !== "SIGNED_IN") return;
+      if (!session && event === "INITIAL_SESSION" && LANDING_AUTH_ERROR && !landingFirstRunConsumed) {
+        landingFirstRunConsumed = true;
+        setTimeout(() => showToast(`Couldn't confirm your email: ${LANDING_AUTH_ERROR}. Sign in, or sign up again to get a new link.`, "error"), 0);
+        try { window.history.replaceState(null, "", window.location.pathname); } catch { /* ignore */ }
+      }
       if (session) {
         setPage("app");
         setUserId(session.user.id);
         setUserEmail(session.user.email ?? null);
         checkSub(session.user.email ?? null, session.user.id);
         loadProfile(session.user.id, session.user.user_metadata || {});
-        // First-run: right after signup (/welcome → /?firstrun=1, email-confirm link, or first sign-in)
+        // First-run: email-confirm link / welcome redirect (/?firstrun=1, any device) or same-device flag.
         let fr = false;
         try {
-          fr = new URLSearchParams(window.location.search).get("firstrun") === "1" || window.localStorage.getItem("sw_firstrun") === "1";
+          const fromUrl = !landingFirstRunConsumed && LANDING_FIRSTRUN;
+          landingFirstRunConsumed = true;
+          fr = (fromUrl || window.localStorage.getItem("sw_firstrun") === "1") && !session.user.user_metadata?.first_run_done;
           if (window.location.search.includes("firstrun")) window.history.replaceState(null, "", window.location.pathname);
         } catch { /* ignore */ }
         if (fr) { setVw("dashboard"); setFirstRun(true); setNewJobOpen(true); }
