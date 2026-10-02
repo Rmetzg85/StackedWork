@@ -7,7 +7,14 @@ export async function POST(request) {
       apiVersion: "2025-02-24.acacia",
     });
     const body = await request.json();
-    const { email, name } = body;
+    const { email, name, utm } = body;
+
+    // First-touch UTM (optional) → subscription metadata. Whitelisted keys, short strings only.
+    const utmMeta: Record<string, string> = {};
+    for (const k of ["first_touch_utm_source", "first_touch_utm_medium", "first_touch_utm_campaign"]) {
+      const v = utm?.[k];
+      if (typeof v === "string" && v.trim()) utmMeta[k] = v.trim().slice(0, 100);
+    }
 
     let customer;
     if (email) {
@@ -31,9 +38,10 @@ export async function POST(request) {
       line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
       subscription_data: {
         trial_period_days: 14,
-        metadata: { product: "stackedwork", tier: "base" },
+        trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+        metadata: { product: "stackedwork", tier: "base", ...utmMeta },
       },
-      payment_method_collection: "always",
+      payment_method_collection: "if_required",
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/welcome?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/?cancelled=true`,
       allow_promotion_codes: true,
