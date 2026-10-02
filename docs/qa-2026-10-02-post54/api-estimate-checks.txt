@@ -1,0 +1,9 @@
+## estimate page
+real token: 500 contains customer: 1 total: 
+bogus token: 404
+## API auth (no token / bad token / valid stub token)
+/api/chat  none: {"error":"Please sign in to chat with the AI assistant."} 401 | bogus: {"error":"Your session expired. Please sign in again."} 401 | valid(stub): 500 (non-401 = passed auth; no ANTHROPIC_API_KEY locally)
+/api/scan-receipt  none: {"error":"Please sign in to scan receipts."} 401 | bogus: {"error":"Your session expired. Please sign in again."} 401 | valid(stub): 500 (non-401 = passed auth; no ANTHROPIC_API_KEY locally)
+/api/estimate-ai-price  none: {"error":"Please sign in to use AI pricing."} 401 | bogus: {"error":"Your session expired. Please sign in again."} 401 | valid(stub): 500 (non-401 = passed auth; no ANTHROPIC_API_KEY locally)
+/api/parse-job  none: {"error":"Please sign in to use voice entry."} 401 | bogus: {"error":"Your session expired. Please sign in again."} 401 | valid(stub): 503 (non-401 = passed auth; no ANTHROPIC_API_KEY locally)
+## living.jpg refs in served HTML/JS: 0

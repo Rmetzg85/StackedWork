@@ -1,0 +1,67 @@
+[
+  {
+    "k": "(g) bell, all leads read",
+    "v": {
+      "aria": "Notifications",
+      "badgeText": null
+    }
+  },
+  {
+    "k": "(g) bell, 1 unread",
+    "v": "1"
+  },
+  {
+    "k": "(b) filled",
+    "v": {
+      "customer": "Reset Test 1",
+      "phone": "(410) 555-0199",
+      "address": "9 Test Ln",
+      "notes": "carry-over check"
+    }
+  },
+  {
+    "k": "(b) reopened after close",
+    "v": {
+      "customer": "",
+      "phone": "",
+      "address": "",
+      "notes": ""
+    }
+  },
+  {
+    "k": "(b) saved toast",
+    "v": 1
+  },
+  {
+    "k": "(b) reopened after save",
+    "v": {
+      "customer": "",
+      "phone": "",
+      "address": "",
+      "notes": ""
+    }
+  },
+  {
+    "k": "(h) profit, jobs exist but none priced",
+    "v": "Profit Intelligence\n\nKnow which jobs actually make you money.\n\n🏷️\nAdd a price to see profit\nYou have 4 jobs, but none has a price yet. Profit is the job price minus material costs: fill in Price (and Materials and Hours, if you track them) when you add a job."
+  },
+  {
+    "k": "(h) profit, priced jobs",
+    "v": "Profit Intelligence\n\nKnow which jobs actually make you money.\n\nTOTAL PROFIT\n$4,050\nfrom 2 jobs\nAVG MARGIN\n100%\nrevenue minus materials\nBEST PROFIT/HR\n—\nadd hours to jobs\nTOP JOB TYPE\nPlumbing\n100% margin\n2 jobs without a price aren't counted.\nAI Insight\nYour Plumbing jobs have a 100% margin — your b"
+  },
+  {
+    "k": "(e) storage objects removed",
+    "v": [
+      "11111111-1111-4111-8111-111111111111/portfolio/1-aaa-before.jpg",
+      "11111111-1111-4111-8111-111111111111/portfolio/1-aaa-after.jpg"
+    ]
+  },
+  {
+    "k": "(e) toast",
+    "v": 1
+  },
+  {
+    "k": "(d) send toast",
+    "v": "Photo deleted.\n×\nEstimate email was NOT sent: Email sending isn't set up yet. Your estimate was saved as a draft; you can share its link instead.\n×"
+  }
+]

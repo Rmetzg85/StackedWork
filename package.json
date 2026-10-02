@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:parser": "rm -rf .tmp-test && tsc app/lib/parse-job-local.ts app/lib/dates.ts app/lib/ai-json.ts --outDir .tmp-test --rootDir app --module commonjs --target es2020 --skipLibCheck && node --test tests/"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

@@ -1,16 +1,21 @@
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
+import PrintButton from "./PrintButton";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-export default async function EstimatePage({ params }: { params: { token: string } }) {
+// Next 15+/16: dynamic route params are a Promise and must be awaited (reading params.token
+// synchronously gives undefined, so every real share link 404'd).
+export default async function EstimatePage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  if (!token || !/^[A-Za-z0-9_-]{8,128}$/.test(token)) notFound();
   const { data: estimate } = await supabase
     .from("estimates")
     .select("*")
-    .eq("share_token", params.token)
+    .eq("share_token", token)
     .single();
 
   if (!estimate) notFound();
@@ -124,12 +129,7 @@ export default async function EstimatePage({ params }: { params: { token: string
 
           {/* Print button */}
           <div className="no-print" style={{ textAlign: "center", marginTop: 8 }}>
-            <button
-              onClick={() => window.print()}
-              style={{ padding: "10px 28px", background: "#F1F5F9", color: "#374151", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: "pointer" }}
-            >
-              🖨️ Print / Save as PDF
-            </button>
+            <PrintButton />
           </div>
         </div>
 

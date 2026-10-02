@@ -24,6 +24,15 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true, autoRefreshToken: true },
 });
 let landingFirstRunConsumed = false;
+// AI routes (/api/chat, /api/scan-receipt, /api/estimate-ai-price, /api/parse-job) require the Supabase access token.
+async function authJsonHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) };
+}
+async function getAccessToken(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
+}
 const G = "#C8E64A";
 const GD = "#A8C435";
 // Paste your Replicate-generated ad video URL here:
@@ -95,6 +104,10 @@ export default function StackedWork() {
   const [dbJobs, setDbJobs] = useState<any[]>([]);
   const [dbHomeownerLeads, setDbHomeownerLeads] = useState<any[]>([]);
   const [newJobOpen, setNewJobOpen] = useState(false);
+  const [deletingJobId, setDeletingJobId] = useState<string|null>(null);
+  // Demo (logged-out) actions that need an account open this prompt instead of doing nothing.
+  const [demoGate, setDemoGate] = useState<string|null>(null);
+  const needAccount = (what: string) => setDemoGate(what);
   const [njCustomer, setNjCustomer] = useState("");
   const [njPhone, setNjPhone] = useState("");
   const [njType, setNjType] = useState("General");
@@ -211,7 +224,7 @@ export default function StackedWork() {
       if (j.customer_name) setNjCustomer(j.customer_name);
       if (j.phone) setNjPhone(j.phone);
       if (j.address) setNjAddress(j.address);
-      const jt = serviceToJobType(j.service);
+      const jt = JOB_TYPES.includes(j.job_type) && j.job_type !== "General" ? j.job_type : serviceToJobType(j.service);
       if (jt) setNjType(jt);
       if (j.service) setNjNotes(prev => prev.trim() ? prev : j.service);
       if (typeof j.price === "number") setNjValue(String(j.price));
@@ -226,10 +239,15 @@ export default function StackedWork() {
       // Typed fallback: basic on-device parsing so the user is never stuck.
       const p = parseVoiceToJobLocal(transcript);
       if (p.name) setNjCustomer(p.name);
+      if (p.phone) setNjPhone(p.phone);
+      if (p.address) setNjAddress(p.address);
       if (p.value) setNjValue(p.value);
       if (p.jobType) setNjType(p.jobType);
       if (p.status) setNjStatus(p.status);
-      setParsedReview({ customer_name: p.name || null, address: null, phone: null, service: p.jobType, scheduled_at: null, price: p.value ? Number(p.value) : null, status: p.status, source: "basic" });
+      if (p.date) setNjDate(p.date);
+      setNjTime(p.time || "");
+      if (p.service) setNjNotes(prev => prev.trim() ? prev : p.service);
+      setParsedReview({ customer_name: p.name || null, address: p.address || null, phone: p.phone || null, service: p.service || p.jobType, scheduled_at: p.date ? (p.time ? `${p.date}T${p.time}` : p.date) : null, price: p.value ? Number(p.value) : null, status: p.status, source: "basic" });
       setVoiceError(`${err?.message || "AI parsing failed."} We filled in what we could. Please check every field.`);
     } finally {
       setVoiceParsing(false);
@@ -558,15 +576,34 @@ export default function StackedWork() {
     }
   };
 
+  // Public URL -> object path inside stackedwork-images, only if it is in the caller's own folder
+  // (sw_images_delete_own_folder allows deleting only "<uid>/..."; legacy shared-prefix files are skipped).
+  const ownStoragePath = (url: string | null | undefined): string | null => {
+    if (!url || !userId) return null;
+    const marker = "/storage/v1/object/public/stackedwork-images/";
+    const i = url.indexOf(marker);
+    if (i < 0) return null;
+    const path = decodeURIComponent(url.slice(i + marker.length).split("?")[0]);
+    return path.startsWith(`${userId}/`) && !path.includes("..") ? path : null;
+  };
+  const removeOwnFiles = async (urls: (string | null | undefined)[]): Promise<string | null> => {
+    const paths = urls.map(ownStoragePath).filter((p): p is string => !!p);
+    if (!paths.length) return null;
+    const { error } = await supabase.storage.from("stackedwork-images").remove(paths);
+    return error ? error.message : null;
+  };
   const deletePhoto = async (photo: any) => {
     if (!confirm("Delete this photo?")) return;
     const { error } = await supabase.from("portfolio").delete().eq("id", photo.id).eq("contractor_id", userId);
     if (error) { toastErr("Couldn't delete photo", error); return; }
     setDbPhotos(prev => prev.filter(p => p.id !== photo.id));
-    showToast("Photo deleted.", "success");
+    const fileErr = await removeOwnFiles([photo.before_url, photo.after_url]);
+    if (fileErr) showToast(`Photo removed from your portfolio, but the image files couldn't be deleted: ${fileErr}`, "error");
+    else showToast("Photo deleted.", "success");
   };
 
   const handleReceiptScan = async (file: File) => {
+    if (!userId) { needAccount("scan receipts with AI"); return; }
     if (!file.type.startsWith("image/")) { setRcErr("AI scan only works on image files."); return; }
     setRcScanning(true); setRcErr(null);
     try {
@@ -579,7 +616,7 @@ export default function StackedWork() {
       const base64 = dataUrl.split(",")[1];
       const response = await fetch("/api/scan-receipt", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authJsonHeaders(),
         body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
       });
       const data = await response.json();
@@ -640,7 +677,9 @@ export default function StackedWork() {
     const { error } = await supabase.from("receipts").delete().eq("id", rc.id).eq("contractor_id", userId);
     if (error) { toastErr("Couldn't delete receipt", error); return; }
     setDbReceipts(prev => prev.filter(r => r.id !== rc.id));
-    showToast("Receipt deleted.", "success");
+    const fileErr = await removeOwnFiles([rc.file_url]);
+    if (fileErr) showToast(`Receipt deleted, but its file couldn't be removed: ${fileErr}`, "error");
+    else showToast("Receipt deleted.", "success");
   };
 
   const withTimeout = <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
@@ -710,9 +749,16 @@ export default function StackedWork() {
   const closeNewJob = () => {
     abortVoiceEntry();
     setNewJobOpen(false);
-    setVoiceTranscript(""); setVoiceError(null);
+    resetNewJobForm();
     if (firstRun) endFirstRun();
   };
+  // Every open AND every close of the New Job form starts from a blank form (QA: the previous job's
+  // phone/address/notes were carried over). Covers every opener: Jobs, Clients + Add, first run, Profit.
+  const newJobOpenPrev = useRef(false);
+  useEffect(() => {
+    if (newJobOpen !== newJobOpenPrev.current) { newJobOpenPrev.current = newJobOpen; resetNewJobForm(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newJobOpen]);
 
   const handleNewJob = async () => {
     if (!userId || !njCustomer.trim()) return;
@@ -748,6 +794,19 @@ export default function StackedWork() {
     setNewJobOpen(false);
     if (firstRun) { endFirstRun(); setVw("jobs"); }
     resetNewJobForm();
+  };
+
+  const deleteJob = async (job: any) => {
+    if (!userId) { needAccount("manage real jobs"); return; }
+    if (!confirm(`Delete the job for ${job.customer || "this customer"}? This can't be undone.`)) return;
+    setDeletingJobId(job.id);
+    // RLS (jobs_delete_own) only allows deleting rows where contractor_id = auth.uid(); the extra filter keeps it explicit.
+    const { data, error } = await supabase.from("jobs").delete().eq("id", job.id).eq("contractor_id", userId).select("id");
+    setDeletingJobId(null);
+    if (error) { toastErr("Couldn't delete job", error); return; }
+    if (!data || data.length === 0) { showToast("That job was already deleted or isn't yours.", "error"); }
+    else showToast("Job deleted.", "success");
+    setDbJobs(prev => prev.filter(j => j.id !== job.id));
   };
 
   const updateJobStatus = async (id: string, status: string) => {
@@ -795,6 +854,7 @@ export default function StackedWork() {
   const gl = 12000;
   const fJ = jf==="all"?activeJobs:activeJobs.filter((j:any)=>j.status===jf);
   const activeLeads = userId ? dbLeads : LEADS;
+  const unreadLeads = activeLeads.filter((l:any)=>!l.read).length;
   const lMsg = (l: any) => l.msg || l.message || "";
   const lTs = (l: any) => l.ts || (l.created_at ? new Date(l.created_at).toLocaleString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "");
   const markRead = async (id: any) => {
@@ -832,11 +892,12 @@ export default function StackedWork() {
 
   const handleAiPricing = async () => {
     if (!neJobType) return;
+    if (!userId) { needAccount("get AI price suggestions"); return; }
     setAiLoading(true);
     try {
       const res = await fetch("/api/estimate-ai-price", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authJsonHeaders(),
         body: JSON.stringify({ jobType: neJobType, description: neDesc }),
       });
       const data = await res.json().catch(() => ({}));
@@ -860,12 +921,12 @@ export default function StackedWork() {
       const shareUrl = `${window.location.origin}/estimate/${est.share_token}`;
       const res = await fetch("/api/estimate-email", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authJsonHeaders(),
         body: JSON.stringify({ estimate: est, contractorName: userEmail?.split("@")[0] || "Your Contractor", contractorEmail: userEmail, shareUrl }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) return { ok: false, error: data?.error || `Email failed (HTTP ${res.status})` };
-      if (data.warning) return { ok: false, error: "Email sending isn't configured on the server yet" };
+      if (data.warning) return { ok: false, error: "Email sending isn't set up yet" };
       return { ok: true };
     } catch (err: any) {
       return { ok: false, error: err?.message || "Network error" };
@@ -1057,8 +1118,9 @@ export default function StackedWork() {
           .sw-sl:hover{background:rgba(255,255,255,0.08);color:#fff}.sw-sl.sw-a{background:${G};color:#132440;font-weight:700}}
           .sw-sg{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
           @media(min-width:768px){.sw-sg{grid-template-columns:repeat(4,1fr)}}
-          .sw-jm{padding:14px 16px;border-bottom:1px solid #F1F5F9}.sw-jd{display:none}
-          @media(min-width:768px){.sw-jm{display:none}.sw-jd{display:grid;grid-template-columns:1.5fr 1fr .8fr .8fr .8fr;padding:14px 20px;border-bottom:1px solid #F1F5F9;align-items:center;font-size:14px}.sw-jd:hover{background:#FAFBFC}}
+          .sw-jm{padding:14px 16px;border-bottom:1px solid #F1F5F9}.sw-jd,.sw-jh{display:none}
+          @media(min-width:768px){.sw-jm{display:none}.sw-jd,.sw-jh{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1.1fr) minmax(0,.8fr) minmax(0,.9fr) minmax(0,1.4fr);gap:12px;padding:14px 20px;border-bottom:1px solid #F1F5F9;align-items:center;font-size:14px}.sw-jd:hover{background:#FAFBFC}
+          .sw-jh{padding:10px 20px;background:#F8FAFC;font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.04em;font-family:'Space Mono'}}
           .sw-fb{padding:6px 14px;border-radius:100px;border:1px solid #E2E8F0;background:#fff;font-size:12px;cursor:pointer;font-family:'DM Sans';color:#64748B;transition:all .2s}
           .sw-fb:hover{border-color:${G};color:${GD}}.sw-fb.sw-a{background:${G};color:#132440;border-color:${G};font-weight:600}
         `}</style>
@@ -1070,7 +1132,7 @@ export default function StackedWork() {
           </div>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{position:"relative"}}>
-              <button onClick={()=>setNtf(!ntf)} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>🔔<span style={{position:"absolute",top:-4,right:-4,width:18,height:18,background:"#EF4444",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",border:"2px solid #0F1D32"}}>{activeLeads.filter((l:any)=>!l.read).length||activeLeads.length}</span></button>
+              <button onClick={()=>setNtf(!ntf)} aria-label={unreadLeads>0?`Notifications: ${unreadLeads} unread lead${unreadLeads!==1?"s":""}`:"Notifications"} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>🔔{unreadLeads>0&&<span style={{position:"absolute",top:-4,right:-4,width:18,height:18,background:"#EF4444",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",border:"2px solid #0F1D32"}}>{unreadLeads>99?"99+":unreadLeads}</span>}</button>
               {ntf&&<div style={{position:"absolute",top:50,right:0,width:360,maxWidth:"calc(100vw - 32px)",background:"#fff",border:"1px solid #E2E8F0",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.15)",zIndex:60,overflow:"hidden"}}>
                 <div style={{padding:"12px 16px",borderBottom:"2px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:700,fontSize:14,color:"#0F172A"}}>New Leads</span><span style={{fontSize:12,color:GD,fontWeight:600,cursor:"pointer"}} onClick={()=>{setNtf(false);setVw("leads")}}>View All</span></div>
                 {activeLeads.slice(0,3).map((l:any,i:number)=><div key={i} style={{padding:"14px 16px",borderBottom:i<2?"1px solid #F1F5F9":"none",cursor:"pointer"}} onClick={()=>{setNtf(false);setVw("leads")}}>
@@ -1096,6 +1158,18 @@ export default function StackedWork() {
           <div style={{display:"flex",gap:8}}><Btn onClick={()=>{setTd(true);setTst(null);setVw("leads")}} style={{flex:1,fontSize:11,padding:6}}>View Lead</Btn><BtnO onClick={()=>{setTd(true);setSms(true)}} style={{flex:1,fontSize:11,padding:6}}>SMS Alert</BtnO></div>
         </div>}
         {toastStack}
+        {demoGate&&<div role="dialog" aria-modal="true" aria-labelledby="sw-demo-gate-title" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:210,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setDemoGate(null)}>
+          <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:380,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)",textAlign:"center"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+            <div style={{fontSize:34,marginBottom:10}}>🔒</div>
+            <h2 id="sw-demo-gate-title" style={{fontSize:19,fontWeight:700,color:"#0F172A",marginBottom:6}}>You&apos;re in the demo</h2>
+            <p style={{fontSize:14,color:"#64748B",marginBottom:20,lineHeight:1.5}}>Start your free 14-day trial to {demoGate}. The demo data here is sample data and isn&apos;t saved.</p>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <Btn onClick={handleSubscribe} style={{padding:12,fontSize:14}}>Start free trial</Btn>
+              <BtnO onClick={()=>{window.location.href="/login?mode=signin";}} style={{padding:12,fontSize:14}}>I already have an account</BtnO>
+              <span onClick={()=>setDemoGate(null)} style={{fontSize:13,color:"#64748B",cursor:"pointer",marginTop:4}}>Keep exploring the demo</span>
+            </div>
+          </div>
+        </div>}
         {newJobOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={closeNewJob}>
           <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -1328,10 +1402,27 @@ export default function StackedWork() {
               </Card>
             </>}
             {vw==="jobs"&&<>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Jobs</h1><Btn onClick={()=>userId?setNewJobOpen(true):setAuthMode("login")}>+ New Job</Btn></div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Jobs</h1><Btn onClick={()=>userId?setNewJobOpen(true):needAccount("log real jobs")}>+ New Job</Btn></div>
               <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{["all","quoted","scheduled","in-progress","complete"].map(f=><button key={f} className={`sw-fb ${jf===f?"sw-a":""}`} onClick={()=>setJf(f)}>{f==="all"?"All":STC[f]?.label||f}</button>)}</div>
-              {fJ.length===0?<Card style={{padding:40,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🔨</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No jobs yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Add your first job to start tracking revenue.</div><Btn onClick={()=>userId?setNewJobOpen(true):setAuthMode("login")}>+ Add First Job</Btn></Card>
-              :<Card style={{overflow:"hidden"}}>{fJ.map((j:any)=><div key={j.id} className="sw-jm"><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><div><div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {fmtDateNY(j.date)}{j.phone?` · ${j.phone}`:""}</div></div><div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>{j.value==null||j.value===""?<span style={{fontSize:12,color:"#94A3B8",fontWeight:600}}>No price</span>:`$${Number(j.value).toLocaleString()}`}</div></div><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge s={j.status}/>{userId&&j.status!=="complete"&&<select value={j.status} onChange={e=>updateJobStatus(j.id,e.target.value)} style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"'DM Sans'"}}><option value="quoted">→ Quoted</option><option value="scheduled">→ Scheduled</option><option value="in-progress">→ In Progress</option><option value="complete">→ Complete</option></select>}</div></div>)}</Card>}
+              {fJ.length===0?<Card style={{padding:40,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🔨</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No jobs yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Add your first job to start tracking revenue.</div><Btn onClick={()=>userId?setNewJobOpen(true):needAccount("log real jobs")}>+ Add First Job</Btn></Card>
+              :<Card style={{overflow:"hidden"}}>
+                <div className="sw-jh" role="row"><span>Customer</span><span>Type · Date</span><span>Value</span><span>Status</span><span style={{textAlign:"right"}}>Actions</span></div>
+                {fJ.map((j:any)=>{
+                  const price = j.value==null||j.value===""?null:Number(j.value);
+                  const statusSel = userId&&j.status!=="complete"&&<select aria-label={`Change status for ${j.customer}`} value={j.status} onChange={e=>updateJobStatus(j.id,e.target.value)} style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"'DM Sans'"}}><option value="quoted">→ Quoted</option><option value="scheduled">→ Scheduled</option><option value="in-progress">→ In Progress</option><option value="complete">→ Complete</option></select>;
+                  const delBtn = userId&&<button onClick={()=>deleteJob(j)} disabled={deletingJobId===j.id} aria-label={`Delete job for ${j.customer}`} style={{fontSize:11,padding:"3px 10px",borderRadius:6,border:"1px solid #FECACA",background:"#fff",color:"#EF4444",cursor:deletingJobId===j.id?"wait":"pointer",fontFamily:"'DM Sans'",fontWeight:600}}>{deletingJobId===j.id?"Deleting…":"Delete"}</button>;
+                  return <div key={j.id}>
+                  <div className="sw-jm"><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><div><div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {fmtDateNY(j.date)}{j.phone?` · ${j.phone}`:""}</div></div><div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>{price==null?<span style={{fontSize:12,color:"#94A3B8",fontWeight:600}}>No price</span>:`$${price.toLocaleString()}`}</div></div><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge s={j.status}/>{statusSel}<span style={{marginLeft:"auto"}}>{delBtn}</span></div></div>
+                  <div className="sw-jd" role="row">
+                    <div style={{minWidth:0}}><div style={{fontWeight:600,color:"#0F172A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{j.customer}</div>{j.phone&&<div style={{fontSize:12,color:"#94A3B8"}}>{j.phone}</div>}</div>
+                    <div style={{color:"#475569"}}>{j.type}<div style={{fontSize:12,color:"#94A3B8"}}>{fmtDateNY(j.date)}</div></div>
+                    <div style={{fontWeight:700,color:"#0F172A"}}>{price==null?<span style={{fontSize:12,color:"#94A3B8",fontWeight:600}}>No price</span>:`$${price.toLocaleString()}`}</div>
+                    <div><Badge s={j.status}/></div>
+                    <div style={{display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap"}}>{statusSel}{delBtn}{!userId&&<span style={{fontSize:11,color:"#94A3B8"}}>Demo</span>}</div>
+                  </div>
+                  </div>;
+                })}
+              </Card>}
             </>}
             {vw==="photos"&&<>
               <input ref={beforeRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handlePhotoFile(f,"before");e.target.value="";}}/>
@@ -1391,10 +1482,10 @@ export default function StackedWork() {
                   </div>}
             </>}
             {vw==="customers"&&<>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Customers</h1><Btn>+ Add</Btn></div>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Customers</h1><Btn onClick={()=>{if(!userId){needAccount("add clients");return;}resetNewJobForm();setNewJobOpen(true);}} title="Clients are created from jobs: add a job for the new client">+ Add</Btn></div>
               {activeJobs.length===0
-                ? <Card style={{padding:"40px 20px",textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>👥</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No clients yet</div><div style={{fontSize:13,color:"#94A3B8"}}>Clients will appear here once you add jobs.</div></Card>
-                : <Card style={{overflow:"hidden"}}>{[...new Map(activeJobs.map((j:any)=>[j.customer,j])).values()].map((job:any,i:number)=>{const cj=activeJobs.filter((j:any)=>j.customer===job.customer);const tot=cj.reduce((a:number,j:any)=>a+Number(j.value),0);return<div key={i} style={{padding:"14px 18px",borderBottom:"1px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:36,height:36,borderRadius:"50%",background:`hsl(${i*45},60%,90%)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:`hsl(${i*45},60%,35%)`}}>{job.customer.charAt(0)}</div><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{job.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{job.phone||"—"}</div></div></div><div style={{textAlign:"right"}}><div style={{fontWeight:600,fontSize:13}}>${tot.toLocaleString()}</div><div style={{fontSize:11,color:"#94A3B8"}}>{cj.length} job{cj.length!==1?"s":""}</div></div></div>})}</Card>}
+                ? <Card style={{padding:"40px 20px",textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>👥</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No clients yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Clients will appear here once you add jobs.</div>{userId&&<Btn onClick={()=>{resetNewJobForm();setNewJobOpen(true);}}>+ Add a client job</Btn>}</Card>
+                : <Card style={{overflow:"hidden"}}>{[...new Map(activeJobs.map((j:any)=>[j.customer,j])).values()].map((job:any,i:number)=>{const cj=activeJobs.filter((j:any)=>j.customer===job.customer);const tot=cj.reduce((a:number,j:any)=>a+(Number(j.value)||0),0);return<div key={i} style={{padding:"14px 18px",borderBottom:"1px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:36,height:36,borderRadius:"50%",background:`hsl(${i*45},60%,90%)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:`hsl(${i*45},60%,35%)`}}>{job.customer.charAt(0)}</div><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{job.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{job.phone||"—"}</div></div></div><div style={{textAlign:"right"}}><div style={{fontWeight:600,fontSize:13}}>${tot.toLocaleString()}</div><div style={{fontSize:11,color:"#94A3B8"}}>{cj.length} job{cj.length!==1?"s":""}</div></div></div>})}</Card>}
             </>}
             {vw==="leads"&&<>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
@@ -1611,7 +1702,7 @@ export default function StackedWork() {
               return (<>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Estimates</h1>
-                  <Btn onClick={()=>userId?setNewEstimateOpen(true):setAuthMode("login")}>+ New Estimate</Btn>
+                  <Btn onClick={()=>userId?setNewEstimateOpen(true):needAccount("create and send estimates")}>+ New Estimate</Btn>
                 </div>
                 <p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Create and send professional estimates to clients.</p>
                 {dbEstimates.length===0
@@ -1619,7 +1710,7 @@ export default function StackedWork() {
                       <div style={{fontSize:36,marginBottom:12}}>📋</div>
                       <div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No estimates yet</div>
                       <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Build a professional estimate and send it to a client in minutes.</div>
-                      <Btn onClick={()=>userId?setNewEstimateOpen(true):setAuthMode("login")}>Create First Estimate</Btn>
+                      <Btn onClick={()=>userId?setNewEstimateOpen(true):needAccount("create and send estimates")}>Create First Estimate</Btn>
                     </Card>
                   : <Card style={{overflow:"hidden"}}>
                       {dbEstimates.map((est:any, i:number)=>(
@@ -1730,7 +1821,10 @@ export default function StackedWork() {
               </>);
             })()}
             {vw==="profit"&&(()=>{
-              const jobsWithData = dbJobs.filter((j:any) => j.value);
+              // Revenue needs a price; jobs saved without one (value null, allowed since schema_align) are counted separately.
+              const allJobs = activeJobs;
+              const jobsWithData = allJobs.filter((j:any) => Number(j.value) > 0);
+              const unpriced = allJobs.filter((j:any) => !(Number(j.value) > 0));
               const jobsWithHours = jobsWithData.filter((j:any) => j.hours_worked > 0);
               const totalRevenue = jobsWithData.reduce((a:number,j:any)=>a+Number(j.value),0);
               const totalCost = jobsWithData.reduce((a:number,j:any)=>a+Number(j.material_cost||0),0);
@@ -1740,9 +1834,9 @@ export default function StackedWork() {
                 ? Math.round(jobsWithHours.reduce((a:number,j:any)=>a+((Number(j.value)-Number(j.material_cost||0))/Number(j.hours_worked)),0)/jobsWithHours.length)
                 : null;
               // Per job-type breakdown
-              const JOB_TYPES = ["General","Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","Other"];
-              const byType = JOB_TYPES.map(t=>{
-                const jt = jobsWithData.filter((j:any)=>j.type===t);
+              const typesPresent = [...new Set(jobsWithData.map((j:any)=>j.type||"General"))] as string[];
+              const byType = typesPresent.map(t=>{
+                const jt = jobsWithData.filter((j:any)=>(j.type||"General")===t);
                 if(!jt.length) return null;
                 const rev = jt.reduce((a:number,j:any)=>a+Number(j.value),0);
                 const cost = jt.reduce((a:number,j:any)=>a+Number(j.material_cost||0),0);
@@ -1762,7 +1856,9 @@ export default function StackedWork() {
                 <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Profit Intelligence</h1>
                 <p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Know which jobs actually make you money.</p>
                 {jobsWithData.length===0
-                  ? <Card style={{padding:"48px 20px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>💰</div><div style={{fontWeight:700,fontSize:16,color:"#0F172A",marginBottom:6}}>No job data yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Add jobs with material costs and hours to see your profitability breakdown.</div><Btn onClick={()=>{setVw("jobs");setNewJobOpen(true)}}>+ Add First Job</Btn></Card>
+                  ? (allJobs.length===0
+                    ? <Card style={{padding:"48px 20px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>💰</div><div style={{fontWeight:700,fontSize:16,color:"#0F172A",marginBottom:6}}>No job data yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Add jobs with a price, material costs and hours to see your profitability breakdown.</div><Btn onClick={()=>{if(!userId){needAccount("log real jobs");return;}resetNewJobForm();setVw("jobs");setNewJobOpen(true)}}>+ Add First Job</Btn></Card>
+                    : <Card style={{padding:"48px 20px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>🏷️</div><div style={{fontWeight:700,fontSize:16,color:"#0F172A",marginBottom:6}}>Add a price to see profit</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>You have {allJobs.length} job{allJobs.length!==1?"s":""}, but none has a price yet. Profit is the job price minus material costs: fill in Price (and Materials and Hours, if you track them) when you add a job.</div><Btn onClick={()=>{if(!userId){needAccount("log real jobs");return;}resetNewJobForm();setVw("jobs");setNewJobOpen(true)}}>+ Add a priced job</Btn></Card>)
                   : <>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
                       {[
@@ -1776,6 +1872,7 @@ export default function StackedWork() {
                         <div style={{fontSize:11,color:"#94A3B8"}}>{s.s}</div>
                       </div>)}
                     </div>
+                    {unpriced.length>0&&<div style={{fontSize:12,color:"#94A3B8",marginBottom:12}}>{unpriced.length} job{unpriced.length!==1?"s":""} without a price {unpriced.length!==1?"aren't":"isn't"} counted.</div>}
                     {best&&worst&&best.type!==worst.type&&<Card style={{padding:"14px 16px",marginBottom:16,background:"#FFFBEB",border:"1px solid #FDE68A"}}>
                       <div style={{fontSize:12,fontWeight:700,color:"#92400E",marginBottom:4}}>AI Insight</div>
                       <div style={{fontSize:13,color:"#78350F"}}>Your <strong>{best.type}</strong> jobs have a {best.margin}% margin — your best. <strong>{worst.type}</strong> jobs are your lowest at {worst.margin}%. Consider whether low-margin jobs are worth your time.</div>
@@ -1954,7 +2051,7 @@ export default function StackedWork() {
           </main>
         </div>
         <div className="sw-bn">{nv.map(n=><button key={n.id} className={`sw-bi ${vw===n.id?"sw-a":""}`} onClick={()=>setVw(n.id)}><span className="sw-ic">{n.ic}</span><span className="sw-lb">{n.lb}</span></button>)}</div>
-        <ChatWidget mode="contractor" />
+        <ChatWidget mode="contractor" getAccessToken={getAccessToken} />
       </div>
     );
   }
@@ -2158,7 +2255,6 @@ export default function StackedWork() {
         </section>
       )}
       <section style={{padding:"100px 24px",maxWidth:1100,margin:"0 auto",position:"relative"}}>
-        <div style={{position:"absolute",top:0,right:0,width:"50%",height:"100%",backgroundImage:"url(/living.jpg)",backgroundSize:"cover",backgroundPosition:"center",opacity:0.1,maskImage:"linear-gradient(to left,rgba(0,0,0,0.5),transparent)",WebkitMaskImage:"linear-gradient(to left,rgba(0,0,0,0.5),transparent)"}} />
         <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.featLabel}</div>
         <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:56,maxWidth:500}}>{t.featTitle} <span style={{color:"rgba(245,240,235,0.3)"}}>{t.featSub}</span></h2>
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:20}}>
@@ -2299,7 +2395,7 @@ export default function StackedWork() {
         </div>
       </footer>
       {toastStack}
-      <ChatWidget mode="contractor" />
+      <ChatWidget mode="contractor" getAccessToken={getAccessToken} />
     </div>
   );
 }

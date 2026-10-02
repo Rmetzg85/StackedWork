@@ -15,3 +15,4 @@ tsconfig.tsbuildinfo
 
 # Misc
 .DS_Store
+/.tmp-test
