@@ -42,7 +42,7 @@ export default async function EstimatePage({ params }: { params: { token: string
             <div>
               <h1 style={{ fontSize: 26, fontWeight: 800, color: "#fff", marginBottom: 4 }}>Estimate</h1>
               <div style={{ fontSize: 13, color: "rgba(255,255,255,0.55)" }}>
-                Created {new Date(estimate.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                Created {new Date(estimate.created_at).toLocaleDateString("en-US", { timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric" })}
               </div>
             </div>
             <div style={{ textAlign: "right" }}>
@@ -68,7 +68,7 @@ export default async function EstimatePage({ params }: { params: { token: string
               <div style={{ fontWeight: 600, fontSize: 15, color: "#0F172A", marginBottom: 3 }}>{estimate.job_type || "General"}</div>
               {estimate.valid_until && (
                 <div style={{ fontSize: 13, color: isExpired ? "#EF4444" : "#64748B" }}>
-                  Valid until: {new Date(estimate.valid_until + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                  Valid until: {new Date(estimate.valid_until + "T12:00:00Z").toLocaleDateString("en-US", { timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric" })}
                 </div>
               )}
             </div>

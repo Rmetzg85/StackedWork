@@ -48,7 +48,7 @@ export async function POST(request) {
 
         if (event.type === "customer.subscription.created") {
           const trialEnd = subscription.trial_end
-            ? new Date(subscription.trial_end * 1000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+            ? new Date(subscription.trial_end * 1000).toLocaleDateString("en-US", { timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric" })
             : null;
           await notifyOwner(
             `🎉 New StackedWork subscriber — ${email}`,

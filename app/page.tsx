@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import ChatWidget from "./components/ChatWidget";
 import { captureFirstTouch } from "./lib/first-touch";
 import { parseVoiceToJobLocal, JOB_TYPES } from "./lib/parse-job-local";
+import { todayNY, daysAgoNY, toDateKeyNY, fmtDateNY, yearNY, APP_TZ } from "./lib/dates";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -84,7 +85,7 @@ export default function StackedWork() {
   const [njType, setNjType] = useState("General");
   const [njValue, setNjValue] = useState("");
   const [njStatus, setNjStatus] = useState("quoted");
-  const [njDate, setNjDate] = useState(new Date().toISOString().split("T")[0]);
+  const [njDate, setNjDate] = useState(todayNY());
   const [njNotes, setNjNotes] = useState("");
   const [njHours, setNjHours] = useState("");
   const [njMaterialCost, setNjMaterialCost] = useState("");
@@ -110,7 +111,7 @@ export default function StackedWork() {
   const [rcPreview, setRcPreview] = useState<string|null>(null);
   const [rcAmount, setRcAmount] = useState("");
   const [rcCategory, setRcCategory] = useState("Materials");
-  const [rcDate, setRcDate] = useState(new Date().toISOString().split("T")[0]);
+  const [rcDate, setRcDate] = useState(todayNY());
   const [rcDesc, setRcDesc] = useState("");
   const [rcUploading, setRcUploading] = useState(false);
   const [rcErr, setRcErr] = useState<string|null>(null);
@@ -602,7 +603,7 @@ export default function StackedWork() {
       if (error) throw error;
       if (data) setDbReceipts(prev => [data, ...prev]);
       setRcFile(null); setRcPreview(null); setRcAmount(""); setRcCategory("Materials");
-      setRcDate(new Date().toISOString().split("T")[0]); setRcDesc("");
+      setRcDate(todayNY()); setRcDesc("");
       setRcView("list");
     } catch (err: any) { setRcErr(err.message || "Upload failed. Please try again."); toastErr("Couldn't save receipt", err); }
     finally { setRcUploading(false); }
@@ -669,7 +670,7 @@ export default function StackedWork() {
   }, []);
   const resetNewJobForm = () => {
     setTypedJob(""); setVoiceTranscript(""); setVoiceError(null); setParsedReview(null);
-    setNjCustomer(""); setNjPhone(""); setNjAddress(""); setNjTime(""); setNjType("General"); setNjValue(""); setNjStatus("quoted"); setNjDate(new Date().toISOString().split("T")[0]); setNjNotes(""); setNjHours(""); setNjMaterialCost(""); setNjError(null);
+    setNjCustomer(""); setNjPhone(""); setNjAddress(""); setNjTime(""); setNjType("General"); setNjValue(""); setNjStatus("quoted"); setNjDate(todayNY()); setNjNotes(""); setNjHours(""); setNjMaterialCost(""); setNjError(null);
   };
   const closeNewJob = () => {
     abortVoiceEntry();
@@ -716,7 +717,7 @@ export default function StackedWork() {
 
   const updateJobStatus = async (id: string, status: string) => {
     const updates: any = { status };
-    if (status === "complete") updates.completed = new Date().toISOString().split("T")[0];
+    if (status === "complete") updates.completed = todayNY();
     const { error } = await supabase.from("jobs").update(updates).eq("id", id).eq("contractor_id", userId);
     if (error) { toastErr("Couldn't update job", error); return; }
     setDbJobs(prev => prev.map(j => j.id === id ? { ...j, ...updates } : j));
@@ -745,17 +746,22 @@ export default function StackedWork() {
   }, [userId]);
 
   const activeJobs = userId ? dbJobs : JOBS;
-  const now = new Date();
+  // Revenue buckets by America/New_York calendar date (YYYY-MM-DD string compare, no UTC shift).
+  const todayKey = todayNY();
+  const wkAgoKey = daysAgoNY(6); // today + previous 6 days
   const done = activeJobs.filter((j:any)=>j.status==="complete");
-  const moR = done.filter((j:any)=>{if(!j.completed)return false;const d=new Date(j.completed);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()}).reduce((a:number,j:any)=>a+Number(j.value),0);
-  const wkAgo = new Date(now.getTime()-7*24*60*60*1000);
-  const wkR = done.filter((j:any)=>j.completed&&new Date(j.completed)>=wkAgo).reduce((a:number,j:any)=>a+Number(j.value),0);
-  const ytd = done.filter((j:any)=>j.completed&&new Date(j.completed).getFullYear()===now.getFullYear()).reduce((a:number,j:any)=>a+Number(j.value),0);
+  const doneKey = (j:any) => toDateKeyNY(j.completed);
+  const sumVal = (arr:any[]) => arr.reduce((a:number,j:any)=>a+(Number(j.value)||0),0);
+  const doneToday = done.filter((j:any)=>doneKey(j)===todayKey);
+  const tdR = sumVal(doneToday);
+  const moR = sumVal(done.filter((j:any)=>doneKey(j)?.slice(0,7)===todayKey.slice(0,7)));
+  const wkR = sumVal(done.filter((j:any)=>{const k=doneKey(j);return !!k&&k>=wkAgoKey&&k<=todayKey;}));
+  const ytd = sumVal(done.filter((j:any)=>doneKey(j)?.slice(0,4)===todayKey.slice(0,4)));
   const gl = 12000;
   const fJ = jf==="all"?activeJobs:activeJobs.filter((j:any)=>j.status===jf);
   const activeLeads = userId ? dbLeads : LEADS;
   const lMsg = (l: any) => l.msg || l.message || "";
-  const lTs = (l: any) => l.ts || (l.created_at ? new Date(l.created_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "");
+  const lTs = (l: any) => l.ts || (l.created_at ? new Date(l.created_at).toLocaleString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "");
   const markRead = async (id: any) => {
     if (userId) {
       const { error } = await supabase.from("leads").update({ read: true }).eq("id", id).eq("contractor_id", userId);
@@ -1153,7 +1159,7 @@ export default function StackedWork() {
                   {aiLoading?<><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#94A3B8",animation:"pulseMk 1s infinite"}}/>Getting prices...</>:<>🤖 AI Price Suggestions</>}
                 </button>
               </div>
-              {aiLoading&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534"}}>Analyzing {neJobType} pricing for {new Date().getFullYear()}...</div>}
+              {aiLoading&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534"}}>Analyzing {neJobType} pricing for {yearNY()}...</div>}
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
                 {neLineItems.map((it,i)=>(
                   <div key={it.id} style={{display:"grid",gridTemplateColumns:"2fr 0.7fr 0.7fr 0.8fr 0.8fr auto",gap:6,alignItems:"center"}}>
@@ -1272,7 +1278,7 @@ export default function StackedWork() {
                 );
               })()}
               <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:18}}>Revenue Dashboard</h1>
-              <div className="sw-sg">{[{l:"Today",v:"$0",s:"0 jobs"},{l:"This Week",v:`$${wkR.toLocaleString()}`,s:"last 7 days"},{l:"This Month",v:`$${moR.toLocaleString()}`,s:`$${gl.toLocaleString()} goal`},{l:"YTD 2026",v:`$${ytd.toLocaleString()}`,s:`${done.length} jobs`}].map((s,i)=>
+              <div className="sw-sg">{[{l:"Today",v:`$${tdR.toLocaleString()}`,s:`${doneToday.length} job${doneToday.length!==1?"s":""} completed`},{l:"This Week",v:`$${wkR.toLocaleString()}`,s:"last 7 days"},{l:"This Month",v:`$${moR.toLocaleString()}`,s:`$${gl.toLocaleString()} goal`},{l:`YTD ${todayKey.slice(0,4)}`,v:`$${ytd.toLocaleString()}`,s:`${done.filter((j:any)=>doneKey(j)?.slice(0,4)===todayKey.slice(0,4)).length} jobs`}].map((s,i)=>
                 <div key={i} style={{background:"linear-gradient(135deg,#0F172A,#1E293B)",borderRadius:12,padding:16,color:"#fff"}}><div style={{fontSize:10,color:"#94A3B8",fontFamily:"'Space Mono'",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:6}}>{s.l}</div><div style={{fontSize:22,fontWeight:700,marginBottom:2}}>{s.v}</div><div style={{fontSize:11,color:"#94A3B8"}}>{s.s}</div></div>
               )}</div>
               <Card style={{padding:20,marginBottom:20}}>
@@ -1282,14 +1288,14 @@ export default function StackedWork() {
               </Card>
               <Card style={{overflow:"hidden",marginBottom:20}}>
                 <div style={{padding:"14px 18px",borderBottom:"1px solid #E2E8F0",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:14,fontWeight:600,color:"#0F172A"}}>Recent Jobs</span><Btn onClick={()=>setVw("jobs")} style={{fontSize:11,padding:"5px 12px"}}>View All</Btn></div>
-                {activeJobs.length===0?<div style={{padding:"28px 18px",textAlign:"center",color:"#94A3B8",fontSize:13}}>No jobs yet — <span style={{color:GD,cursor:"pointer",fontWeight:600}} onClick={()=>setVw("jobs")}>add your first job</span></div>:activeJobs.slice(0,4).map((j:any,i:number)=><div key={j.id||i} style={{padding:"12px 18px",borderBottom:i<3?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.date}</div></div><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontWeight:600,fontSize:13}}>{j.value==null||j.value===""?"No price":`$${Number(j.value).toLocaleString()}`}</span><Badge s={j.status}/></div></div>)}
+                {activeJobs.length===0?<div style={{padding:"28px 18px",textAlign:"center",color:"#94A3B8",fontSize:13}}>No jobs yet — <span style={{color:GD,cursor:"pointer",fontWeight:600}} onClick={()=>setVw("jobs")}>add your first job</span></div>:activeJobs.slice(0,4).map((j:any,i:number)=><div key={j.id||i} style={{padding:"12px 18px",borderBottom:i<3?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {fmtDateNY(j.date)}</div></div><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontWeight:600,fontSize:13}}>{j.value==null||j.value===""?"No price":`$${Number(j.value).toLocaleString()}`}</span><Badge s={j.status}/></div></div>)}
               </Card>
             </>}
             {vw==="jobs"&&<>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Jobs</h1><Btn onClick={()=>userId?setNewJobOpen(true):setAuthMode("login")}>+ New Job</Btn></div>
               <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{["all","quoted","scheduled","in-progress","complete"].map(f=><button key={f} className={`sw-fb ${jf===f?"sw-a":""}`} onClick={()=>setJf(f)}>{f==="all"?"All":STC[f]?.label||f}</button>)}</div>
               {fJ.length===0?<Card style={{padding:40,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🔨</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No jobs yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Add your first job to start tracking revenue.</div><Btn onClick={()=>userId?setNewJobOpen(true):setAuthMode("login")}>+ Add First Job</Btn></Card>
-              :<Card style={{overflow:"hidden"}}>{fJ.map((j:any)=><div key={j.id} className="sw-jm"><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><div><div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.date}{j.phone?` · ${j.phone}`:""}</div></div><div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>{j.value==null||j.value===""?<span style={{fontSize:12,color:"#94A3B8",fontWeight:600}}>No price</span>:`$${Number(j.value).toLocaleString()}`}</div></div><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge s={j.status}/>{userId&&j.status!=="complete"&&<select value={j.status} onChange={e=>updateJobStatus(j.id,e.target.value)} style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"'DM Sans'"}}><option value="quoted">→ Quoted</option><option value="scheduled">→ Scheduled</option><option value="in-progress">→ In Progress</option><option value="complete">→ Complete</option></select>}</div></div>)}</Card>}
+              :<Card style={{overflow:"hidden"}}>{fJ.map((j:any)=><div key={j.id} className="sw-jm"><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><div><div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {fmtDateNY(j.date)}{j.phone?` · ${j.phone}`:""}</div></div><div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>{j.value==null||j.value===""?<span style={{fontSize:12,color:"#94A3B8",fontWeight:600}}>No price</span>:`$${Number(j.value).toLocaleString()}`}</div></div><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge s={j.status}/>{userId&&j.status!=="complete"&&<select value={j.status} onChange={e=>updateJobStatus(j.id,e.target.value)} style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"'DM Sans'"}}><option value="quoted">→ Quoted</option><option value="scheduled">→ Scheduled</option><option value="in-progress">→ In Progress</option><option value="complete">→ Complete</option></select>}</div></div>)}</Card>}
             </>}
             {vw==="photos"&&<>
               <input ref={beforeRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handlePhotoFile(f,"before");e.target.value="";}}/>
@@ -1324,7 +1330,7 @@ export default function StackedWork() {
                 ? <Card style={{padding:"48px 20px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>📸</div><div style={{fontWeight:700,fontSize:16,color:"#0F172A",marginBottom:6}}>No photos yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Upload before & after photos to build your portfolio and share to social media.</div>{userId&&<Btn onClick={()=>setPhotoView("upload")}>+ Add First Photos</Btn>}</Card>
                 : <div style={{display:"flex",flexDirection:"column",gap:14}}>
                     {dbPhotos.map((p,i)=>{
-                      const d=p.created_at?new Date(p.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"";
+                      const d=p.created_at?new Date(p.created_at).toLocaleDateString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",year:"numeric"}):"";
                       const jtEmoji:any={"bathroom":"🚿","kitchen":"🍳","paint":"🎨","exterior":"🏡","deck":"🪵","other":"🔧"};
                       return<Card key={p.id||i} style={{overflow:"hidden"}}>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
@@ -1397,7 +1403,7 @@ export default function StackedWork() {
                 ? <Card style={{padding:"28px 20px",textAlign:"center"}}><div style={{fontSize:32,marginBottom:10}}>🏡</div><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:4}}>No homeowner requests yet</div><div style={{fontSize:12,color:"#94A3B8"}}>Homeowner project requests will show here when the marketplace is available.</div></Card>
                 : <div style={{display:"flex",flexDirection:"column",gap:10}}>
                     {dbHomeownerLeads.map((l:any,i:number)=>{
-                      const d=l.created_at?new Date(l.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
+                      const d=l.created_at?new Date(l.created_at).toLocaleDateString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
                       const jtEmoji:any={"bathroom":"🚿","kitchen":"🍳","paint":"🎨","exterior":"🏡","deck":"🪵","electrical":"⚡","plumbing":"🔧","hvac":"❄️","general":"🏗️","other":"🛠️"};
                       return(
                         <Card key={l.id||i} style={{padding:16,borderLeft:`4px solid #4A82C4`}}>
@@ -1424,10 +1430,10 @@ export default function StackedWork() {
             </>}
             {vw==="receipts"&&(()=>{
               const RC_CATS = ["Materials","Fuel/Gas","Equipment","Tools","Subcontractor","Insurance","Office/Software","Other"];
-              const nowY = new Date().getFullYear();
-              const nowM = new Date().getMonth();
-              const ytdR = dbReceipts.filter((r:any)=>new Date(r.date).getFullYear()===nowY).reduce((a:number,r:any)=>a+Number(r.amount),0);
-              const moR2 = dbReceipts.filter((r:any)=>{const d=new Date(r.date);return d.getFullYear()===nowY&&d.getMonth()===nowM}).reduce((a:number,r:any)=>a+Number(r.amount),0);
+              const nowKey = todayNY();
+              const nowY = yearNY();
+              const ytdR = dbReceipts.filter((r:any)=>toDateKeyNY(r.date)?.slice(0,4)===nowKey.slice(0,4)).reduce((a:number,r:any)=>a+Number(r.amount),0);
+              const moR2 = dbReceipts.filter((r:any)=>toDateKeyNY(r.date)?.slice(0,7)===nowKey.slice(0,7)).reduce((a:number,r:any)=>a+Number(r.amount),0);
               const filtered = rcFilter==="all" ? dbReceipts : dbReceipts.filter((r:any)=>r.category===rcFilter);
               return(<>
                 <input ref={rcFileRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handleReceiptFile(f);e.target.value="";}}/>
@@ -1487,7 +1493,7 @@ export default function StackedWork() {
                             <div style={{flex:1,minWidth:0}}>
                               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                                 <div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>${Number(rc.amount).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-                                <div style={{fontSize:11,color:"#94A3B8"}}>{new Date(rc.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                                <div style={{fontSize:11,color:"#94A3B8"}}>{fmtDateNY(rc.date)}</div>
                               </div>
                               <div style={{display:"flex",gap:6,alignItems:"center",marginTop:3}}>
                                 <span style={{fontSize:10,fontWeight:700,background:"#EEF2FF",color:"#3730A3",padding:"2px 8px",borderRadius:100}}>{rc.category}</span>
@@ -1584,7 +1590,7 @@ export default function StackedWork() {
                         <div key={est.id} style={{padding:"14px 18px",borderBottom:i<dbEstimates.length-1?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setEstimateDetail(est)}>
                           <div>
                             <div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{est.customer_name}</div>
-                            <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{est.job_type} · {new Date(est.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}{est.customer_email?` · ${est.customer_email}`:""}</div>
+                            <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{est.job_type} · {new Date(est.created_at).toLocaleDateString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",year:"numeric"})}{est.customer_email?` · ${est.customer_email}`:""}</div>
                           </div>
                           <div style={{display:"flex",alignItems:"center",gap:10}}>
                             <span style={{fontWeight:700,fontSize:14}}>${Number(est.total).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
@@ -1601,7 +1607,7 @@ export default function StackedWork() {
                     <div style={{background:"linear-gradient(135deg,#132440,#1E3A5F)",borderRadius:"16px 16px 0 0",padding:"20px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <div>
                         <div style={{fontWeight:700,fontSize:16,color:"#fff"}}>{estimateDetail.customer_name}</div>
-                        <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginTop:2}}>{estimateDetail.job_type} · {new Date(estimateDetail.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                        <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginTop:2}}>{estimateDetail.job_type} · {new Date(estimateDetail.created_at).toLocaleDateString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",year:"numeric"})}</div>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         {!editingEstimate&&<EstBadge s={estimateDetail.status}/>}
@@ -1763,7 +1769,7 @@ export default function StackedWork() {
               <div style={{padding:"40px 20px",textAlign:"center",color:"#94A3B8"}}><div style={{fontSize:36,marginBottom:12}}>🔔</div><div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>No follow-ups yet</div><div style={{fontSize:12}}>Completed jobs will appear here as reminders to re-engage past clients.</div></div>
             </>}
             {vw==="settings"&&(()=>{
-              const fmtDate = (iso?: string|null) => iso ? new Date(iso).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}) : null;
+              const fmtDate = (iso?: string|null) => iso ? fmtDateNY(iso,{month:"long",day:"numeric",year:"numeric"}) : null;
               const statusLabel = subStatus==="trialing" ? "Free Trial" : subStatus==="active" ? "Active" : subStatus==="past_due" ? "Past Due" : (subStatus==="cancelled"||subStatus==="canceled") ? "Cancelled" : subStatus==="incomplete" || subStatus==="incomplete_expired" ? "Incomplete" : subStatus==="unpaid" ? "Unpaid" : "No active subscription";
               const statusColor = subStatus==="active"||subStatus==="trialing" ? "#22C55E" : subStatus==="past_due"||subStatus==="unpaid" ? "#F59E0B" : subStatus==="cancelled" ? "#EF4444" : "#94A3B8";
               const trialEnd = fmtDate(subDetail?.trial_end);
