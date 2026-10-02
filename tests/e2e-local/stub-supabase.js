@@ -25,6 +25,21 @@ let MODE = { allRead: false, unpriced: false };
 const STORAGE_REMOVED = [];
 const USER = { id: UID, aud: "authenticated", role: "authenticated", email: "a.contractor@example.test", user_metadata: { first_run_done: true }, app_metadata: {}, created_at: "2026-09-01T00:00:00Z" };
 const log = [];
+// manage-billing fixtures (LOCAL ONLY). Each token is a different verified user.
+const BU = (id, email) => ({ id, aud: "authenticated", role: "authenticated", email, user_metadata: {}, app_metadata: {} });
+const BILLING_USERS = {
+  "email-local-token": BU("33333333-3333-4333-8333-333333333333", "Email.Only@Example.test"),
+  "linked-local-token": BU("44444444-4444-4444-8444-444444444444", "linked.elsewhere@example.test"),
+  "stripe-local-token": BU("66666666-6666-4666-8666-666666666666", "stripe.only@example.test"),
+  "norow-local-token": BU("77777777-7777-4777-8777-777777777777", "nobody@example.test"),
+};
+const SUBS = [
+  { user_id: UID, email: "a.contractor@example.test", stripe_customer_id: "cus_OWN_A", status: "active", updated_at: "2026-10-01T00:00:00Z" },
+  { user_id: UID, email: "a.contractor@example.test", stripe_customer_id: "cus_OLD_A", status: "canceled", updated_at: "2026-09-01T00:00:00Z" },
+  { user_id: "22222222-2222-4222-8222-222222222222", email: "victim.b@example.test", stripe_customer_id: "cus_VICTIM_B", status: "active", updated_at: "2026-10-01T00:00:00Z" },
+  { user_id: null, email: "email.only@example.test", stripe_customer_id: "cus_EMAILROW_E", status: "trialing", updated_at: "2026-10-01T00:00:00Z" },
+  { user_id: "55555555-5555-4555-8555-555555555555", email: "linked.elsewhere@example.test", stripe_customer_id: "cus_LINKED_OTHER", status: "active", updated_at: "2026-10-01T00:00:00Z" },
+];
 http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
   const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS", "Access-Control-Expose-Headers": "*" };
@@ -34,7 +49,9 @@ http.createServer((req, res) => {
   console.log(req.method, u.pathname, u.search.slice(0, 160));
   if (u.pathname === "/auth/v1/user") {
     const tok = (req.headers.authorization || "").replace(/^Bearer /i, "");
-    return tok === "good-local-token" ? send(200, USER) : send(401, { code: 401, msg: "invalid JWT" });
+    if (tok === "good-local-token") return send(200, USER);
+    if (BILLING_USERS[tok]) return send(200, BILLING_USERS[tok]);
+    return send(401, { code: 401, msg: "invalid JWT" });
   }
   if (u.pathname === "/__mode") { for (const [k, v] of u.searchParams) MODE[k] = v === "1"; return send(200, MODE); }
   if (u.pathname === "/__storage_removed") return send(200, STORAGE_REMOVED);
@@ -61,6 +78,14 @@ http.createServer((req, res) => {
     return send(200, single ? rows[0] || null : rows);
   }
   if (t === "profiles" && u.searchParams.get("select") === "name") return send(200, single ? { name: "Saved Profile Name" } : [{ name: "Saved Profile Name" }]);
+  if (t === "subscriptions" && (req.headers.authorization || "") === "Bearer service-local-key") {
+    // manage-billing (service role, after auth): honour the user_id / email(ilike) filters like PostgREST would.
+    const uid = (u.searchParams.get("user_id") || "").replace(/^eq\./, "");
+    const em = (u.searchParams.get("email") || "").replace(/^ilike\./, "").replace(/\\(.)/g, "$1").toLowerCase();
+    const rows = SUBS.filter((r) => (!uid || r.user_id === uid) && (!em || (r.email || "").toLowerCase() === em));
+    console.log("SERVICE subscriptions user_id=", uid || "-", "email~", em || "-", "->", rows.map((r) => r.stripe_customer_id).join(",") || "none");
+    return send(200, rows);
+  }
   if (t === "subscriptions") { const row = { status: "active", plan: "monthly", stripe_customer_id: null, current_period_end: "2026-11-01T00:00:00Z", trial_end: null, cancel_at: null, cancelled_at: null, updated_at: "2026-10-01T00:00:00Z", user_id: UID, email: USER.email }; return send(200, single ? row : [row]); }
   if (t === "jobs" && req.method === "DELETE") {
     const id = (u.searchParams.get("id") || "").replace(/^eq\./, ""); const cid = (u.searchParams.get("contractor_id") || "").replace(/^eq\./, "");

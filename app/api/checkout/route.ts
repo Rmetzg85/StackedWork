@@ -3,8 +3,9 @@ import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 
 // Optional: if the caller sends a Supabase access token, link the Stripe subscription to that
-// user id (metadata.user_id). Never trusts a user id from the request body.
-async function verifiedUserId(request: Request): Promise<string | null> {
+// user id (metadata.user_id). Never trusts a user id from the request body, and only reuses an existing
+// Stripe customer when the email is the verified one.
+async function verifiedUser(request: Request): Promise<{ id: string; email: string | null } | null> {
   const auth = request.headers.get("authorization") || "";
   const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -13,7 +14,7 @@ async function verifiedUserId(request: Request): Promise<string | null> {
   try {
     const sb = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
     const { data, error } = await sb.auth.getUser(token);
-    return error ? null : data?.user?.id ?? null;
+    return error || !data?.user ? null : { id: data.user.id, email: data.user.email ?? null };
   } catch {
     return null;
   }
@@ -25,8 +26,12 @@ export async function POST(request) {
       apiVersion: "2025-02-24.acacia",
     });
     const body = await request.json();
-    const { email, name, utm } = body;
-    const userId = await verifiedUserId(request);
+    const { name, utm } = body;
+    const user = await verifiedUser(request);
+    const userId = user?.id ?? null;
+    // Signed in: use the verified email, never the body's. Not signed in (signup with email confirmation on):
+    // the body email only pre-fills Checkout; we don't attach the session to an existing Stripe customer by it.
+    const email: string | undefined = user?.email || (typeof body?.email === "string" ? body.email.trim().slice(0, 254) : "") || undefined;
 
     // First-touch UTM (optional) → subscription metadata. Whitelisted keys, short strings only.
     const utmMeta: Record<string, string> = {};
@@ -36,7 +41,7 @@ export async function POST(request) {
     }
 
     let customer;
-    if (email) {
+    if (email && user?.email) {
       const existing = await stripe.customers.list({ email, limit: 1 });
       if (existing.data.length > 0) {
         customer = existing.data[0];

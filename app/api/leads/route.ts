@@ -20,7 +20,12 @@ export async function POST(request: Request) {
 
   const { contractor_id, name, phone, email, message, urgent, job_type, source } = body;
 
-  if (!contractor_id || !name) {
+  // Public website lead form: contractor_id comes from the contractor's public link (/l/<id>) by design.
+  // Validate its shape so junk can't be inserted; the service role only inserts, never reads other rows back.
+  if (typeof contractor_id !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contractor_id)) {
+    return NextResponse.json({ error: "Invalid contractor link." }, { status: 400 });
+  }
+  if (!name) {
     return NextResponse.json(
       { error: "contractor_id and name are required" },
       { status: 400 }
@@ -39,16 +44,12 @@ export async function POST(request: Request) {
   };
   if (job_type) row.job_type = job_type;
 
-  const { data, error } = await supabase
-    .from("leads")
-    .insert(row)
-    .select()
-    .single();
+  const { error } = await supabase.from("leads").insert(row);
 
   if (error) {
     console.error("leads insert error:", error.message, error.code);
     return NextResponse.json({ error: "We couldn't send your request. Please try again." }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, lead: data });
+  return NextResponse.json({ success: true });
 }
