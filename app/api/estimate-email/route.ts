@@ -1,18 +1,38 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "../../lib/require-user";
+
+// Everything interpolated into the email HTML is user-supplied: escape it.
+const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 
 export async function POST(request: Request) {
+  // Signed-in contractors only (otherwise this is an open relay on our Resend key).
+  const auth = await requireUser(request, { missing: "Please sign in to email estimates." });
+  if (auth.response) return auth.response;
   try {
-    const { estimate, contractorName, contractorEmail, shareUrl } = await request.json();
-
-    if (!estimate || !estimate.customer_email) {
-      return NextResponse.json({ error: "Estimate and customer email required" }, { status: 400 });
+    const body = await request.json();
+    const { contractorName } = body || {};
+    const estimate = body?.estimate;
+    const contractorEmail = auth.user.email || null; // reply-to is always the signed-in user, never client-supplied
+    if (!estimate || !estimate.customer_email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(estimate.customer_email))) {
+      return NextResponse.json({ error: "Estimate and a valid customer email are required" }, { status: 400 });
     }
+    // Only allow links to our own public estimate page.
+    const rawShare = typeof body?.shareUrl === "string" ? body.shareUrl : "";
+    const shareUrl = /^https?:\/\/[^/]+\/estimate\/[A-Za-z0-9_-]{8,128}$/.test(rawShare) ? rawShare : "";
 
     if (!process.env.RESEND_API_KEY) {
-      return NextResponse.json({ ok: true, warning: "No email API key configured" });
+      // No silent success: the client keeps the estimate as a draft and shows this message.
+      return NextResponse.json({ error: "Email sending isn't set up yet. Your estimate was saved as a draft; you can share its link instead." }, { status: 503 });
     }
+    const e = {
+      ...estimate,
+      tax_rate: Number(estimate.tax_rate) || 0,
+      customer_name: esc(estimate.customer_name), job_type: esc(estimate.job_type), notes: estimate.notes ? esc(estimate.notes) : "",
+      line_items: (Array.isArray(estimate.line_items) ? estimate.line_items : []).map((it: any) => ({ ...it, description: esc(it?.description), unit: esc(it?.unit), quantity: esc(it?.quantity) })),
+      valid_until: /^\d{4}-\d{2}-\d{2}$/.test(String(estimate.valid_until || "")) ? estimate.valid_until : null,
+    };
 
-    const lineItemsHtml = (estimate.line_items || [])
+    const lineItemsHtml = (e.line_items || [])
       .map(
         (item: any) => `
         <tr>
@@ -24,13 +44,13 @@ export async function POST(request: Request) {
       )
       .join("");
 
-    const validUntilHtml = estimate.valid_until
-      ? `<p style="font-size:13px;color:#64748B;margin:0 0 4px;">Valid until: <strong>${new Date(estimate.valid_until + "T12:00:00Z").toLocaleDateString("en-US", { timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric" })}</strong></p>`
+    const validUntilHtml = e.valid_until
+      ? `<p style="font-size:13px;color:#64748B;margin:0 0 4px;">Valid until: <strong>${new Date(e.valid_until + "T12:00:00Z").toLocaleDateString("en-US", { timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric" })}</strong></p>`
       : "";
 
     const taxHtml =
-      estimate.tax_rate > 0
-        ? `<tr><td colspan="3" style="padding:8px 12px;text-align:right;font-size:13px;color:#64748B;">Tax (${estimate.tax_rate}%)</td><td style="padding:8px 12px;text-align:right;font-size:13px;color:#64748B;">$${Number(estimate.tax_amount).toFixed(2)}</td></tr>`
+      e.tax_rate > 0
+        ? `<tr><td colspan="3" style="padding:8px 12px;text-align:right;font-size:13px;color:#64748B;">Tax (${e.tax_rate}%)</td><td style="padding:8px 12px;text-align:right;font-size:13px;color:#64748B;">$${Number(e.tax_amount).toFixed(2)}</td></tr>`
         : "";
 
     const html = `
@@ -47,14 +67,14 @@ export async function POST(request: Request) {
         <span style="font-weight:700;font-size:16px;color:#fff;">StackedWork</span>
       </div>
       <h1 style="margin:0;font-size:22px;font-weight:700;color:#fff;">Your Estimate is Ready</h1>
-      <p style="margin:6px 0 0;font-size:14px;color:rgba(255,255,255,0.6);">From ${contractorName || "Your Contractor"}</p>
+      <p style="margin:6px 0 0;font-size:14px;color:rgba(255,255,255,0.6);">From ${esc(contractorName || "Your Contractor")}</p>
     </div>
 
     <!-- Body -->
     <div style="background:#fff;padding:28px 32px;border:1px solid #E2E8F0;border-top:none;">
-      <p style="font-size:15px;color:#374151;margin:0 0 20px;">Hi ${estimate.customer_name},</p>
+      <p style="font-size:15px;color:#374151;margin:0 0 20px;">Hi ${e.customer_name},</p>
       <p style="font-size:14px;color:#64748B;margin:0 0 24px;line-height:1.6;">
-        Here is your estimate for the <strong>${estimate.job_type || "project"}</strong> you requested. Please review the details below.
+        Here is your estimate for the <strong>${e.job_type || "project"}</strong> you requested. Please review the details below.
       </p>
 
       <!-- Line Items Table -->
@@ -71,16 +91,16 @@ export async function POST(request: Request) {
           ${lineItemsHtml}
         </tbody>
         <tfoot>
-          <tr><td colspan="3" style="padding:10px 12px;text-align:right;font-size:13px;color:#64748B;">Subtotal</td><td style="padding:10px 12px;text-align:right;font-size:13px;color:#64748B;">$${Number(estimate.subtotal).toFixed(2)}</td></tr>
+          <tr><td colspan="3" style="padding:10px 12px;text-align:right;font-size:13px;color:#64748B;">Subtotal</td><td style="padding:10px 12px;text-align:right;font-size:13px;color:#64748B;">$${Number(e.subtotal).toFixed(2)}</td></tr>
           ${taxHtml}
           <tr style="background:#F0FDF4;">
             <td colspan="3" style="padding:12px;text-align:right;font-size:15px;font-weight:700;color:#0F172A;">Total</td>
-            <td style="padding:12px;text-align:right;font-size:18px;font-weight:800;color:#132440;">$${Number(estimate.total).toFixed(2)}</td>
+            <td style="padding:12px;text-align:right;font-size:18px;font-weight:800;color:#132440;">$${Number(e.total).toFixed(2)}</td>
           </tr>
         </tfoot>
       </table>
 
-      ${estimate.notes ? `<div style="margin:20px 0;padding:14px 16px;background:#F8FAFC;border-left:3px solid #C8E64A;border-radius:4px;"><p style="margin:0;font-size:13px;color:#374151;line-height:1.6;">${estimate.notes}</p></div>` : ""}
+      ${e.notes ? `<div style="margin:20px 0;padding:14px 16px;background:#F8FAFC;border-left:3px solid #C8E64A;border-radius:4px;"><p style="margin:0;font-size:13px;color:#374151;line-height:1.6;">${e.notes}</p></div>` : ""}
 
       ${validUntilHtml}
 
@@ -95,7 +115,7 @@ export async function POST(request: Request) {
     <!-- Footer -->
     <div style="padding:20px 32px;text-align:center;">
       <p style="font-size:12px;color:#94A3B8;margin:0;">Powered by <strong>StackedWork</strong> · Contractor CRM</p>
-      ${contractorEmail ? `<p style="font-size:12px;color:#94A3B8;margin:4px 0 0;">Questions? Reply to this email or contact <a href="mailto:${contractorEmail}" style="color:#4A82C4;">${contractorEmail}</a></p>` : ""}
+      ${contractorEmail ? `<p style="font-size:12px;color:#94A3B8;margin:4px 0 0;">Questions? Reply to this email or contact <a href="mailto:${esc(contractorEmail)}" style="color:#4A82C4;">${esc(contractorEmail)}</a></p>` : ""}
     </div>
 
   </div>
@@ -112,14 +132,15 @@ export async function POST(request: Request) {
         from: "StackedWork <notifications@stackedwork.com>",
         to: estimate.customer_email,
         reply_to: contractorEmail || undefined,
-        subject: `Your ${estimate.job_type || "Project"} Estimate from ${contractorName || "Your Contractor"}`,
+        subject: `Your ${String(estimate.job_type || "Project").slice(0, 60)} Estimate from ${String(contractorName || "Your Contractor").slice(0, 60)}`,
         html,
       }),
     });
 
     if (!res.ok) {
       const err = await res.text();
-      return NextResponse.json({ error: `Email send failed: ${err}` }, { status: 500 });
+      console.error("estimate-email: Resend error", res.status, err.slice(0, 300));
+      return NextResponse.json({ error: `The email provider rejected the message (HTTP ${res.status}). The estimate was not sent.` }, { status: 502 });
     }
 
     return NextResponse.json({ ok: true });
