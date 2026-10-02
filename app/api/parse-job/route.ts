@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { createClient } from "@supabase/supabase-js";
+import { requireUser } from "../../lib/require-user";
 
 // Voice/typed job → structured fields. Same SDK, env var (ANTHROPIC_API_KEY)
 // and model as /api/chat. Requires a signed-in Supabase user (Bearer JWT).
@@ -54,16 +54,8 @@ function sanitize(raw: any): ParsedJob {
 
 export async function POST(request: Request) {
   // 1) Auth: verify the caller's Supabase access token.
-  const auth = request.headers.get("authorization") || "";
-  const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
-  if (!token) return NextResponse.json({ error: "Please sign in to use voice entry." }, { status: 401 });
-
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anon) return NextResponse.json({ error: "Server misconfiguration: missing Supabase env" }, { status: 500 });
-  const supabase = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: userData, error: userErr } = await supabase.auth.getUser(token);
-  if (userErr || !userData?.user) return NextResponse.json({ error: "Your session expired. Please sign in again." }, { status: 401 });
+  const auth = await requireUser(request, { missing: "Please sign in to use voice entry.", invalid: "Your session expired. Please sign in again." });
+  if (auth.response) return auth.response;
 
   // 2) Input
   let transcript = "";

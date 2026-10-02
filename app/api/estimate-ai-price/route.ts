@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { requireUser } from "../../lib/require-user";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(request: Request) {
+  const auth = await requireUser(request, { missing: "Please sign in to use AI pricing." });
+  if (auth.response) return auth.response;
   try {
-    const { jobType, description, location } = await request.json();
+    const body = await request.json();
+    const jobType = typeof body?.jobType === "string" ? body.jobType.slice(0, 80) : "";
+    const description = typeof body?.description === "string" ? body.description.slice(0, 1500) : "";
+    const location = typeof body?.location === "string" ? body.location.slice(0, 120) : "";
 
     if (!jobType) {
       return NextResponse.json({ error: "Job type required" }, { status: 400 });

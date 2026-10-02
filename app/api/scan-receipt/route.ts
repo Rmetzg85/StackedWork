@@ -1,13 +1,25 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "../../lib/require-user";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+const MAX_BASE64 = 7_000_000; // ~5 MB image
+const ALLOWED_MIME = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req, { missing: "Please sign in to scan receipts." });
+  if (auth.response) return auth.response;
   try {
     const { imageBase64, mimeType } = await req.json();
     if (!imageBase64 || !mimeType) {
       return NextResponse.json({ error: "Missing image data" }, { status: 400 });
+    }
+    if (typeof imageBase64 !== "string" || imageBase64.length > MAX_BASE64) {
+      return NextResponse.json({ error: "Image too large (max ~5 MB)." }, { status: 413 });
+    }
+    if (!ALLOWED_MIME.includes(mimeType)) {
+      return NextResponse.json({ error: "Unsupported image type. Use JPG, PNG, GIF or WebP." }, { status: 415 });
     }
 
     const response = await client.messages.create({

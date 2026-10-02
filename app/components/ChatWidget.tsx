@@ -9,9 +9,31 @@ interface Message {
 interface ChatWidgetProps {
   mode: "contractor" | "homeowner";
   accentColor?: string;
+  /** Returns the Supabase access token, or null when logged out. /api/chat requires it. */
+  getAccessToken?: () => Promise<string | null>;
 }
 
-export default function ChatWidget({ mode, accentColor = "#C8E64A" }: ChatWidgetProps) {
+const SIGNUP_NOTE = "The full AI assistant is available once you sign in. Start the free 14-day trial at letstaystacked.com/login?mode=signup.";
+
+// Logged-out (landing / demo) answers. No AI call, no API cost.
+export function localReply(text: string): string {
+  const t = text.toLowerCase();
+  if (/follow[- ]?up|cold lead|text/.test(t)) {
+    return "Here's a simple follow-up text you can adapt:\n\n\"Hi [Name], it's [You] from [Company]. Just checking in on the [job] estimate I sent. Happy to answer any questions or adjust the scope. Want to grab a time this week?\"\n\n" + SIGNUP_NOTE;
+  }
+  if (/re-?engage|past client|old client/.test(t)) {
+    return "Try: \"Hi [Name], [You] here from [Company]. We did your [past job] last year. I'm booking [season] work now. Anything on your list I can help with?\" Short, personal and specific works best.\n\n" + SIGNUP_NOTE;
+  }
+  if (/price|pricing|cost|charge|quote|estimate/.test(t)) {
+    return "Pricing depends on your market, materials and scope. A common approach: materials + (labor hours × your rate) + overhead + profit margin. StackedWork's estimate builder can suggest line items with AI once you're signed in.\n\n" + SIGNUP_NOTE;
+  }
+  if (/voice|job|lead|receipt|photo|portfolio|crm|feature|stackedwork/.test(t)) {
+    return "StackedWork lets you log jobs by voice, track leads from your personal form link, build estimates, scan receipts and keep before/after photos, all in one place for $49.99/mo after a 14-day free trial. Explore the demo to see each screen.";
+  }
+  return "I'm the demo assistant, so I can only answer basic questions here. " + SIGNUP_NOTE;
+}
+
+export default function ChatWidget({ mode, accentColor = "#C8E64A", getAccessToken }: ChatWidgetProps) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -51,14 +73,23 @@ export default function ChatWidget({ mode, accentColor = "#C8E64A" }: ChatWidget
     setInput("");
     setLoading(true);
     try {
+      const token = getAccessToken ? await getAccessToken() : null;
+      if (!token) {
+        setMessages((prev) => [...prev, { role: "assistant", content: localReply(text) }]);
+        return;
+      }
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ messages: next, mode }),
       });
-      const data = await res.json();
-      if (data.reply) {
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        setMessages((prev) => [...prev, { role: "assistant", content: (data.error || "Please sign in again.") + "\n\n" + localReply(text) }]);
+      } else if (data.reply) {
         setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
+      } else {
+        setMessages((prev) => [...prev, { role: "assistant", content: "Sorry, the assistant couldn't answer right now. Please try again." }]);
       }
     } catch {
       setMessages((prev) => [
@@ -81,12 +112,13 @@ export default function ChatWidget({ mode, accentColor = "#C8E64A" }: ChatWidget
   const headerText = isDark ? accentColor : "#132440";
 
   return (
-    <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999, fontFamily: "'DM Sans', sans-serif" }}>
+    // Under 768px the app has a fixed bottom tab bar (~60px + safe area); sit above it so "Alerts"/"Settings" stay tappable.
+    <div className="sw-chat" style={{ position: "fixed", right: 16, zIndex: 9999, fontFamily: "'DM Sans', sans-serif" }}>
       {open && (
         <div
           style={{
-            width: 340,
-            height: 480,
+            width: "min(340px, calc(100vw - 32px))",
+            height: "min(480px, calc(100vh - 180px))",
             background: bg,
             borderRadius: 16,
             boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
@@ -169,6 +201,7 @@ export default function ChatWidget({ mode, accentColor = "#C8E64A" }: ChatWidget
                     fontSize: 13,
                     lineHeight: 1.55,
                     fontWeight: m.role === "user" ? 600 : 400,
+                    whiteSpace: "pre-wrap",
                   }}
                 >
                   {m.content}
@@ -270,6 +303,7 @@ export default function ChatWidget({ mode, accentColor = "#C8E64A" }: ChatWidget
       <div style={{ display: "flex", justifyContent: "flex-end" }}>
         <button
           onClick={() => setOpen((o) => !o)}
+          aria-label={open ? "Close assistant" : "Open assistant"}
           style={{
             width: 54,
             height: 54,
@@ -290,6 +324,8 @@ export default function ChatWidget({ mode, accentColor = "#C8E64A" }: ChatWidget
       </div>
 
       <style>{`
+        .sw-chat{bottom:calc(76px + env(safe-area-inset-bottom, 0px))}
+        @media(min-width:768px){.sw-chat{bottom:24px;right:24px}}
         @keyframes bounce {
           0%, 80%, 100% { transform: translateY(0); }
           40% { transform: translateY(-6px); }
