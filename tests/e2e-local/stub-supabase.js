@@ -50,8 +50,17 @@ http.createServer((req, res) => {
     if (tok === EST.share_token) return send(200, EST);
     return send(406, { code: "PGRST116", message: "JSON object requested, multiple (or no) rows returned" });
   }
-  if (t === "estimates" && req.method === "PATCH") { console.log("PATCH estimates (should NOT happen without RESEND key)", u.search); return send(200, []); }
-  if (t === "estimates") return send(200, [{ ...EST, id: "e2", status: "draft", customer_email: "customer@example.test", customer_name: "Test Estimate Customer" }]);
+  if (t === "estimates" && req.method === "PATCH") { console.log("PATCH estimates", u.search); return send(200, []); }
+  if (t === "estimates") {
+    // Saved rows. OWN belongs to the test user; OTHER belongs to someone else (the route must not load it).
+    const OWN = { ...EST, id: "eeeeeeee-0000-4000-8000-000000000002", status: "draft", customer_email: "saved.customer@example.test", customer_name: "Saved Row Customer" };
+    const OTHER = { ...EST, id: "eeeeeeee-0000-4000-8000-000000000099", contractor_id: "22222222-2222-4222-8222-222222222222", customer_email: "other@example.test" };
+    const id = (u.searchParams.get("id") || "").replace(/^eq\./, ""), cid = (u.searchParams.get("contractor_id") || "").replace(/^eq\./, "");
+    const rows = [OWN, OTHER].filter((r) => (!id || r.id === id) && (!cid || r.contractor_id === cid));
+    console.log("GET estimates id=", id, "contractor_id=", cid, "->", rows.length, "auth=", (req.headers.authorization || "").slice(0, 25));
+    return send(200, single ? rows[0] || null : rows);
+  }
+  if (t === "profiles" && u.searchParams.get("select") === "name") return send(200, single ? { name: "Saved Profile Name" } : [{ name: "Saved Profile Name" }]);
   if (t === "subscriptions") { const row = { status: "active", plan: "monthly", stripe_customer_id: null, current_period_end: "2026-11-01T00:00:00Z", trial_end: null, cancel_at: null, cancelled_at: null, updated_at: "2026-10-01T00:00:00Z", user_id: UID, email: USER.email }; return send(200, single ? row : [row]); }
   if (t === "jobs" && req.method === "DELETE") {
     const id = (u.searchParams.get("id") || "").replace(/^eq\./, ""); const cid = (u.searchParams.get("contractor_id") || "").replace(/^eq\./, "");
