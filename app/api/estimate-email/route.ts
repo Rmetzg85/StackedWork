@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { requireUser } from "../../lib/require-user";
+import { EMAIL_FROM } from "../../lib/email";
 
-// Everything interpolated into the email HTML is user-supplied: escape it.
+// Everything interpolated into the email HTML is user-entered data: escape it.
 const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 
 export async function POST(request: Request) {
@@ -9,19 +11,42 @@ export async function POST(request: Request) {
   const auth = await requireUser(request, { missing: "Please sign in to email estimates." });
   if (auth.response) return auth.response;
   try {
-    const body = await request.json();
-    const { contractorName } = body || {};
-    const estimate = body?.estimate;
-    const contractorEmail = auth.user.email || null; // reply-to is always the signed-in user, never client-supplied
-    if (!estimate || !estimate.customer_email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(estimate.customer_email))) {
-      return NextResponse.json({ error: "Estimate and a valid customer email are required" }, { status: 400 });
+    // Only the estimate id is taken from the client. Everything in the email comes from the saved row,
+    // read with the caller's own token so RLS (estimates_select_own) limits it to their estimates.
+    const body = await request.json().catch(() => ({}));
+    const estimateId = typeof body?.estimateId === "string" ? body.estimateId.trim() : "";
+    if (!/^[0-9a-f-]{36}$/i.test(estimateId)) {
+      return NextResponse.json({ error: "Missing or invalid estimate id." }, { status: 400 });
     }
-    // Only allow links to our own public estimate page.
-    const rawShare = typeof body?.shareUrl === "string" ? body.shareUrl : "";
-    const shareUrl = /^https?:\/\/[^/]+\/estimate\/[A-Za-z0-9_-]{8,128}$/.test(rawShare) ? rawShare : "";
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !anon) return NextResponse.json({ error: "Server misconfiguration." }, { status: 500 });
+    const sb = createClient(url, anon, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${auth.token}` } },
+    });
+    const { data: estimate, error: estErr } = await sb
+      .from("estimates")
+      .select("id, contractor_id, share_token, customer_name, customer_email, job_type, line_items, subtotal, tax_rate, tax_amount, total, notes, valid_until, status")
+      .eq("id", estimateId)
+      .eq("contractor_id", auth.user.id)
+      .maybeSingle();
+    if (estErr) {
+      console.error("estimate-email: load failed", estErr.message);
+      return NextResponse.json({ error: "Couldn't load that estimate. Please try again." }, { status: 500 });
+    }
+    if (!estimate) return NextResponse.json({ error: "Estimate not found." }, { status: 404 });
+    if (!estimate.customer_email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(estimate.customer_email))) {
+      return NextResponse.json({ error: "Add a valid customer email to this estimate first." }, { status: 400 });
+    }
+    const { data: profile } = await sb.from("profiles").select("name").eq("id", auth.user.id).maybeSingle();
+    const contractorEmail = auth.user.email || null; // reply-to is always the signed-in user
+    const contractorName = (profile?.name && String(profile.name).trim()) || contractorEmail?.split("@")[0] || "Your Contractor";
+    const site = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.letstaystacked.com").replace(/\/+$/, "");
+    const shareUrl = estimate.share_token && /^[A-Za-z0-9_-]{8,128}$/.test(estimate.share_token) ? `${site}/estimate/${estimate.share_token}` : "";
 
     if (!process.env.RESEND_API_KEY) {
-      // No silent success: the client keeps the estimate as a draft and shows this message.
+      // No silent success: the estimate stays a draft and the client shows this message.
       return NextResponse.json({ error: "Email sending isn't set up yet. Your estimate was saved as a draft; you can share its link instead." }, { status: 503 });
     }
     const e = {
@@ -122,14 +147,15 @@ export async function POST(request: Request) {
 </body>
 </html>`;
 
-    const res = await fetch("https://api.resend.com/emails", {
+    // RESEND_API_URL only exists for local tests against a mock; production uses the real endpoint.
+    const res = await fetch(process.env.RESEND_API_URL || "https://api.resend.com/emails", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "StackedWork <notifications@stackedwork.com>",
+        from: EMAIL_FROM,
         to: estimate.customer_email,
         reply_to: contractorEmail || undefined,
         subject: `Your ${String(estimate.job_type || "Project").slice(0, 60)} Estimate from ${String(contractorName || "Your Contractor").slice(0, 60)}`,
@@ -143,9 +169,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `The email provider rejected the message (HTTP ${res.status}). The estimate was not sent.` }, { status: 502 });
     }
 
-    return NextResponse.json({ ok: true });
+    // Sent: mark it server-side (own row only; RLS estimates_update_own).
+    const { error: updErr } = await sb.from("estimates").update({ status: "sent" }).eq("id", estimate.id).eq("contractor_id", auth.user.id);
+    if (updErr) {
+      console.error("estimate-email: sent but status update failed", updErr.message);
+      return NextResponse.json({ ok: true, status: estimate.status, warning: "Email sent, but the estimate couldn't be marked as sent." });
+    }
+    return NextResponse.json({ ok: true, status: "sent" });
   } catch (err: any) {
     console.error("Estimate email error:", err);
-    return NextResponse.json({ error: err.message || "Email failed" }, { status: 500 });
+    return NextResponse.json({ error: "Couldn't send the estimate email. Please try again." }, { status: 500 });
   }
 }

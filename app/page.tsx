@@ -916,17 +916,18 @@ export default function StackedWork() {
   };
 
   // Calls the email API and returns true only when it reports a real send.
+  // The server loads the saved estimate by id (own rows only) and builds the email from it; it also
+  // marks the estimate sent. markEstimateSent() then just syncs local state (the DB update is a no-op).
   const postEstimateEmail = async (est: any): Promise<{ ok: boolean; error?: string }> => {
     try {
-      const shareUrl = `${window.location.origin}/estimate/${est.share_token}`;
       const res = await fetch("/api/estimate-email", {
         method: "POST",
         headers: await authJsonHeaders(),
-        body: JSON.stringify({ estimate: est, contractorName: userEmail?.split("@")[0] || "Your Contractor", contractorEmail: userEmail, shareUrl }),
+        body: JSON.stringify({ estimateId: est.id }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) return { ok: false, error: data?.error || `Email failed (HTTP ${res.status})` };
-      if (data.warning) return { ok: false, error: "Email sending isn't set up yet" };
+      if (data.warning) console.warn("estimate-email:", data.warning);
       return { ok: true };
     } catch (err: any) {
       return { ok: false, error: err?.message || "Network error" };
