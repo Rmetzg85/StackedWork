@@ -62,7 +62,7 @@ export async function POST(request) {
           );
         }
 
-        await supabase.from("subscriptions").upsert({
+        const { error: upsertErr } = await supabase.from("subscriptions").upsert({
           stripe_customer_id: subscription.customer,
           stripe_subscription_id: subscription.id,
           email,
@@ -75,6 +75,8 @@ export async function POST(request) {
           cancel_at: subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null,
           updated_at: new Date().toISOString(),
         }, { onConflict: "stripe_subscription_id" });
+        // Previously ignored. Surface it in Vercel logs (e.g. missing columns before schema_align is applied).
+        if (upsertErr) console.error("subscriptions upsert failed:", upsertErr.code, upsertErr.message);
 
         // Link to the Supabase user when checkout carried a verified user id (see /api/checkout).
         // Separate update so a missing user_id column (migration 20261002060100 not applied yet)

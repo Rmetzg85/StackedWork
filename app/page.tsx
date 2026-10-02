@@ -333,21 +333,30 @@ export default function StackedWork() {
     setStripeCustomerId(data?.stripe_customer_id ?? null);
     setSubDetail(data ? { plan: data.plan, current_period_end: data.current_period_end, trial_end: data.trial_end, cancel_at: data.cancel_at, cancelled_at: data.cancelled_at } : null);
   };
+  // Stripe is the source of truth when the DB has no row / a non-active row (webhook lag or failed upsert).
+  const fetchSubFromStripe = async (): Promise<{ row: any | null; error: any | null }> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return { row: null, error: new Error("not signed in") };
+      const res = await fetch("/api/subscription-status", { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { row: null, error: new Error(data?.error || `HTTP ${res.status}`) };
+      return { row: data.status === "none" ? null : data, error: null };
+    } catch (err: any) {
+      return { row: null, error: err };
+    }
+  };
   const checkSub = async (email: string | null, uid: string | null = null) => {
-    let { row, error } = await fetchSub(uid, email);
-    // Right after Stripe Checkout the webhook may not have written the row yet: retry briefly before
-    // treating the account as having no subscription.
-    for (let i = 0; !row && !error && i < 3; i++) {
-      await new Promise(r => setTimeout(r, 2000));
-      ({ row, error } = await fetchSub(uid, email));
-    }
-    if (error) {
-      // Don't lock someone out because of a network/DB error; show it loudly instead.
-      showToast(`Couldn't check your subscription: ${error.message || "please refresh."}`, "error");
-      setSubStatus("unknown");
-      return;
-    }
-    applySub(row);
+    const db = await fetchSub(uid, email);
+    if (db.row && (db.row.status === "active" || db.row.status === "trialing")) { applySub(db.row); return; }
+    const st = await fetchSubFromStripe();
+    if (st.row && (st.row.status === "active" || st.row.status === "trialing")) { applySub(st.row); return; }
+    if (!st.error) { applySub(db.row || st.row); return; }           // Stripe answered: trust DB row if any, else Stripe/none
+    if (db.row) { applySub(db.row); return; }                        // Stripe unreachable: use the DB row we have
+    if (db.error) console.warn("subscriptions lookup:", db.error.message);
+    // Neither source could answer: don't lock people out for our own outage; say so loudly.
+    showToast("Couldn't check your subscription right now. Some features may be limited; please refresh.", "error");
+    setSubStatus("unknown");
   };
 
   const [trialStarting, setTrialStarting] = useState(false);
