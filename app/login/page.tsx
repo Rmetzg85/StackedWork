@@ -233,7 +233,7 @@ function LoginForm() {
 
         {mode === "signup" && (
           <p style={{ marginTop: 18, fontSize: 11, color: "rgba(245,240,235,0.25)", textAlign: "center", lineHeight: 1.5 }}>
-            By signing up you agree to our Terms of Service and Privacy Policy.
+            By signing up you agree to our <a href="/terms" style={{ color: "rgba(245,240,235,0.45)" }}>Terms of Service</a> and <a href="/privacy" style={{ color: "rgba(245,240,235,0.45)" }}>Privacy Policy</a>.
           </p>
         )}
       </div>
