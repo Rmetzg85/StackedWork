@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "../../lib/require-user";
+import { parseModelJson } from "../../lib/ai-json";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -54,10 +55,25 @@ Return only the JSON object. No markdown, no explanation.`,
       ],
     });
 
-    const text = response.content[0].type === "text" ? response.content[0].text.trim() : "";
-    const data = JSON.parse(text);
-    return NextResponse.json(data);
+    const text = response.content[0]?.type === "text" ? response.content[0].text : "";
+    const data = parseModelJson<Record<string, any>>(text);
+    if (!data) {
+      console.error("scan-receipt: unparseable model output:", text.slice(0, 200));
+      return NextResponse.json({ error: "We couldn't read that receipt. Please fill in the amount and details by hand." }, { status: 422 });
+    }
+    const num = (v: any) => (typeof v === "number" && isFinite(v) ? v : typeof v === "string" && v.trim() && isFinite(Number(v.replace(/[$,]/g, ""))) ? Number(v.replace(/[$,]/g, "")) : null);
+    const CATS = ["Materials", "Fuel/Gas", "Equipment", "Tools", "Subcontractor", "Insurance", "Office/Software", "Other"];
+    return NextResponse.json({
+      vendor: typeof data.vendor === "string" ? data.vendor.slice(0, 80) : null,
+      date: typeof data.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.date) ? data.date : null,
+      subtotal: num(data.subtotal), tax: num(data.tax), total: num(data.total),
+      currency: typeof data.currency === "string" ? data.currency.slice(0, 3).toUpperCase() : "USD",
+      usd_total: num(data.usd_total) ?? num(data.total),
+      description: typeof data.description === "string" ? data.description.slice(0, 120) : null,
+      category: CATS.includes(data.category) ? data.category : "Other",
+    });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message || "Scan failed" }, { status: 500 });
+    console.error("scan-receipt error:", err?.message || err);
+    return NextResponse.json({ error: "Receipt scan is unavailable right now. Please fill in the details by hand." }, { status: 502 });
   }
 }

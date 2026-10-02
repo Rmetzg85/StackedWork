@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { requireUser } from "../../lib/require-user";
+import { parseModelJson } from "../../lib/ai-json";
+import { JOB_TYPES, jobTypeFromText } from "../../lib/parse-job-local";
 
 // Voice/typed job → structured fields. Same SDK, env var (ANTHROPIC_API_KEY)
 // and model as /api/chat. Requires a signed-in Supabase user (Bearer JWT).
@@ -13,6 +15,7 @@ export type ParsedJob = {
   address: string | null;
   phone: string | null;
   service: string | null;
+  job_type: string; // one of JOB_TYPES
   scheduled_at: string | null; // "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM" (America/New_York local)
   price: number | null;
   status: (typeof STATUSES)[number];
@@ -46,6 +49,8 @@ function sanitize(raw: any): ParsedJob {
     address: str(raw?.address, 200),
     phone: str(raw?.phone, 30),
     service: str(raw?.service, 120),
+    // Model's pick if it's a valid type, else keyword mapping on the service text (water heater → Plumbing, AC → HVAC, lawn → Landscaping).
+    job_type: JOB_TYPES.includes(raw?.job_type) && raw.job_type !== "General" ? raw.job_type : jobTypeFromText(`${raw?.service || ""} ${raw?.job_type || ""}`),
     scheduled_at,
     price,
     status,
@@ -77,10 +82,11 @@ export async function POST(request: Request) {
   const system = `You extract job details for a contractor's CRM from a short spoken or typed note.
 Today is ${weekday}, ${date} (America/New_York). Resolve relative dates ("tomorrow", "next Tuesday") against today.
 Return ONLY a JSON object, no prose, with exactly these keys:
-{"customer_name": string|null, "address": string|null, "phone": string|null, "service": string|null, "scheduled_at": string|null, "price": number|null, "status": "quoted"|"scheduled"|"in-progress"|"complete"}
+{"customer_name": string|null, "address": string|null, "phone": string|null, "service": string|null, "job_type": ${JOB_TYPES.map((t) => `"${t}"`).join("|")}, "scheduled_at": string|null, "price": number|null, "status": "quoted"|"scheduled"|"in-progress"|"complete"}
 Rules:
 - customer_name: the customer's name only (not the contractor, not the service).
 - service: short description of the work, e.g. "water heater replacement", "kitchen repaint".
+- job_type: the trade. Water heaters, leaks, pipes, drains, toilets, faucets = "Plumbing". AC, heat pump, furnace, ducts, thermostat, "not cooling"/"no heat" = "HVAC". Panels, outlets, wiring, breakers, fixtures = "Electrical". Lawn, mowing, landscaping, yard, mulch, hedges = "Landscaping". Roof, shingles, gutters = "Roofing". Paint/repaint = "Painting". Drywall/sheetrock/plaster = "Drywall". Deck/porch = "Deck". Floors/tile/carpet/hardwood = "Flooring". "General" only for remodels or mixed work; "Other" if none fit.
 - scheduled_at: "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM" (24h, local time) if a date/time is mentioned, else null.
 - price: a number in US dollars only if a price/amount is clearly stated; otherwise null. Never guess a price.
 - phone: digits as spoken, formatted like (410) 555-0100 when 10 digits; else null.
@@ -96,12 +102,8 @@ Rules:
       messages: [{ role: "user", content: `Note: """${transcript}"""` }],
     });
     const text = response.content[0]?.type === "text" ? response.content[0].text : "";
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return NextResponse.json({ error: "Couldn't understand that. Please fill in the fields." }, { status: 422 });
-    let raw: any;
-    try { raw = JSON.parse(match[0]); } catch {
-      return NextResponse.json({ error: "Couldn't understand that. Please fill in the fields." }, { status: 422 });
-    }
+    const raw = parseModelJson<any>(text);
+    if (!raw) return NextResponse.json({ error: "Couldn't understand that. Please fill in the fields." }, { status: 422 });
     return NextResponse.json({ job: sanitize(raw) });
   } catch (err: any) {
     console.error("parse-job error:", err?.message || err);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { requireUser } from "../../lib/require-user";
+import { parseModelJson } from "../../lib/ai-json";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -48,16 +49,20 @@ Rules:
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
 
-    // Extract JSON from response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return NextResponse.json({ error: "Could not parse pricing response" }, { status: 500 });
+    const parsed = parseModelJson<any>(text);
+    const items = Array.isArray(parsed?.line_items) ? parsed.line_items : null;
+    if (!items || items.length === 0) {
+      console.error("estimate-ai-price: unparseable model output:", text.slice(0, 200));
+      return NextResponse.json({ error: "Couldn't build price suggestions for that job. Try adding a short description, or enter line items by hand." }, { status: 422 });
     }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    return NextResponse.json(parsed);
+    const n = (v: any, d = 0) => { const x = typeof v === "number" ? v : Number(String(v ?? "").replace(/[$,]/g, "")); return isFinite(x) ? x : d; };
+    const line_items = items.slice(0, 15).map((it: any) => {
+      const quantity = n(it?.quantity, 1), unit_price = n(it?.unit_price);
+      return { description: String(it?.description ?? "").slice(0, 200), quantity, unit: String(it?.unit ?? "each").slice(0, 20), unit_price, total: Math.round(quantity * unit_price * 100) / 100 };
+    });
+    return NextResponse.json({ line_items, notes: typeof parsed.notes === "string" ? parsed.notes.slice(0, 1000) : "" });
   } catch (err: any) {
-    console.error("Estimate AI pricing error:", err);
-    return NextResponse.json({ error: err.message || "Pricing suggestion failed" }, { status: 500 });
+    console.error("Estimate AI pricing error:", err?.message || err);
+    return NextResponse.json({ error: "AI pricing is unavailable right now. Please enter line items by hand." }, { status: 502 });
   }
 }
