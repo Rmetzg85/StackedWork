@@ -7,8 +7,9 @@ import { captureFirstTouch, getFirstTouch } from "../lib/first-touch";
 const G = "#C8E64A";
 const GD = "#A8C435";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://vyqbhpuqduaugxmhbtbk.supabase.co";
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5cWJocHVxZHVhdWd4bWhidGJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMDQ0MzUsImV4cCI6MjA4ODc4MDQzNX0.wW4uaZJwIvl6TGZYkVZo9EuG2Ek713Y8F4jACuMxwSI";
+// Env only (set in Vercel and .env.production). No hard-coded fallback: the old one pointed at a different Supabase project.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 // Implicit flow so the confirmation link signs the user in on any device (PKCE needs the original browser).
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true } });
 // Email-confirmation redirect. Must be listed in Supabase Auth → URL Configuration → Redirect URLs.
