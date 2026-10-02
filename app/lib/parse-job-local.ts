@@ -43,7 +43,8 @@ export function parseVoiceToJobLocal(text: string): LocalParsedJob {
   else if (t.includes("in progress") || t.includes("in-progress") || t.includes("started")) status = "in-progress";
   else if (/\b(complete|completed|finished|done)\b/.test(t)) status = "complete";
   // Name: leading capitalised words before the first comma / keyword.
-  const parts = text.split(/[,.;]| for | needs | wants /i);
+  // Drop separators inside numbers ("1,200.50") first; no lookbehind (older Safari can't parse it).
+  const parts = text.replace(/(\d)[,.](?=\d)/g, "$1").split(/[,.;]| for | needs | wants /i);
   const head = parts[0] || "";
   // Without a separator we can't tell where the name ends, so keep it to two words.
   const maxWords = parts.length > 1 ? 3 : 2;
