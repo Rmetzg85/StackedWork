@@ -995,6 +995,12 @@ export default function StackedWork() {
   const handleSubscribe = () => {
     window.location.href = "/login?mode=signup";
   };
+  const toastStack = (toasts.length>0&&<div role="status" aria-live="assertive" style={{position:"fixed",bottom:84,left:"50%",transform:"translateX(-50%)",zIndex:200,display:"flex",flexDirection:"column",gap:8,width:"calc(100% - 32px)",maxWidth:420}}>
+          {toasts.map(t=><div key={t.id} style={{padding:"12px 14px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 8px 30px rgba(0,0,0,0.25)",display:"flex",gap:10,alignItems:"flex-start",justifyContent:"space-between",background:t.kind==="error"?"#FEE2E2":t.kind==="success"?"#D1FAE5":"#F1F5F9",color:t.kind==="error"?"#991B1B":t.kind==="success"?"#065F46":"#334155",border:`1px solid ${t.kind==="error"?"#FECACA":t.kind==="success"?"#6EE7B7":"#E2E8F0"}`}}>
+            <span>{t.msg}</span>
+            <button onClick={()=>setToasts(prev=>prev.filter(x=>x.id!==t.id))} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"inherit",fontSize:16,lineHeight:1,padding:0}}>×</button>
+          </div>)}
+        </div>);
   // Allow-list: only an active or trialing Stripe subscription gets in. "none" (no row: signed up but never
   // started the trial), canceled/cancelled, past_due, unpaid, incomplete*, paused all land on this screen.
   // "unknown" = lookup failed (network/DB); we don't lock people out for our own errors.
@@ -1089,12 +1095,7 @@ export default function StackedWork() {
           <div style={{fontWeight:600,fontSize:13,color:"#0F172A",marginBottom:2}}>{tst.name}</div><div style={{fontSize:12,color:"#64748B",marginBottom:10}}>{tst.msg}</div>
           <div style={{display:"flex",gap:8}}><Btn onClick={()=>{setTd(true);setTst(null);setVw("leads")}} style={{flex:1,fontSize:11,padding:6}}>View Lead</Btn><BtnO onClick={()=>{setTd(true);setSms(true)}} style={{flex:1,fontSize:11,padding:6}}>SMS Alert</BtnO></div>
         </div>}
-        {toasts.length>0&&<div role="status" aria-live="assertive" style={{position:"fixed",bottom:84,left:"50%",transform:"translateX(-50%)",zIndex:200,display:"flex",flexDirection:"column",gap:8,width:"calc(100% - 32px)",maxWidth:420}}>
-          {toasts.map(t=><div key={t.id} style={{padding:"12px 14px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 8px 30px rgba(0,0,0,0.25)",display:"flex",gap:10,alignItems:"flex-start",justifyContent:"space-between",background:t.kind==="error"?"#FEE2E2":t.kind==="success"?"#D1FAE5":"#F1F5F9",color:t.kind==="error"?"#991B1B":t.kind==="success"?"#065F46":"#334155",border:`1px solid ${t.kind==="error"?"#FECACA":t.kind==="success"?"#6EE7B7":"#E2E8F0"}`}}>
-            <span>{t.msg}</span>
-            <button onClick={()=>setToasts(prev=>prev.filter(x=>x.id!==t.id))} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"inherit",fontSize:16,lineHeight:1,padding:0}}>×</button>
-          </div>)}
-        </div>}
+        {toastStack}
         {newJobOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={closeNewJob}>
           <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -2297,6 +2298,7 @@ export default function StackedWork() {
           </p>
         </div>
       </footer>
+      {toastStack}
       <ChatWidget mode="contractor" />
     </div>
   );
