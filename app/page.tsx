@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import ChatWidget from "./components/ChatWidget";
 import { captureFirstTouch } from "./lib/first-touch";
+import { parseVoiceToJobLocal, JOB_TYPES } from "./lib/parse-job-local";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -148,89 +149,135 @@ export default function StackedWork() {
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [firstRun, setFirstRun] = useState(false);
   const [typedJob, setTypedJob] = useState("");
+  const [voiceError, setVoiceError] = useState<string|null>(null);
+  const [voiceParsing, setVoiceParsing] = useState(false);
+  const [parsedReview, setParsedReview] = useState<null|{customer_name:string|null;address:string|null;phone:string|null;service:string|null;scheduled_at:string|null;price:number|null;status:string;source:"ai"|"basic"}>(null);
+  const [njAddress, setNjAddress] = useState("");
+  const [njTime, setNjTime] = useState("");
   const voiceBtnRef = useRef<HTMLButtonElement>(null);
+  const recRef = useRef<any>(null);
   const endFirstRun = () => {
     setFirstRun(false);
     try { window.localStorage.removeItem("sw_firstrun"); } catch { /* ignore */ }
   };
-  const applyParsedJob = (text: string) => {
-    const parsed = parseVoiceToJob(text);
-    if (parsed.name) setNjCustomer(parsed.name);
-    if (parsed.value) setNjValue(parsed.value);
-    if (parsed.jobType) setNjType(parsed.jobType);
-    if (parsed.status) setNjStatus(parsed.status);
+  // Map a free-text service ("water heater swap") onto one of the Job Type options.
+  const serviceToJobType = (service: string|null|undefined): string|null => {
+    if (!service) return null;
+    const jt = parseVoiceToJobLocal(service).jobType;
+    return JOB_TYPES.includes(jt) ? jt : null;
   };
 
-  const parseVoiceToJob = (text: string) => {
-    const t = text.toLowerCase();
-    // Dollar amount — handles "$450", "450 dollars", "fifteen hundred", "two thousand five hundred"
-    const wordNums: Record<string,number> = { zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,hundred:100,thousand:1000 };
-    const spokenNum = (s: string): number|null => {
-      const parts = s.trim().split(/\s+/);
-      let total = 0; let curr = 0;
-      for (const p of parts) {
-        const n = wordNums[p];
-        if (n === undefined) return null;
-        if (n === 1000) { total += (curr||1)*1000; curr = 0; }
-        else if (n === 100) { curr = (curr||1)*100; }
-        else { curr += n; }
+  const applyParsedJob = async (text: string) => {
+    const transcript = text.trim();
+    if (!transcript) return;
+    setVoiceError(null);
+    setVoiceParsing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw Object.assign(new Error("Please sign in again to use voice entry."), { fallback: true });
+      const res = await fetch("/api/parse-job", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ transcript }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.job) throw Object.assign(new Error(data?.error || "AI parsing failed."), { fallback: true });
+      const j = data.job;
+      if (j.customer_name) setNjCustomer(j.customer_name);
+      if (j.phone) setNjPhone(j.phone);
+      if (j.address) setNjAddress(j.address);
+      const jt = serviceToJobType(j.service);
+      if (jt) setNjType(jt);
+      if (j.service) setNjNotes(prev => prev.trim() ? prev : j.service);
+      if (typeof j.price === "number") setNjValue(String(j.price));
+      if (j.status) setNjStatus(j.status);
+      if (j.scheduled_at) {
+        const [d, tm] = String(j.scheduled_at).split("T");
+        if (d) setNjDate(d);
+        setNjTime(tm || "");
       }
-      return total + curr || null;
-    };
-    let value = "";
-    const dollarMatch = t.match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
-    if (dollarMatch) { value = dollarMatch[1].replace(/,/g,""); }
-    else {
-      const digitMatch = t.match(/(\d[\d,]*(?:\.\d{1,2})?)\s*(?:dollars?|bucks?)?/);
-      if (digitMatch) value = digitMatch[1].replace(/,/g,"");
-      else {
-        const spoken = t.match(/\b((?:(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\s*)+)(?:dollars?|bucks?)?/);
-        if (spoken) { const n = spokenNum(spoken[1].trim()); if (n) value = String(n); }
-      }
+      setParsedReview({ ...j, source: "ai" });
+    } catch (err: any) {
+      // Typed fallback: basic on-device parsing so the user is never stuck.
+      const p = parseVoiceToJobLocal(transcript);
+      if (p.name) setNjCustomer(p.name);
+      if (p.value) setNjValue(p.value);
+      if (p.jobType) setNjType(p.jobType);
+      if (p.status) setNjStatus(p.status);
+      setParsedReview({ customer_name: p.name || null, address: null, phone: null, service: p.jobType, scheduled_at: null, price: p.value ? Number(p.value) : null, status: p.status, source: "basic" });
+      setVoiceError(`${err?.message || "AI parsing failed."} We filled in what we could. Please check every field.`);
+    } finally {
+      setVoiceParsing(false);
     }
-    // Job type
-    const JOB_TYPES = ["Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","General","Other"];
-    let jobType = "General";
-    for (const jt of JOB_TYPES) { if (t.includes(jt.toLowerCase())) { jobType = jt; break; } }
-    if (t.includes("paint")) jobType = "Painting";
-    if (t.includes("electric")) jobType = "Electrical";
-    if (t.includes("roof")) jobType = "Roofing";
-    if (t.includes("floor")) jobType = "Flooring";
-    if (t.includes("air condition") || t.includes("hvac") || t.includes("heat")) jobType = "HVAC";
-    // Status
-    let status = "quoted";
-    if (t.includes("scheduled") || t.includes("schedule")) status = "scheduled";
-    else if (t.includes("in progress") || t.includes("in-progress") || t.includes("started")) status = "in-progress";
-    else if (t.includes("complete") || t.includes("finished") || t.includes("done")) status = "complete";
-    // Customer name — first thing said before a job type or dollar or status keyword
-    const stripWords = [jobType.toLowerCase(),"quoted","scheduled","in progress","complete","finished","dollars","bucks","plumbing","electrical","hvac","roofing","drywall","painting","deck","flooring","general","other","job","for","new"];
-    let remaining = text;
-    for (const w of stripWords) remaining = remaining.replace(new RegExp(w,"gi"),"");
-    if (value) remaining = remaining.replace(new RegExp("\\$?"+value.replace(/\./,"\\.")+"\\s*(dollars?|bucks?)?","i"),"");
-    const name = remaining.replace(/[^a-zA-Z\s]/g,"").trim().replace(/\s+/g," ").split(" ").filter(w => !(value && wordNums[w.toLowerCase()] !== undefined)).slice(0,4).join(" ").trim();
-    return { name, jobType, value, status };
+  };
+
+  // Stop listening but keep whatever was heard (onend will parse it).
+  const stopVoiceEntry = () => {
+    try { recRef.current?.stop(); } catch { /* ignore */ }
+  };
+  // Hard stop with no parsing (modal closed / component unmounted).
+  const abortVoiceEntry = () => {
+    const rec = recRef.current;
+    recRef.current = null;
+    if (rec) {
+      rec.onresult = null; rec.onerror = null; rec.onend = null;
+      try { rec.abort(); } catch { /* ignore */ }
+    }
+    setVoiceListening(false);
   };
 
   const startVoiceEntry = () => {
+    setVoiceError(null);
+    if (recRef.current) { stopVoiceEntry(); return; }
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { alert("Voice entry isn't supported on this browser. Try Chrome or Safari."); return; }
+    if (!SR) {
+      const isFirefox = typeof navigator !== "undefined" && /firefox|fxios/i.test(navigator.userAgent);
+      setVoiceError(isFirefox
+        ? "Voice entry doesn't work in Firefox, which doesn't support speech recognition. Use Chrome, Edge, or Safari, or type the job below."
+        : "Voice entry isn't supported in this browser. Use Chrome, Edge, or Safari, or type the job below.");
+      return;
+    }
     const rec = new SR();
     rec.continuous = false;
     rec.interimResults = true;
     rec.lang = "en-US";
-    setVoiceListening(true);
-    setVoiceTranscript("");
+    let heard = "";
+    let failed = false;
     rec.onresult = (e: any) => {
-      const transcript = Array.from(e.results).map((r: any) => r[0].transcript).join("");
-      setVoiceTranscript(transcript);
-      if (e.results[e.results.length - 1].isFinal) {
-        applyParsedJob(transcript);
-        setVoiceListening(false);
-      }
+      heard = Array.from(e.results).map((r: any) => r[0].transcript).join("");
+      setVoiceTranscript(heard);
     };
-    rec.onerror = () => setVoiceListening(false);
-    rec.onend = () => setVoiceListening(false);
-    rec.start();
+    rec.onerror = (e: any) => {
+      failed = true;
+      const code = e?.error;
+      if (code === "aborted") return;
+      setVoiceError(
+        code === "not-allowed" || code === "service-not-allowed"
+          ? "Microphone access is blocked. Allow microphone access for this site in your browser settings, then tap Voice Entry again. You can also type the job below."
+          : code === "no-speech"
+          ? "No speech detected. Tap Voice Entry and start talking right away, or type the job below."
+          : code === "audio-capture"
+          ? "No microphone found. Check that a microphone is connected, or type the job below."
+          : code === "network"
+          ? "Voice recognition needs an internet connection. Check your connection, or type the job below."
+          : "Voice entry stopped unexpectedly. Try again, or type the job below."
+      );
+    };
+    rec.onend = () => {
+      if (recRef.current === rec) recRef.current = null;
+      setVoiceListening(false);
+      if (heard.trim()) { applyParsedJob(heard); return; }
+      if (!failed) setVoiceError("No speech detected. Tap Voice Entry and start talking right away, or type the job below.");
+    };
+    try {
+      rec.start();
+      recRef.current = rec;
+      setVoiceListening(true);
+      setVoiceTranscript("");
+      setParsedReview(null);
+    } catch {
+      setVoiceError("Couldn't start the microphone. Try again, or type the job below.");
+    }
   };
 
   const checkSub = async (email: string) => {
@@ -515,6 +562,9 @@ export default function StackedWork() {
   };
 
   useEffect(() => { captureFirstTouch(); }, []);
+  // Never leave the mic running: stop recognition when the New Job modal closes or the page unmounts.
+  useEffect(() => { if (!newJobOpen) abortVoiceEntry(); }, [newJobOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => abortVoiceEntry(), []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (firstRun && newJobOpen) setTimeout(() => voiceBtnRef.current?.focus(), 50); }, [firstRun, newJobOpen]);
   useEffect(() => { const h = () => setScrollY(window.scrollY); window.addEventListener("scroll",h); return () => window.removeEventListener("scroll",h); }, []);
   useEffect(() => { const i = setInterval(() => setAf(p=>(p+1)%FEATURES.length),4000); return () => clearInterval(i); }, []);
@@ -539,28 +589,50 @@ export default function StackedWork() {
     });
     return () => authSub.unsubscribe();
   }, []);
+  const resetNewJobForm = () => {
+    setTypedJob(""); setVoiceTranscript(""); setVoiceError(null); setParsedReview(null);
+    setNjCustomer(""); setNjPhone(""); setNjAddress(""); setNjTime(""); setNjType("General"); setNjValue(""); setNjStatus("quoted"); setNjDate(new Date().toISOString().split("T")[0]); setNjNotes(""); setNjHours(""); setNjMaterialCost(""); setNjError(null);
+  };
+  const closeNewJob = () => {
+    abortVoiceEntry();
+    setNewJobOpen(false);
+    setVoiceTranscript(""); setVoiceError(null);
+    if (firstRun) endFirstRun();
+  };
+
   const handleNewJob = async () => {
-    if (!userId || !njCustomer.trim() || !njValue) return;
+    if (!userId || !njCustomer.trim()) return;
     setNjLoading(true); setNjError(null);
-    const { data, error } = await supabase.from("jobs").insert({
+    // jobs has no address/time columns: keep them at the top of the notes.
+    const noteParts = [
+      njAddress.trim() ? `Address: ${njAddress.trim()}` : "",
+      njTime ? `Time: ${new Date(`2000-01-01T${njTime}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "",
+      njNotes.trim(),
+    ].filter(Boolean);
+    const row: any = {
       contractor_id: userId,
       customer: njCustomer.trim(),
       phone: njPhone.trim() || null,
       type: njType,
-      value: parseFloat(njValue),
+      value: njValue ? parseFloat(njValue) : null, // price is optional
       status: njStatus,
       date: njDate,
-      notes: njNotes.trim() || null,
+      notes: noteParts.length ? noteParts.join("\n") : null,
       hours_worked: njHours ? parseFloat(njHours) : null,
       material_cost: njMaterialCost ? parseFloat(njMaterialCost) : 0,
-    }).select().single();
+    };
+    let { data, error } = await supabase.from("jobs").insert(row).select().single();
+    // If jobs.value is still NOT NULL in the DB, store 0 for "no price yet".
+    if (error && error.code === "23502" && row.value === null) {
+      ({ data, error } = await supabase.from("jobs").insert({ ...row, value: 0 }).select().single());
+    }
     setNjLoading(false);
-    if (error) { setNjError(error.message); return; }
+    if (error) { setNjError(`Couldn't save the job: ${error.message}`); return; }
     setDbJobs(prev => [data, ...prev]);
+    abortVoiceEntry();
     setNewJobOpen(false);
     if (firstRun) { endFirstRun(); setVw("jobs"); }
-    setTypedJob("");
-    setNjCustomer(""); setNjPhone(""); setNjType("General"); setNjValue(""); setNjStatus("quoted"); setNjDate(new Date().toISOString().split("T")[0]); setNjNotes(""); setNjHours(""); setNjMaterialCost(""); setNjError(null);
+    resetNewJobForm();
   };
 
   const updateJobStatus = async (id: string, status: string) => {
@@ -852,39 +924,57 @@ export default function StackedWork() {
           <div style={{fontWeight:600,fontSize:13,color:"#0F172A",marginBottom:2}}>{tst.name}</div><div style={{fontSize:12,color:"#64748B",marginBottom:10}}>{tst.msg}</div>
           <div style={{display:"flex",gap:8}}><Btn onClick={()=>{setTd(true);setTst(null);setVw("leads")}} style={{flex:1,fontSize:11,padding:6}}>View Lead</Btn><BtnO onClick={()=>{setTd(true);setSms(true)}} style={{flex:1,fontSize:11,padding:6}}>SMS Alert</BtnO></div>
         </div>}
-        {newJobOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>{setNewJobOpen(false);if(firstRun)endFirstRun();}}>
+        {newJobOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={closeNewJob}>
           <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
               <h2 style={{fontSize:18,fontWeight:700,color:"#0F172A"}}>{firstRun?"Log your first job by voice":"New Job"}</h2>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <button ref={voiceBtnRef} onClick={startVoiceEntry} title="Speak job details" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:voiceListening?`linear-gradient(135deg,${G},${GD})`:"#F1F5F9",color:voiceListening?"#132440":"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",transition:"all .2s"}}>
-                  {voiceListening
-                    ? <><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#132440",animation:"pulseMk 1s infinite"}}/>Listening...</>
-                    : <>🎤 Voice Entry</>}
-                </button>
-                <button onClick={()=>{setNewJobOpen(false);setVoiceTranscript("");if(firstRun)endFirstRun();}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button>
+                {voiceListening
+                  ? <>
+                      <span style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",borderRadius:8,fontSize:12,fontWeight:700,fontFamily:"'DM Sans'"}} aria-live="polite"><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#132440",animation:"pulseMk 1s infinite"}}/>Listening...</span>
+                      <button onClick={stopVoiceEntry} title="Stop listening" aria-label="Stop listening" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 12px",background:"#132440",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'"}}>■ Stop</button>
+                    </>
+                  : <button ref={voiceBtnRef} onClick={startVoiceEntry} disabled={voiceParsing} title="Speak job details" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:"#F1F5F9",color:"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:voiceParsing?"wait":"pointer",fontFamily:"'DM Sans'",transition:"all .2s",opacity:voiceParsing?0.6:1}}>🎤 Voice Entry</button>}
+                <button onClick={closeNewJob} aria-label="Close" style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button>
               </div>
             </div>
             {voiceTranscript&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534"}}>
               <span style={{fontWeight:700}}>Heard: </span>{voiceTranscript}
             </div>}
-            {!voiceTranscript&&<p style={{fontSize:firstRun?13:11,color:firstRun?"#475569":"#94A3B8",marginBottom:14}}>Tap <strong>Voice Entry</strong> and say something like: <em>&quot;John Smith, plumbing, $850, scheduled&quot;</em></p>}
+            {voiceError&&<div role="alert" style={{marginBottom:14,padding:"10px 14px",background:"#FEF3C7",border:"1px solid #FDE68A",borderRadius:8,fontSize:12,color:"#92400E"}}>{voiceError}</div>}
+            {voiceParsing&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F1F5F9",borderRadius:8,fontSize:12,color:"#475569"}}>Reading your job details...</div>}
+            {!voiceTranscript&&!voiceError&&<p style={{fontSize:firstRun?13:11,color:firstRun?"#475569":"#94A3B8",marginBottom:14}}>Tap <strong>Voice Entry</strong> and say something like: <em>&quot;Jane Doe, 12 Oak Street, water heater replacement, next Tuesday at 9, $1,200&quot;</em></p>}
+            {parsedReview&&!voiceParsing&&<div style={{marginBottom:14,padding:"12px 14px",background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:8,fontSize:12,color:"#1E3A8A"}}>
+              <div style={{fontWeight:700,marginBottom:6}}>Check these details before saving{parsedReview.source==="basic"?" (basic parsing)":""}</div>
+              <div style={{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:10,rowGap:2}}>
+                <span style={{color:"#64748B"}}>Customer</span><span>{parsedReview.customer_name||"—"}</span>
+                <span style={{color:"#64748B"}}>Address</span><span>{parsedReview.address||"—"}</span>
+                <span style={{color:"#64748B"}}>Phone</span><span>{parsedReview.phone||"—"}</span>
+                <span style={{color:"#64748B"}}>Service</span><span>{parsedReview.service||"—"}</span>
+                <span style={{color:"#64748B"}}>When</span><span>{parsedReview.scheduled_at||"—"}</span>
+                <span style={{color:"#64748B"}}>Price</span><span>{typeof parsedReview.price==="number"?`$${parsedReview.price.toLocaleString()}`:"not stated (optional)"}</span>
+                <span style={{color:"#64748B"}}>Status</span><span>{STC[parsedReview.status]?.label||parsedReview.status}</span>
+              </div>
+              <div style={{marginTop:6,color:"#475569"}}>Edit anything below, then tap <strong>Confirm &amp; Save Job</strong>. Nothing is saved until you do.</div>
+            </div>}
             <div style={{display:"flex",gap:8,marginBottom:14}}>
-              <input value={typedJob} onChange={e=>setTypedJob(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&typedJob.trim()){e.preventDefault();applyParsedJob(typedJob);}}} placeholder="Or type it: John Smith, plumbing, $850" aria-label="Type the job instead of speaking" style={{flex:1,padding:"9px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
-              <button type="button" onClick={()=>typedJob.trim()&&applyParsedJob(typedJob)} disabled={!typedJob.trim()} style={{padding:"9px 14px",background:"#F1F5F9",color:"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:typedJob.trim()?"pointer":"not-allowed",fontFamily:"'DM Sans'",opacity:typedJob.trim()?1:0.6}}>Fill in</button>
+              <input value={typedJob} onChange={e=>setTypedJob(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&typedJob.trim()&&!voiceParsing){e.preventDefault();applyParsedJob(typedJob);}}} placeholder="Or type it: Jane Doe, plumbing, Friday 10am" aria-label="Type the job instead of speaking" style={{flex:1,padding:"9px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+              <button type="button" onClick={()=>typedJob.trim()&&!voiceParsing&&applyParsedJob(typedJob)} disabled={!typedJob.trim()||voiceParsing} style={{padding:"9px 14px",background:"#F1F5F9",color:"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:typedJob.trim()?"pointer":"not-allowed",fontFamily:"'DM Sans'",opacity:typedJob.trim()?1:0.6}}>Fill in</button>
             </div>
             {[
               {label:"Customer Name *",val:njCustomer,set:setNjCustomer,placeholder:"John Smith",type:"text"},
               {label:"Phone",val:njPhone,set:setNjPhone,placeholder:"(410) 555-0100",type:"tel"},
+              {label:"Address (saved in notes)",val:njAddress,set:setNjAddress,placeholder:"Street, city",type:"text"},
             ].map((f,i)=><div key={i} style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>{f.label}</label><input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.placeholder} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>)}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Job Type</label><select value={njType} onChange={e=>setNjType(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>{["General","Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","Other"].map(t=><option key={t}>{t}</option>)}</select></div>
+              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Job Type</label><select value={njType} onChange={e=>setNjType(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>{JOB_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
               <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Status</label><select value={njStatus} onChange={e=>setNjStatus(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}><option value="quoted">Quoted</option><option value="scheduled">Scheduled</option><option value="in-progress">In Progress</option><option value="complete">Complete</option></select></div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Job Value ($) *</label><input type="number" min="0" step="0.01" value={njValue} onChange={e=>setNjValue(e.target.value)} placeholder="0.00" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Price ($, optional)</label><input type="number" min="0" step="0.01" value={njValue} onChange={e=>setNjValue(e.target.value)} placeholder="0.00" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
               <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Date</label><input type="date" value={njDate} onChange={e=>setNjDate(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
             </div>
+            <div style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Time (optional, saved in notes)</label><input type="time" value={njTime} onChange={e=>setNjTime(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
             <div style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Notes</label><textarea value={njNotes} onChange={e=>setNjNotes(e.target.value)} placeholder="Job details..." rows={3} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",resize:"vertical",boxSizing:"border-box"}}/></div>
             <div style={{background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:10,padding:"12px 14px",marginBottom:20}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:10}}>Profitability (optional)</div>
@@ -897,7 +987,7 @@ export default function StackedWork() {
               </div>}
             </div>
             {njError&&<div style={{marginBottom:14,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:13,color:"#991B1B"}}>{njError}</div>}
-            <button onClick={handleNewJob} disabled={njLoading||!njCustomer.trim()||!njValue} style={{width:"100%",padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:njLoading||!njCustomer.trim()||!njValue?"not-allowed":"pointer",opacity:njLoading||!njCustomer.trim()||!njValue?0.6:1,fontFamily:"'DM Sans'"}}>{njLoading?"Saving...":"Save Job"}</button>
+            <button onClick={handleNewJob} disabled={njLoading||voiceParsing||voiceListening||!njCustomer.trim()} style={{width:"100%",padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:njLoading||voiceParsing||voiceListening||!njCustomer.trim()?"not-allowed":"pointer",opacity:njLoading||voiceParsing||voiceListening||!njCustomer.trim()?0.6:1,fontFamily:"'DM Sans'"}}>{njLoading?"Saving...":parsedReview?"Confirm & Save Job":"Save Job"}</button>
           </div>
         </div>}
         {newEstimateOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={resetNewEstimate}>
@@ -1060,14 +1150,14 @@ export default function StackedWork() {
               </Card>
               <Card style={{overflow:"hidden",marginBottom:20}}>
                 <div style={{padding:"14px 18px",borderBottom:"1px solid #E2E8F0",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:14,fontWeight:600,color:"#0F172A"}}>Recent Jobs</span><Btn onClick={()=>setVw("jobs")} style={{fontSize:11,padding:"5px 12px"}}>View All</Btn></div>
-                {activeJobs.length===0?<div style={{padding:"28px 18px",textAlign:"center",color:"#94A3B8",fontSize:13}}>No jobs yet — <span style={{color:GD,cursor:"pointer",fontWeight:600}} onClick={()=>setVw("jobs")}>add your first job</span></div>:activeJobs.slice(0,4).map((j:any,i:number)=><div key={j.id||i} style={{padding:"12px 18px",borderBottom:i<3?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.date}</div></div><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontWeight:600,fontSize:13}}>${Number(j.value).toLocaleString()}</span><Badge s={j.status}/></div></div>)}
+                {activeJobs.length===0?<div style={{padding:"28px 18px",textAlign:"center",color:"#94A3B8",fontSize:13}}>No jobs yet — <span style={{color:GD,cursor:"pointer",fontWeight:600}} onClick={()=>setVw("jobs")}>add your first job</span></div>:activeJobs.slice(0,4).map((j:any,i:number)=><div key={j.id||i} style={{padding:"12px 18px",borderBottom:i<3?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.date}</div></div><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontWeight:600,fontSize:13}}>{j.value==null||j.value===""?"No price":`$${Number(j.value).toLocaleString()}`}</span><Badge s={j.status}/></div></div>)}
               </Card>
             </>}
             {vw==="jobs"&&<>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Jobs</h1><Btn onClick={()=>userId?setNewJobOpen(true):setAuthMode("login")}>+ New Job</Btn></div>
               <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{["all","quoted","scheduled","in-progress","complete"].map(f=><button key={f} className={`sw-fb ${jf===f?"sw-a":""}`} onClick={()=>setJf(f)}>{f==="all"?"All":STC[f]?.label||f}</button>)}</div>
               {fJ.length===0?<Card style={{padding:40,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🔨</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No jobs yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Add your first job to start tracking revenue.</div><Btn onClick={()=>userId?setNewJobOpen(true):setAuthMode("login")}>+ Add First Job</Btn></Card>
-              :<Card style={{overflow:"hidden"}}>{fJ.map((j:any)=><div key={j.id} className="sw-jm"><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><div><div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.date}{j.phone?` · ${j.phone}`:""}</div></div><div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>${Number(j.value).toLocaleString()}</div></div><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge s={j.status}/>{userId&&j.status!=="complete"&&<select value={j.status} onChange={e=>updateJobStatus(j.id,e.target.value)} style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"'DM Sans'"}}><option value="quoted">→ Quoted</option><option value="scheduled">→ Scheduled</option><option value="in-progress">→ In Progress</option><option value="complete">→ Complete</option></select>}</div></div>)}</Card>}
+              :<Card style={{overflow:"hidden"}}>{fJ.map((j:any)=><div key={j.id} className="sw-jm"><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><div><div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.date}{j.phone?` · ${j.phone}`:""}</div></div><div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>{j.value==null||j.value===""?<span style={{fontSize:12,color:"#94A3B8",fontWeight:600}}>No price</span>:`$${Number(j.value).toLocaleString()}`}</div></div><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge s={j.status}/>{userId&&j.status!=="complete"&&<select value={j.status} onChange={e=>updateJobStatus(j.id,e.target.value)} style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"'DM Sans'"}}><option value="quoted">→ Quoted</option><option value="scheduled">→ Scheduled</option><option value="in-progress">→ In Progress</option><option value="complete">→ Complete</option></select>}</div></div>)}</Card>}
             </>}
             {vw==="photos"&&<>
               <input ref={beforeRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handlePhotoFile(f,"before");e.target.value="";}}/>
