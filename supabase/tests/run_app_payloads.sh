@@ -45,6 +45,19 @@ r=$(as $B b.contractor@example.test "insert into public.jobs (contractor_id,cust
 check "jobs: B cannot insert as A" "row-level security" "$r"
 r=$(as $B b.contractor@example.test "delete from public.jobs where id='$JOB' returning id;")
 check "jobs: B cannot delete A's job (0 rows)" "^$" "$r"
+# ── Delete job (deleteJob: .delete().eq("id",id).eq("contractor_id",uid).select("id")) ──
+r=$(as $B b.contractor@example.test "delete from public.jobs where id='$JOB' and contractor_id='$A' returning id;")
+check "jobs delete: B spoofing contractor_id=A deletes 0 rows" "^$" "$r"
+r=$(as $A a.contractor@example.test "select count(*) from public.jobs where id='$JOB';")
+check "jobs delete: A's job still there after B's attempts" "^1$" "$r"
+r=$(as $A a.contractor@example.test "delete from public.jobs where id='$JOB' and contractor_id='$A' returning id;")
+check "jobs delete own as A (returns id)" "^$JOB$" "$r"
+r=$(as $A a.contractor@example.test "select count(*) from public.jobs where contractor_id='$A';")
+check "jobs delete: A has 1 job left" "^1$" "$r"
+r=$(as $A a.contractor@example.test "delete from public.jobs where id='$JOB' and contractor_id='$A' returning id;")
+check "jobs delete twice: 0 rows (UI shows 'already deleted')" "^$" "$r"
+r=$($PSQL -X -q -t -A -c "begin; set local role anon; delete from public.jobs returning id; commit;" 2>&1)
+check "jobs delete as anon: denied or 0 rows" "^$|permission denied" "$r"
 
 # ── Estimate create (always draft) -> email ok -> mark sent ──
 r=$(as $A a.contractor@example.test "insert into public.estimates (contractor_id,customer_name,customer_email,customer_phone,job_type,line_items,subtotal,tax_rate,tax_amount,total,notes,status,valid_until)

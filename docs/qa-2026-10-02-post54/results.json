@@ -1,0 +1,147 @@
+[
+  {
+    "k": "demo jobs visible rows @375",
+    "v": 8
+  },
+  {
+    "k": "demo +New Job opens prompt @375",
+    "v": 1
+  },
+  {
+    "k": "demo Clients +Add opens prompt @375",
+    "v": 1
+  },
+  {
+    "k": "mobile Alerts tab clickable",
+    "v": true
+  },
+  {
+    "k": "mobile chat bubble above tab bar",
+    "v": {
+      "chatBottom": 736,
+      "navTop": 754
+    }
+  },
+  {
+    "k": "demo chat local reply @375",
+    "v": {
+      "apiChatCalls": 0,
+      "reply": true
+    }
+  },
+  {
+    "k": "console errors @375",
+    "v": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ]
+  },
+  {
+    "k": "http>=400 (app origin) @375",
+    "v": [
+      "404 http://localhost:3055/_vercel/insights/script.js"
+    ]
+  },
+  {
+    "k": "demo jobs visible rows @768",
+    "v": 8
+  },
+  {
+    "k": "demo +New Job opens prompt @768",
+    "v": 1
+  },
+  {
+    "k": "demo Clients +Add opens prompt @768",
+    "v": 1
+  },
+  {
+    "k": "demo chat local reply @768",
+    "v": {
+      "apiChatCalls": 0,
+      "reply": true
+    }
+  },
+  {
+    "k": "console errors @768",
+    "v": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ]
+  },
+  {
+    "k": "http>=400 (app origin) @768",
+    "v": [
+      "404 http://localhost:3055/_vercel/insights/script.js"
+    ]
+  },
+  {
+    "k": "demo jobs visible rows @1280",
+    "v": 8
+  },
+  {
+    "k": "demo +New Job opens prompt @1280",
+    "v": 1
+  },
+  {
+    "k": "demo Clients +Add opens prompt @1280",
+    "v": 1
+  },
+  {
+    "k": "demo chat local reply @1280",
+    "v": {
+      "apiChatCalls": 0,
+      "reply": true
+    }
+  },
+  {
+    "k": "console errors @1280",
+    "v": [
+      "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    ]
+  },
+  {
+    "k": "http>=400 (app origin) @1280",
+    "v": [
+      "404 http://localhost:3055/_vercel/insights/script.js"
+    ]
+  },
+  {
+    "k": "signed-in bell badge @1280",
+    "v": "Notifications: 1 unread lead"
+  },
+  {
+    "k": "signed-in jobs visible rows @1280",
+    "v": 3
+  },
+  {
+    "k": "signed-in delete @1280",
+    "v": {
+      "confirm": "Delete the job for Test Job Two? This can't be undone.",
+      "rowsAfter": [
+        "Test Job One",
+        "Test Job Three"
+      ],
+      "toast": 1
+    }
+  },
+  {
+    "k": "signed-in bell badge @375",
+    "v": "Notifications: 1 unread lead"
+  },
+  {
+    "k": "signed-in jobs visible rows @375",
+    "v": 2
+  },
+  {
+    "k": "signed-in delete @375",
+    "v": {
+      "confirm": "Delete the job for Test Job Three? This can't be undone.",
+      "rowsAfter": [
+        "Test Job One"
+      ],
+      "toast": 1
+    }
+  },
+  {
+    "k": "estimate page status",
+    "v": 200
+  }
+]
