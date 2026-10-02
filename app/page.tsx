@@ -224,7 +224,7 @@ export default function StackedWork() {
       if (j.customer_name) setNjCustomer(j.customer_name);
       if (j.phone) setNjPhone(j.phone);
       if (j.address) setNjAddress(j.address);
-      const jt = serviceToJobType(j.service);
+      const jt = JOB_TYPES.includes(j.job_type) && j.job_type !== "General" ? j.job_type : serviceToJobType(j.service);
       if (jt) setNjType(jt);
       if (j.service) setNjNotes(prev => prev.trim() ? prev : j.service);
       if (typeof j.price === "number") setNjValue(String(j.price));
@@ -576,12 +576,30 @@ export default function StackedWork() {
     }
   };
 
+  // Public URL -> object path inside stackedwork-images, only if it is in the caller's own folder
+  // (sw_images_delete_own_folder allows deleting only "<uid>/..."; legacy shared-prefix files are skipped).
+  const ownStoragePath = (url: string | null | undefined): string | null => {
+    if (!url || !userId) return null;
+    const marker = "/storage/v1/object/public/stackedwork-images/";
+    const i = url.indexOf(marker);
+    if (i < 0) return null;
+    const path = decodeURIComponent(url.slice(i + marker.length).split("?")[0]);
+    return path.startsWith(`${userId}/`) && !path.includes("..") ? path : null;
+  };
+  const removeOwnFiles = async (urls: (string | null | undefined)[]): Promise<string | null> => {
+    const paths = urls.map(ownStoragePath).filter((p): p is string => !!p);
+    if (!paths.length) return null;
+    const { error } = await supabase.storage.from("stackedwork-images").remove(paths);
+    return error ? error.message : null;
+  };
   const deletePhoto = async (photo: any) => {
     if (!confirm("Delete this photo?")) return;
     const { error } = await supabase.from("portfolio").delete().eq("id", photo.id).eq("contractor_id", userId);
     if (error) { toastErr("Couldn't delete photo", error); return; }
     setDbPhotos(prev => prev.filter(p => p.id !== photo.id));
-    showToast("Photo deleted.", "success");
+    const fileErr = await removeOwnFiles([photo.before_url, photo.after_url]);
+    if (fileErr) showToast(`Photo removed from your portfolio, but the image files couldn't be deleted: ${fileErr}`, "error");
+    else showToast("Photo deleted.", "success");
   };
 
   const handleReceiptScan = async (file: File) => {
@@ -659,7 +677,9 @@ export default function StackedWork() {
     const { error } = await supabase.from("receipts").delete().eq("id", rc.id).eq("contractor_id", userId);
     if (error) { toastErr("Couldn't delete receipt", error); return; }
     setDbReceipts(prev => prev.filter(r => r.id !== rc.id));
-    showToast("Receipt deleted.", "success");
+    const fileErr = await removeOwnFiles([rc.file_url]);
+    if (fileErr) showToast(`Receipt deleted, but its file couldn't be removed: ${fileErr}`, "error");
+    else showToast("Receipt deleted.", "success");
   };
 
   const withTimeout = <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
@@ -729,9 +749,16 @@ export default function StackedWork() {
   const closeNewJob = () => {
     abortVoiceEntry();
     setNewJobOpen(false);
-    setVoiceTranscript(""); setVoiceError(null);
+    resetNewJobForm();
     if (firstRun) endFirstRun();
   };
+  // Every open AND every close of the New Job form starts from a blank form (QA: the previous job's
+  // phone/address/notes were carried over). Covers every opener: Jobs, Clients + Add, first run, Profit.
+  const newJobOpenPrev = useRef(false);
+  useEffect(() => {
+    if (newJobOpen !== newJobOpenPrev.current) { newJobOpenPrev.current = newJobOpen; resetNewJobForm(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newJobOpen]);
 
   const handleNewJob = async () => {
     if (!userId || !njCustomer.trim()) return;
@@ -894,12 +921,12 @@ export default function StackedWork() {
       const shareUrl = `${window.location.origin}/estimate/${est.share_token}`;
       const res = await fetch("/api/estimate-email", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await authJsonHeaders(),
         body: JSON.stringify({ estimate: est, contractorName: userEmail?.split("@")[0] || "Your Contractor", contractorEmail: userEmail, shareUrl }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) return { ok: false, error: data?.error || `Email failed (HTTP ${res.status})` };
-      if (data.warning) return { ok: false, error: "Email sending isn't configured on the server yet" };
+      if (data.warning) return { ok: false, error: "Email sending isn't set up yet" };
       return { ok: true };
     } catch (err: any) {
       return { ok: false, error: err?.message || "Network error" };
@@ -1794,7 +1821,10 @@ export default function StackedWork() {
               </>);
             })()}
             {vw==="profit"&&(()=>{
-              const jobsWithData = dbJobs.filter((j:any) => j.value);
+              // Revenue needs a price; jobs saved without one (value null, allowed since schema_align) are counted separately.
+              const allJobs = activeJobs;
+              const jobsWithData = allJobs.filter((j:any) => Number(j.value) > 0);
+              const unpriced = allJobs.filter((j:any) => !(Number(j.value) > 0));
               const jobsWithHours = jobsWithData.filter((j:any) => j.hours_worked > 0);
               const totalRevenue = jobsWithData.reduce((a:number,j:any)=>a+Number(j.value),0);
               const totalCost = jobsWithData.reduce((a:number,j:any)=>a+Number(j.material_cost||0),0);
@@ -1804,9 +1834,9 @@ export default function StackedWork() {
                 ? Math.round(jobsWithHours.reduce((a:number,j:any)=>a+((Number(j.value)-Number(j.material_cost||0))/Number(j.hours_worked)),0)/jobsWithHours.length)
                 : null;
               // Per job-type breakdown
-              const JOB_TYPES = ["General","Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","Other"];
-              const byType = JOB_TYPES.map(t=>{
-                const jt = jobsWithData.filter((j:any)=>j.type===t);
+              const typesPresent = [...new Set(jobsWithData.map((j:any)=>j.type||"General"))] as string[];
+              const byType = typesPresent.map(t=>{
+                const jt = jobsWithData.filter((j:any)=>(j.type||"General")===t);
                 if(!jt.length) return null;
                 const rev = jt.reduce((a:number,j:any)=>a+Number(j.value),0);
                 const cost = jt.reduce((a:number,j:any)=>a+Number(j.material_cost||0),0);
@@ -1826,7 +1856,9 @@ export default function StackedWork() {
                 <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Profit Intelligence</h1>
                 <p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Know which jobs actually make you money.</p>
                 {jobsWithData.length===0
-                  ? <Card style={{padding:"48px 20px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>💰</div><div style={{fontWeight:700,fontSize:16,color:"#0F172A",marginBottom:6}}>No job data yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Add jobs with material costs and hours to see your profitability breakdown.</div><Btn onClick={()=>{setVw("jobs");setNewJobOpen(true)}}>+ Add First Job</Btn></Card>
+                  ? (allJobs.length===0
+                    ? <Card style={{padding:"48px 20px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>💰</div><div style={{fontWeight:700,fontSize:16,color:"#0F172A",marginBottom:6}}>No job data yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Add jobs with a price, material costs and hours to see your profitability breakdown.</div><Btn onClick={()=>{if(!userId){needAccount("log real jobs");return;}resetNewJobForm();setVw("jobs");setNewJobOpen(true)}}>+ Add First Job</Btn></Card>
+                    : <Card style={{padding:"48px 20px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>🏷️</div><div style={{fontWeight:700,fontSize:16,color:"#0F172A",marginBottom:6}}>Add a price to see profit</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>You have {allJobs.length} job{allJobs.length!==1?"s":""}, but none has a price yet. Profit is the job price minus material costs: fill in Price (and Materials and Hours, if you track them) when you add a job.</div><Btn onClick={()=>{if(!userId){needAccount("log real jobs");return;}resetNewJobForm();setVw("jobs");setNewJobOpen(true)}}>+ Add a priced job</Btn></Card>)
                   : <>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
                       {[
@@ -1840,6 +1872,7 @@ export default function StackedWork() {
                         <div style={{fontSize:11,color:"#94A3B8"}}>{s.s}</div>
                       </div>)}
                     </div>
+                    {unpriced.length>0&&<div style={{fontSize:12,color:"#94A3B8",marginBottom:12}}>{unpriced.length} job{unpriced.length!==1?"s":""} without a price {unpriced.length!==1?"aren't":"isn't"} counted.</div>}
                     {best&&worst&&best.type!==worst.type&&<Card style={{padding:"14px 16px",marginBottom:16,background:"#FFFBEB",border:"1px solid #FDE68A"}}>
                       <div style={{fontSize:12,fontWeight:700,color:"#92400E",marginBottom:4}}>AI Insight</div>
                       <div style={{fontSize:13,color:"#78350F"}}>Your <strong>{best.type}</strong> jobs have a {best.margin}% margin — your best. <strong>{worst.type}</strong> jobs are your lowest at {worst.margin}%. Consider whether low-margin jobs are worth your time.</div>
