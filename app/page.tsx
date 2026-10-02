@@ -287,11 +287,70 @@ export default function StackedWork() {
     }
   };
 
-  const checkSub = async (email: string) => {
-    const { data } = await supabase.from("subscriptions").select("status, stripe_customer_id, plan, current_period_end, trial_end, cancel_at, cancelled_at").eq("email", email).maybeSingle();
+  // Subscription lookup: prefer subscriptions.user_id (added by migration 20261002060100, not yet applied),
+  // fall back to case-insensitive email (how the Stripe webhook keys rows today).
+  // Status "none" = no subscription row at all, which is NOT active (see ACTIVE_SUB below).
+  const SUB_COLS = "status, stripe_customer_id, plan, current_period_end, trial_end, cancel_at, cancelled_at, updated_at";
+  const pickSub = (rows: any[] | null | undefined) => {
+    if (!rows || rows.length === 0) return null;
+    return rows.find(r => r.status === "active" || r.status === "trialing") || rows[0];
+  };
+  const fetchSub = async (uid: string | null, email: string | null): Promise<{ row: any | null; error: any | null }> => {
+    if (uid) {
+      const { data, error } = await supabase.from("subscriptions").select(SUB_COLS).eq("user_id", uid).order("updated_at", { ascending: false }).limit(5);
+      // 42703 = column user_id doesn't exist yet → fall through to email
+      if (!error && data && data.length) return { row: pickSub(data), error: null };
+      if (error && error.code !== "42703") console.warn("subscriptions by user_id:", error.message);
+    }
+    if (email) {
+      const pattern = email.trim().replace(/[\\%_]/g, (c) => "\\" + c);
+      const { data, error } = await supabase.from("subscriptions").select(SUB_COLS).ilike("email", pattern).order("updated_at", { ascending: false }).limit(5);
+      if (error) return { row: null, error };
+      return { row: pickSub(data), error: null };
+    }
+    return { row: null, error: null };
+  };
+  const applySub = (data: any | null) => {
     setSubStatus(data?.status ?? "none");
     setStripeCustomerId(data?.stripe_customer_id ?? null);
     setSubDetail(data ? { plan: data.plan, current_period_end: data.current_period_end, trial_end: data.trial_end, cancel_at: data.cancel_at, cancelled_at: data.cancelled_at } : null);
+  };
+  const checkSub = async (email: string | null, uid: string | null = null) => {
+    let { row, error } = await fetchSub(uid, email);
+    // Right after Stripe Checkout the webhook may not have written the row yet: retry briefly before
+    // treating the account as having no subscription.
+    for (let i = 0; !row && !error && i < 3; i++) {
+      await new Promise(r => setTimeout(r, 2000));
+      ({ row, error } = await fetchSub(uid, email));
+    }
+    if (error) {
+      // Don't lock someone out because of a network/DB error; show it loudly instead.
+      showToast(`Couldn't check your subscription: ${error.message || "please refresh."}`, "error");
+      setSubStatus("unknown");
+      return;
+    }
+    applySub(row);
+  };
+
+  const [trialStarting, setTrialStarting] = useState(false);
+  const startTrialCheckout = async () => {
+    if (trialStarting) return;
+    setTrialStarting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+        body: JSON.stringify({ email: userEmail }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.url) { window.location.href = data.url; return; }
+      throw new Error(data.error || "Checkout failed");
+    } catch (err: any) {
+      alert(`Couldn't start your trial: ${err?.message || "please try again."}`);
+    } finally {
+      setTrialStarting(false);
+    }
   };
 
   const handleManageBilling = async () => {
@@ -421,19 +480,27 @@ export default function StackedWork() {
     reader.readAsDataURL(file);
   };
 
+  const uniqueName = (file: File, label: string) => {
+    const fromName = (file.name.split(".").pop() || "").toLowerCase();
+    const ext = /^[a-z0-9]{2,5}$/.test(fromName) ? fromName : (file.type.split("/")[1] || "jpg").replace(/[^a-z0-9]/g, "") || "jpg";
+    const rand = (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+    return `${Date.now()}-${rand}-${label}.${ext}`;
+  };
+
   const handlePhotoUpload = async () => {
     if (!userId || !phBeforeFile || !phAfterFile) return;
     setPhUploading(true); setPhErr(null);
     try {
-      const ts = Date.now();
-      const up = async (file: File, path: string) => {
+      // Per-user folder + unique name, never overwrite (upsert:false): one user can't clobber another's files.
+      const up = async (file: File, side: "before"|"after") => {
+        const path = `${userId}/portfolio/${uniqueName(file, side)}`;
         const bytes = await file.arrayBuffer();
-        const { error } = await supabase.storage.from("stackedwork-images").upload(path, bytes, { contentType: file.type, upsert: true });
+        const { error } = await supabase.storage.from("stackedwork-images").upload(path, bytes, { contentType: file.type || "image/jpeg", upsert: false });
         if (error) throw error;
         return supabase.storage.from("stackedwork-images").getPublicUrl(path).data.publicUrl;
       };
-      const beforeUrl = await up(phBeforeFile, `portfolio/${ts}-before.jpg`);
-      const afterUrl = await up(phAfterFile, `portfolio/${ts}-after.jpg`);
+      const beforeUrl = await up(phBeforeFile, "before");
+      const afterUrl = await up(phAfterFile, "after");
       const { data, error } = await supabase.from("portfolio").insert({ contractor_id: userId, before_url: beforeUrl, after_url: afterUrl, job_type: phJobType, caption: phCaption }).select().single();
       if (error) throw error;
       if (data) setDbPhotos(prev => [data, ...prev]);
@@ -519,11 +586,9 @@ export default function StackedWork() {
     if (!userId || !rcFile || !rcAmount) return;
     setRcUploading(true); setRcErr(null);
     try {
-      const ts = Date.now();
-      const ext = rcFile.name.split(".").pop() || "jpg";
-      const path = `receipts/${userId}-${ts}.${ext}`;
+      const path = `${userId}/receipts/${uniqueName(rcFile, "receipt")}`;
       const bytes = await rcFile.arrayBuffer();
-      const { error: upErr } = await supabase.storage.from("stackedwork-images").upload(path, bytes, { contentType: rcFile.type, upsert: true });
+      const { error: upErr } = await supabase.storage.from("stackedwork-images").upload(path, bytes, { contentType: rcFile.type || "application/octet-stream", upsert: false });
       if (upErr) throw upErr;
       const fileUrl = supabase.storage.from("stackedwork-images").getPublicUrl(path).data.publicUrl;
       const { data, error } = await supabase.from("receipts").insert({
@@ -567,7 +632,7 @@ export default function StackedWork() {
       } else {
         const { data: signInData, error } = await withTimeout(supabase.auth.signInWithPassword({ email: authEmail, password: authPassword }));
         if (error) throw error;
-        if (signInData?.user) { setUserId(signInData.user.id); setUserEmail(signInData.user.email ?? null); checkSub(signInData.user.email!).catch(() => {}); loadProfile(signInData.user.id, signInData.user.user_metadata || {}); }
+        if (signInData?.user) { setUserId(signInData.user.id); setUserEmail(signInData.user.email ?? null); checkSub(signInData.user.email ?? null, signInData.user.id).catch(() => {}); loadProfile(signInData.user.id, signInData.user.user_metadata || {}); }
         setAuthMode(null); setPage("app");
       }
     } catch (err: any) { setAuthError(err.message || "Something went wrong. Please try again."); }
@@ -589,7 +654,7 @@ export default function StackedWork() {
         setPage("app");
         setUserId(session.user.id);
         setUserEmail(session.user.email ?? null);
-        checkSub(session.user.email!);
+        checkSub(session.user.email ?? null, session.user.id);
         loadProfile(session.user.id, session.user.user_metadata || {});
         // First-run: right after signup (/welcome → /?firstrun=1, email-confirm link, or first sign-in)
         let fr = false;
@@ -889,21 +954,32 @@ export default function StackedWork() {
   const handleSubscribe = () => {
     window.location.href = "/login?mode=signup";
   };
-  const BLOCKED = ["cancelled","incomplete_expired","unpaid","past_due"];
-  if(page==="app" && subStatus && BLOCKED.includes(subStatus)){
+  // Allow-list: only an active or trialing Stripe subscription gets in. "none" (no row: signed up but never
+  // started the trial), canceled/cancelled, past_due, unpaid, incomplete*, paused all land on this screen.
+  // "unknown" = lookup failed (network/DB); we don't lock people out for our own errors.
+  const ACTIVE_SUB = ["active","trialing","unknown"];
+  if(page==="app" && userId && subStatus===null){
+    return(
+      <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"rgba(245,240,235,0.6)",fontSize:14}}>Checking your subscription...</div>
+    );
+  }
+  if(page==="app" && userId && subStatus && !ACTIVE_SUB.includes(subStatus)){
+    const noSub = subStatus === "none";
     return(
       <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center",color:"#F5F0EB"}}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&display=swap');*{margin:0;padding:0;box-sizing:border-box}`}</style>
         <div style={{fontSize:48,marginBottom:24}}>🔒</div>
-        <h1 style={{fontSize:28,fontWeight:700,marginBottom:12}}>Subscription {subStatus === "cancelled" ? "Cancelled" : "Inactive"}</h1>
+        <h1 style={{fontSize:28,fontWeight:700,marginBottom:12}}>{noSub ? "Start your free trial" : `Subscription ${subStatus === "cancelled" || subStatus === "canceled" ? "Cancelled" : "Inactive"}`}</h1>
         <p style={{fontSize:15,color:"rgba(245,240,235,0.5)",maxWidth:420,marginBottom:32,lineHeight:1.7}}>
-          {subStatus === "past_due"
+          {noSub
+            ? "Your account is set up, but your 14-day free trial hasn't started yet. No credit card required."
+            : subStatus === "past_due"
             ? "Your last payment failed. Please update your billing info to continue."
             : "Your StackedWork subscription is no longer active. Reactivate to get back in."}
         </p>
         <div style={{display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center"}}>
-          <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 32px",fontSize:15,fontWeight:700,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'"}}>Reactivate Subscription</button>
-          {stripeCustomerId && (
+          <button onClick={subStatus === "past_due" && stripeCustomerId ? handleManageBilling : startTrialCheckout} disabled={trialStarting} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 32px",fontSize:15,fontWeight:700,borderRadius:6,cursor:trialStarting?"wait":"pointer",fontFamily:"'DM Sans'",opacity:trialStarting?0.7:1}}>{trialStarting ? "Opening..." : noSub ? "Start Free Trial" : "Reactivate Subscription"}</button>
+          {stripeCustomerId && !noSub && (
             <button onClick={handleManageBilling} disabled={billingLoading} style={{background:"transparent",color:"#F5F0EB",border:"1px solid rgba(255,255,255,0.25)",padding:"14px 32px",fontSize:15,fontWeight:600,borderRadius:6,cursor:billingLoading?"wait":"pointer",fontFamily:"'DM Sans'",opacity:billingLoading?0.6:1}}>{billingLoading?"Opening...":"Manage Billing"}</button>
           )}
           <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);setSubDetail(null);}} style={{background:"transparent",color:"rgba(245,240,235,0.5)",border:"1px solid rgba(255,255,255,0.15)",padding:"14px 32px",fontSize:15,fontWeight:600,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
@@ -1688,7 +1764,7 @@ export default function StackedWork() {
             </>}
             {vw==="settings"&&(()=>{
               const fmtDate = (iso?: string|null) => iso ? new Date(iso).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}) : null;
-              const statusLabel = subStatus==="trialing" ? "Free Trial" : subStatus==="active" ? "Active" : subStatus==="past_due" ? "Past Due" : subStatus==="cancelled" ? "Cancelled" : subStatus==="incomplete" || subStatus==="incomplete_expired" ? "Incomplete" : subStatus==="unpaid" ? "Unpaid" : "No active subscription";
+              const statusLabel = subStatus==="trialing" ? "Free Trial" : subStatus==="active" ? "Active" : subStatus==="past_due" ? "Past Due" : (subStatus==="cancelled"||subStatus==="canceled") ? "Cancelled" : subStatus==="incomplete" || subStatus==="incomplete_expired" ? "Incomplete" : subStatus==="unpaid" ? "Unpaid" : "No active subscription";
               const statusColor = subStatus==="active"||subStatus==="trialing" ? "#22C55E" : subStatus==="past_due"||subStatus==="unpaid" ? "#F59E0B" : subStatus==="cancelled" ? "#EF4444" : "#94A3B8";
               const trialEnd = fmtDate(subDetail?.trial_end);
               const periodEnd = fmtDate(subDetail?.current_period_end);

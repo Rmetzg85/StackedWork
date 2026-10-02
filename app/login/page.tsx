@@ -38,7 +38,7 @@ function LoginForm() {
         const cleanEmail = email.trim();
         const username = (cleanEmail.split("@")[0] || "").replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 30);
         const firstTouch = getFirstTouch();
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: cleanEmail,
           password,
           options: {
@@ -62,7 +62,11 @@ function LoginForm() {
         // After signup, send them to Stripe checkout
         const res = await fetch("/api/checkout", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          // With a session (email confirmation off) the server can link the subscription to this user id.
+          headers: {
+            "Content-Type": "application/json",
+            ...(signUpData?.session?.access_token ? { Authorization: `Bearer ${signUpData.session.access_token}` } : {}),
+          },
           body: JSON.stringify({ email: cleanEmail, utm: firstTouch }),
         });
         const data = await res.json();
