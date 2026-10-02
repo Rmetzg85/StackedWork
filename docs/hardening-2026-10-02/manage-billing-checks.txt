@@ -1,0 +1,35 @@
+# Local build + Supabase stub (:54400) + Stripe mock (:54403). 2026-10-02 12:30 EDT
+## /api/manage-billing
+no token:                                   {"error":"Please sign in to manage billing."} HTTP 401
+bad token:                                  {"error":"Your session expired. Please sign in again."} HTTP 401
+user A + someone else's id in body:         {"url":"https://billing.stripe.test/p/session/cus_OWN_A"} HTTP 200
+user E (row by email only, mixed case):     {"url":"https://billing.stripe.test/p/session/cus_EMAILROW_E"} HTTP 200
+user L (email row linked to another user):  {"error":"No billing account found"} HTTP 404
+user S (no row, Stripe fallback):           {"url":"https://billing.stripe.test/p/session/cus_STRIPE_S"} HTTP 200
+user N (no row, no Stripe customer):        {"error":"No billing account found"} HTTP 404
+portal sessions the Stripe mock created (customer, return_url):
+   cus_OWN_A https://letstaystacked.com/
+   cus_EMAILROW_E https://letstaystacked.com/
+   cus_STRIPE_S https://letstaystacked.com/
+stub log (service-role subscriptions lookups):
+  SERVICE subscriptions user_id= 11111111-1111-4111-8111-111111111111 email~ - -> cus_OWN_A,cus_OLD_A
+  SERVICE subscriptions user_id= 33333333-3333-4333-8333-333333333333 email~ - -> none
+  SERVICE subscriptions user_id= - email~ email.only@example.test -> cus_EMAILROW_E
+  SERVICE subscriptions user_id= 44444444-4444-4444-8444-444444444444 email~ - -> none
+  SERVICE subscriptions user_id= - email~ linked.elsewhere@example.test -> cus_LINKED_OTHER
+  SERVICE subscriptions user_id= 66666666-6666-4666-8666-666666666666 email~ - -> none
+  SERVICE subscriptions user_id= - email~ stripe.only@example.test -> none
+  SERVICE subscriptions user_id= 77777777-7777-4777-8777-777777777777 email~ - -> none
+  SERVICE subscriptions user_id= - email~ nobody@example.test -> none
+stripe mock log:
+  STRIPE POST /v1/billing_portal/sessions  customer=cus_OWN_A&return_url=https%3A%2F%2Fletstaystacked.com%2F
+  STRIPE POST /v1/billing_portal/sessions  customer=cus_EMAILROW_E&return_url=https%3A%2F%2Fletstaystacked.com%2F
+  STRIPE GET /v1/customers ?email=linked.elsewhere%40example.test&limit=10 
+  STRIPE GET /v1/customers ?email=stripe.only%40example.test&limit=10 
+  STRIPE GET /v1/subscriptions ?customer=cus_STRIPE_S&status=all&limit=20 
+  STRIPE GET /v1/subscriptions ?customer=cus_OTHERPRODUCT_S&status=all&limit=20 
+  STRIPE POST /v1/billing_portal/sessions  customer=cus_STRIPE_S&return_url=https%3A%2F%2Fletstaystacked.com%2F
+  STRIPE GET /v1/customers ?email=nobody%40example.test&limit=10 
+## /api/leads (public lead form) contractor_id validation
+junk contractor_id:  {"error":"Invalid contractor link."} HTTP 400
+valid uuid:          {"success":true} HTTP 200

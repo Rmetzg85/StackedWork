@@ -1,0 +1,62 @@
+== 1) Baseline: prod-mimic WITHOUT migrations (what users hit today)
+   Add Job insert: ERROR:  column "customer" of relation "jobs" does not exist
+   Storage upload: ERROR:  new row violates row-level security policy for table "objects"
+== 2) Apply migrations in order, twice (re-runnable)
+   run1 OK   20261002055900_schema_align.sql
+   run1 OK   20261002060000_rls_verify.sql
+   run1 OK   20261002060100_subscriptions_user_id.sql
+   run2 OK   20261002055900_schema_align.sql
+   run2 OK   20261002060000_rls_verify.sql
+   run2 OK   20261002060100_subscriptions_user_id.sql
+== 3) rls_verify alone on a prod-mimic DB (out of order: must not roll back on missing columns)
+   OK
+== 4) App payloads against migrated DB
+PASS  jobs insert (Add Job, no price) as A
+PASS  jobs insert (with price) as A
+PASS  jobs select own (order by date) as A
+PASS  jobs update status as A
+PASS  jobs: B cannot read A's jobs
+PASS  jobs: B cannot update A's job (0 rows)
+PASS  jobs: B cannot insert as A
+PASS  jobs: B cannot delete A's job (0 rows)
+PASS  jobs delete: B spoofing contractor_id=A deletes 0 rows
+PASS  jobs delete: A's job still there after B's attempts
+PASS  jobs delete own as A (returns id)
+PASS  jobs delete: A has 1 job left
+PASS  jobs delete twice: 0 rows (UI shows 'already deleted')
+PASS  jobs delete as anon: denied or 0 rows
+PASS  estimates insert (draft) returns share_token
+PASS  estimates mark sent as A
+PASS  estimates edit (handleUpdateEstimate) as A
+PASS  estimates: B cannot read A's
+PASS  estimates: B cannot mark A's sent
+PASS  estimate token page (service_role by share_token)
+PASS  receipts insert as A
+PASS  receipts: B cannot read A's
+PASS  receipts: B cannot delete A's
+PASS  receipts delete own as A
+PASS  portfolio insert as A
+PASS  portfolio: B cannot read A's
+PASS  leads insert via /api/leads (service_role)
+PASS  leads markRead as A
+PASS  leads: B cannot read A's
+PASS  homeowner_leads insert via /api/homeowner-lead (service_role)
+PASS  homeowner_leads: client select returns 0 (no client policy)
+PASS  profiles upsert own as A
+PASS  profiles: B cannot read A's
+PASS  profiles: B cannot overwrite A's
+PASS  webhook upsert onConflict stripe_subscription_id
+PASS  webhook upsert again (updated event) same row
+PASS  webhook: 2nd subscription same email (re-subscribe) allowed
+PASS  webhook user_id link update
+PASS  subscriptions select by user_id as A
+PASS  subscriptions select by email (ilike, case-insensitive) as A
+PASS  subscriptions: B cannot read A's
+PASS  storage upload own folder as A
+PASS  storage: A cannot upload into B's folder
+PASS  storage: old shared 'portfolio/' prefix denied
+PASS  storage: B cannot delete A's files
+PASS  storage.remove own photo files as A (2 objects)
+PASS  storage: A's photo objects gone after remove
+TOTAL pass=47 fail=0
+REPRO: ALL PASS
