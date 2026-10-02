@@ -1,5 +1,23 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { createClient } from "@supabase/supabase-js";
+
+// Optional: if the caller sends a Supabase access token, link the Stripe subscription to that
+// user id (metadata.user_id). Never trusts a user id from the request body.
+async function verifiedUserId(request: Request): Promise<string | null> {
+  const auth = request.headers.get("authorization") || "";
+  const token = auth.toLowerCase().startsWith("bearer ") ? auth.slice(7).trim() : "";
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!token || !url || !anon) return null;
+  try {
+    const sb = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data, error } = await sb.auth.getUser(token);
+    return error ? null : data?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request) {
   try {
@@ -8,6 +26,7 @@ export async function POST(request) {
     });
     const body = await request.json();
     const { email, name, utm } = body;
+    const userId = await verifiedUserId(request);
 
     // First-touch UTM (optional) → subscription metadata. Whitelisted keys, short strings only.
     const utmMeta: Record<string, string> = {};
@@ -39,12 +58,13 @@ export async function POST(request) {
       subscription_data: {
         trial_period_days: 14,
         trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
-        metadata: { product: "stackedwork", tier: "base", ...utmMeta },
+        metadata: { product: "stackedwork", tier: "base", ...utmMeta, ...(userId ? { user_id: userId } : {}) },
       },
       payment_method_collection: "if_required",
       success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/welcome?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/?cancelled=true`,
       allow_promotion_codes: true,
+      ...(userId ? { client_reference_id: userId } : {}),
     });
 
     return NextResponse.json({ url: session.url });

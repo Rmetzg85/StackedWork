@@ -9,7 +9,11 @@ const GD = "#A8C435";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://vyqbhpuqduaugxmhbtbk.supabase.co";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ5cWJocHVxZHVhdWd4bWhidGJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMDQ0MzUsImV4cCI6MjA4ODc4MDQzNX0.wW4uaZJwIvl6TGZYkVZo9EuG2Ek713Y8F4jACuMxwSI";
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Implicit flow so the confirmation link signs the user in on any device (PKCE needs the original browser).
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true } });
+// Email-confirmation redirect. Must be listed in Supabase Auth → URL Configuration → Redirect URLs.
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.letstaystacked.com").replace(/\/+$/, "");
+const CONFIRM_REDIRECT = `${SITE_URL}/?firstrun=1`;
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -38,19 +42,26 @@ function LoginForm() {
         const cleanEmail = email.trim();
         const username = (cleanEmail.split("@")[0] || "").replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 30);
         const firstTouch = getFirstTouch();
-        const { error: signUpError } = await supabase.auth.signUp({
+        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email: cleanEmail,
           password,
           options: {
             data: { username, ...firstTouch },
-            // If "Confirm email" is on, the confirmation link lands on the first-run screen.
-            emailRedirectTo: `${window.location.origin}/?firstrun=1`,
+            // "Confirm email" is ON: the confirmation link lands on the first-run screen (any device).
+            emailRedirectTo: CONFIRM_REDIRECT,
           },
         });
         if (signUpError) throw signUpError;
 
-        // First-run flag: the dashboard opens "Log your first job by voice" on first sign-in.
-        try { window.localStorage.setItem("sw_firstrun", "1"); } catch { /* ignore */ }
+        // First-run flag (same-device fallback; the confirm link's ?firstrun=1 covers other devices).
+        try { window.localStorage.setItem("sw_firstrun", "1"); window.localStorage.setItem("sw_signup_email", cleanEmail); } catch { /* ignore */ }
+
+        // No session = email confirmation required. Say so clearly before moving on to start the trial.
+        const needsConfirm = !signUpData?.session;
+        if (needsConfirm) {
+          setSuccess(`Check your email to confirm your account. We sent a confirmation link to ${cleanEmail}. Starting your free trial…`);
+        }
+        const shownAt = Date.now();
 
         // Notify Ryan of new signup
         await fetch("/api/notify-signup", {
@@ -62,11 +73,17 @@ function LoginForm() {
         // After signup, send them to Stripe checkout
         const res = await fetch("/api/checkout", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          // With a session (email confirmation off) the server can link the subscription to this user id.
+          headers: {
+            "Content-Type": "application/json",
+            ...(signUpData?.session?.access_token ? { Authorization: `Bearer ${signUpData.session.access_token}` } : {}),
+          },
           body: JSON.stringify({ email: cleanEmail, utm: firstTouch }),
         });
         const data = await res.json();
         if (data.url) {
+          // Keep the "check your email" message on screen long enough to read.
+          if (needsConfirm) await new Promise(r => setTimeout(r, Math.max(0, 2500 - (Date.now() - shownAt))));
           window.location.href = data.url;
         } else {
           throw new Error(data.error || "Checkout failed");
@@ -229,7 +246,7 @@ function LoginForm() {
 
         {mode === "signup" && (
           <p style={{ marginTop: 18, fontSize: 11, color: "rgba(245,240,235,0.25)", textAlign: "center", lineHeight: 1.5 }}>
-            By signing up you agree to our Terms of Service and Privacy Policy.
+            By signing up you agree to our <a href="/terms" style={{ color: "rgba(245,240,235,0.45)" }}>Terms of Service</a> and <a href="/privacy" style={{ color: "rgba(245,240,235,0.45)" }}>Privacy Policy</a>.
           </p>
         )}
       </div>

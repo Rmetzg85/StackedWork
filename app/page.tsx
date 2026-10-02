@@ -3,10 +3,27 @@ import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import ChatWidget from "./components/ChatWidget";
 import { captureFirstTouch } from "./lib/first-touch";
+import { parseVoiceToJobLocal, JOB_TYPES } from "./lib/parse-job-local";
+import { todayNY, daysAgoNY, toDateKeyNY, fmtDateNY, yearNY, APP_TZ } from "./lib/dates";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Read the landing URL BEFORE the Supabase client initialises (it strips the #access_token hash).
+// /?firstrun=1 is the email-confirmation redirect target, so this works on any device, not just the
+// one that signed up (localStorage sw_firstrun is only a same-device fallback).
+const LANDING = typeof window !== "undefined" ? { search: window.location.search, hash: window.location.hash } : { search: "", hash: "" };
+const LANDING_FIRSTRUN = new URLSearchParams(LANDING.search).get("firstrun") === "1" || /(^|[#&])type=signup(&|$)/.test(LANDING.hash);
+const LANDING_AUTH_ERROR = (() => {
+  const h = new URLSearchParams(LANDING.hash.replace(/^#/, ""));
+  const q = new URLSearchParams(LANDING.search);
+  return h.get("error_description") || q.get("error_description") || null;
+})();
+// Implicit flow (supabase-js default, made explicit): the confirmation link carries the session in the URL hash,
+// so it signs the user in even on a different device/browser than the one used to sign up (PKCE would not).
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true, autoRefreshToken: true },
+});
+let landingFirstRunConsumed = false;
 const G = "#C8E64A";
 const GD = "#A8C435";
 // Paste your Replicate-generated ad video URL here:
@@ -83,7 +100,7 @@ export default function StackedWork() {
   const [njType, setNjType] = useState("General");
   const [njValue, setNjValue] = useState("");
   const [njStatus, setNjStatus] = useState("quoted");
-  const [njDate, setNjDate] = useState(new Date().toISOString().split("T")[0]);
+  const [njDate, setNjDate] = useState(todayNY());
   const [njNotes, setNjNotes] = useState("");
   const [njHours, setNjHours] = useState("");
   const [njMaterialCost, setNjMaterialCost] = useState("");
@@ -109,7 +126,7 @@ export default function StackedWork() {
   const [rcPreview, setRcPreview] = useState<string|null>(null);
   const [rcAmount, setRcAmount] = useState("");
   const [rcCategory, setRcCategory] = useState("Materials");
-  const [rcDate, setRcDate] = useState(new Date().toISOString().split("T")[0]);
+  const [rcDate, setRcDate] = useState(todayNY());
   const [rcDesc, setRcDesc] = useState("");
   const [rcUploading, setRcUploading] = useState(false);
   const [rcErr, setRcErr] = useState<string|null>(null);
@@ -148,96 +165,219 @@ export default function StackedWork() {
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [firstRun, setFirstRun] = useState(false);
   const [typedJob, setTypedJob] = useState("");
+  const [voiceError, setVoiceError] = useState<string|null>(null);
+  const [voiceParsing, setVoiceParsing] = useState(false);
+  const [parsedReview, setParsedReview] = useState<null|{customer_name:string|null;address:string|null;phone:string|null;service:string|null;scheduled_at:string|null;price:number|null;status:string;source:"ai"|"basic"}>(null);
+  const [njAddress, setNjAddress] = useState("");
+  const [njTime, setNjTime] = useState("");
   const voiceBtnRef = useRef<HTMLButtonElement>(null);
+  const recRef = useRef<any>(null);
+  const [toasts, setToasts] = useState<{id:number;msg:string;kind:"error"|"success"|"info"}[]>([]);
+  const showToast = (msg: string, kind: "error"|"success"|"info" = "error") => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev.slice(-3), { id, msg, kind }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), kind === "error" ? 8000 : 4000);
+  };
+  const toastErr = (what: string, err: any) => showToast(`${what}: ${err?.message || "please try again."}`, "error");
   const endFirstRun = () => {
     setFirstRun(false);
     try { window.localStorage.removeItem("sw_firstrun"); } catch { /* ignore */ }
+    // Remember across devices so the first-run screen doesn't reappear elsewhere.
+    supabase.auth.updateUser({ data: { first_run_done: true } }).catch(() => {});
   };
-  const applyParsedJob = (text: string) => {
-    const parsed = parseVoiceToJob(text);
-    if (parsed.name) setNjCustomer(parsed.name);
-    if (parsed.value) setNjValue(parsed.value);
-    if (parsed.jobType) setNjType(parsed.jobType);
-    if (parsed.status) setNjStatus(parsed.status);
+  // Map a free-text service ("water heater swap") onto one of the Job Type options.
+  const serviceToJobType = (service: string|null|undefined): string|null => {
+    if (!service) return null;
+    const jt = parseVoiceToJobLocal(service).jobType;
+    return JOB_TYPES.includes(jt) ? jt : null;
   };
 
-  const parseVoiceToJob = (text: string) => {
-    const t = text.toLowerCase();
-    // Dollar amount — handles "$450", "450 dollars", "fifteen hundred", "two thousand five hundred"
-    const wordNums: Record<string,number> = { zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12,thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90,hundred:100,thousand:1000 };
-    const spokenNum = (s: string): number|null => {
-      const parts = s.trim().split(/\s+/);
-      let total = 0; let curr = 0;
-      for (const p of parts) {
-        const n = wordNums[p];
-        if (n === undefined) return null;
-        if (n === 1000) { total += (curr||1)*1000; curr = 0; }
-        else if (n === 100) { curr = (curr||1)*100; }
-        else { curr += n; }
+  const applyParsedJob = async (text: string) => {
+    const transcript = text.trim();
+    if (!transcript) return;
+    setVoiceError(null);
+    setVoiceParsing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw Object.assign(new Error("Please sign in again to use voice entry."), { fallback: true });
+      const res = await fetch("/api/parse-job", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ transcript }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.job) throw Object.assign(new Error(data?.error || "AI parsing failed."), { fallback: true });
+      const j = data.job;
+      if (j.customer_name) setNjCustomer(j.customer_name);
+      if (j.phone) setNjPhone(j.phone);
+      if (j.address) setNjAddress(j.address);
+      const jt = serviceToJobType(j.service);
+      if (jt) setNjType(jt);
+      if (j.service) setNjNotes(prev => prev.trim() ? prev : j.service);
+      if (typeof j.price === "number") setNjValue(String(j.price));
+      if (j.status) setNjStatus(j.status);
+      if (j.scheduled_at) {
+        const [d, tm] = String(j.scheduled_at).split("T");
+        if (d) setNjDate(d);
+        setNjTime(tm || "");
       }
-      return total + curr || null;
-    };
-    let value = "";
-    const dollarMatch = t.match(/\$\s*([\d,]+(?:\.\d{1,2})?)/);
-    if (dollarMatch) { value = dollarMatch[1].replace(/,/g,""); }
-    else {
-      const digitMatch = t.match(/(\d[\d,]*(?:\.\d{1,2})?)\s*(?:dollars?|bucks?)?/);
-      if (digitMatch) value = digitMatch[1].replace(/,/g,"");
-      else {
-        const spoken = t.match(/\b((?:(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)\s*)+)(?:dollars?|bucks?)?/);
-        if (spoken) { const n = spokenNum(spoken[1].trim()); if (n) value = String(n); }
-      }
+      setParsedReview({ ...j, source: "ai" });
+    } catch (err: any) {
+      // Typed fallback: basic on-device parsing so the user is never stuck.
+      const p = parseVoiceToJobLocal(transcript);
+      if (p.name) setNjCustomer(p.name);
+      if (p.value) setNjValue(p.value);
+      if (p.jobType) setNjType(p.jobType);
+      if (p.status) setNjStatus(p.status);
+      setParsedReview({ customer_name: p.name || null, address: null, phone: null, service: p.jobType, scheduled_at: null, price: p.value ? Number(p.value) : null, status: p.status, source: "basic" });
+      setVoiceError(`${err?.message || "AI parsing failed."} We filled in what we could. Please check every field.`);
+    } finally {
+      setVoiceParsing(false);
     }
-    // Job type
-    const JOB_TYPES = ["Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","General","Other"];
-    let jobType = "General";
-    for (const jt of JOB_TYPES) { if (t.includes(jt.toLowerCase())) { jobType = jt; break; } }
-    if (t.includes("paint")) jobType = "Painting";
-    if (t.includes("electric")) jobType = "Electrical";
-    if (t.includes("roof")) jobType = "Roofing";
-    if (t.includes("floor")) jobType = "Flooring";
-    if (t.includes("air condition") || t.includes("hvac") || t.includes("heat")) jobType = "HVAC";
-    // Status
-    let status = "quoted";
-    if (t.includes("scheduled") || t.includes("schedule")) status = "scheduled";
-    else if (t.includes("in progress") || t.includes("in-progress") || t.includes("started")) status = "in-progress";
-    else if (t.includes("complete") || t.includes("finished") || t.includes("done")) status = "complete";
-    // Customer name — first thing said before a job type or dollar or status keyword
-    const stripWords = [jobType.toLowerCase(),"quoted","scheduled","in progress","complete","finished","dollars","bucks","plumbing","electrical","hvac","roofing","drywall","painting","deck","flooring","general","other","job","for","new"];
-    let remaining = text;
-    for (const w of stripWords) remaining = remaining.replace(new RegExp(w,"gi"),"");
-    if (value) remaining = remaining.replace(new RegExp("\\$?"+value.replace(/\./,"\\.")+"\\s*(dollars?|bucks?)?","i"),"");
-    const name = remaining.replace(/[^a-zA-Z\s]/g,"").trim().replace(/\s+/g," ").split(" ").filter(w => !(value && wordNums[w.toLowerCase()] !== undefined)).slice(0,4).join(" ").trim();
-    return { name, jobType, value, status };
+  };
+
+  // Stop listening but keep whatever was heard (onend will parse it).
+  const stopVoiceEntry = () => {
+    try { recRef.current?.stop(); } catch { /* ignore */ }
+  };
+  // Hard stop with no parsing (modal closed / component unmounted).
+  const abortVoiceEntry = () => {
+    const rec = recRef.current;
+    recRef.current = null;
+    if (rec) {
+      rec.onresult = null; rec.onerror = null; rec.onend = null;
+      try { rec.abort(); } catch { /* ignore */ }
+    }
+    setVoiceListening(false);
   };
 
   const startVoiceEntry = () => {
+    setVoiceError(null);
+    if (recRef.current) { stopVoiceEntry(); return; }
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { alert("Voice entry isn't supported on this browser. Try Chrome or Safari."); return; }
+    if (!SR) {
+      const isFirefox = typeof navigator !== "undefined" && /firefox|fxios/i.test(navigator.userAgent);
+      setVoiceError(isFirefox
+        ? "Voice entry doesn't work in Firefox, which doesn't support speech recognition. Use Chrome, Edge, or Safari, or type the job below."
+        : "Voice entry isn't supported in this browser. Use Chrome, Edge, or Safari, or type the job below.");
+      return;
+    }
     const rec = new SR();
     rec.continuous = false;
     rec.interimResults = true;
     rec.lang = "en-US";
-    setVoiceListening(true);
-    setVoiceTranscript("");
+    let heard = "";
+    let failed = false;
     rec.onresult = (e: any) => {
-      const transcript = Array.from(e.results).map((r: any) => r[0].transcript).join("");
-      setVoiceTranscript(transcript);
-      if (e.results[e.results.length - 1].isFinal) {
-        applyParsedJob(transcript);
-        setVoiceListening(false);
-      }
+      heard = Array.from(e.results).map((r: any) => r[0].transcript).join("");
+      setVoiceTranscript(heard);
     };
-    rec.onerror = () => setVoiceListening(false);
-    rec.onend = () => setVoiceListening(false);
-    rec.start();
+    rec.onerror = (e: any) => {
+      failed = true;
+      const code = e?.error;
+      if (code === "aborted") return;
+      setVoiceError(
+        code === "not-allowed" || code === "service-not-allowed"
+          ? "Microphone access is blocked. Allow microphone access for this site in your browser settings, then tap Voice Entry again. You can also type the job below."
+          : code === "no-speech"
+          ? "No speech detected. Tap Voice Entry and start talking right away, or type the job below."
+          : code === "audio-capture"
+          ? "No microphone found. Check that a microphone is connected, or type the job below."
+          : code === "network"
+          ? "Voice recognition needs an internet connection. Check your connection, or type the job below."
+          : "Voice entry stopped unexpectedly. Try again, or type the job below."
+      );
+    };
+    rec.onend = () => {
+      if (recRef.current === rec) recRef.current = null;
+      setVoiceListening(false);
+      if (heard.trim()) { applyParsedJob(heard); return; }
+      if (!failed) setVoiceError("No speech detected. Tap Voice Entry and start talking right away, or type the job below.");
+    };
+    try {
+      rec.start();
+      recRef.current = rec;
+      setVoiceListening(true);
+      setVoiceTranscript("");
+      setParsedReview(null);
+    } catch {
+      setVoiceError("Couldn't start the microphone. Try again, or type the job below.");
+    }
   };
 
-  const checkSub = async (email: string) => {
-    const { data } = await supabase.from("subscriptions").select("status, stripe_customer_id, plan, current_period_end, trial_end, cancel_at, cancelled_at").eq("email", email).maybeSingle();
+  // Subscription lookup: prefer subscriptions.user_id (added by migration 20261002060100, not yet applied),
+  // fall back to case-insensitive email (how the Stripe webhook keys rows today).
+  // Status "none" = no subscription row at all, which is NOT active (see ACTIVE_SUB below).
+  const SUB_COLS = "status, stripe_customer_id, plan, current_period_end, trial_end, cancel_at, cancelled_at, updated_at";
+  const pickSub = (rows: any[] | null | undefined) => {
+    if (!rows || rows.length === 0) return null;
+    return rows.find(r => r.status === "active" || r.status === "trialing") || rows[0];
+  };
+  const fetchSub = async (uid: string | null, email: string | null): Promise<{ row: any | null; error: any | null }> => {
+    if (uid) {
+      const { data, error } = await supabase.from("subscriptions").select(SUB_COLS).eq("user_id", uid).order("updated_at", { ascending: false }).limit(5);
+      // 42703 = column user_id doesn't exist yet → fall through to email
+      if (!error && data && data.length) return { row: pickSub(data), error: null };
+      if (error && error.code !== "42703") console.warn("subscriptions by user_id:", error.message);
+    }
+    if (email) {
+      const pattern = email.trim().replace(/[\\%_]/g, (c) => "\\" + c);
+      const { data, error } = await supabase.from("subscriptions").select(SUB_COLS).ilike("email", pattern).order("updated_at", { ascending: false }).limit(5);
+      if (error) return { row: null, error };
+      return { row: pickSub(data), error: null };
+    }
+    return { row: null, error: null };
+  };
+  const applySub = (data: any | null) => {
     setSubStatus(data?.status ?? "none");
     setStripeCustomerId(data?.stripe_customer_id ?? null);
     setSubDetail(data ? { plan: data.plan, current_period_end: data.current_period_end, trial_end: data.trial_end, cancel_at: data.cancel_at, cancelled_at: data.cancelled_at } : null);
+  };
+  // Stripe is the source of truth when the DB has no row / a non-active row (webhook lag or failed upsert).
+  const fetchSubFromStripe = async (): Promise<{ row: any | null; error: any | null }> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return { row: null, error: new Error("not signed in") };
+      const res = await fetch("/api/subscription-status", { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { row: null, error: new Error(data?.error || `HTTP ${res.status}`) };
+      return { row: data.status === "none" ? null : data, error: null };
+    } catch (err: any) {
+      return { row: null, error: err };
+    }
+  };
+  const checkSub = async (email: string | null, uid: string | null = null) => {
+    const db = await fetchSub(uid, email);
+    if (db.row && (db.row.status === "active" || db.row.status === "trialing")) { applySub(db.row); return; }
+    const st = await fetchSubFromStripe();
+    if (st.row && (st.row.status === "active" || st.row.status === "trialing")) { applySub(st.row); return; }
+    if (!st.error) { applySub(db.row || st.row); return; }           // Stripe answered: trust DB row if any, else Stripe/none
+    if (db.row) { applySub(db.row); return; }                        // Stripe unreachable: use the DB row we have
+    if (db.error) console.warn("subscriptions lookup:", db.error.message);
+    // Neither source could answer: don't lock people out for our own outage; say so loudly.
+    showToast("Couldn't check your subscription right now. Some features may be limited; please refresh.", "error");
+    setSubStatus("unknown");
+  };
+
+  const [trialStarting, setTrialStarting] = useState(false);
+  const startTrialCheckout = async () => {
+    if (trialStarting) return;
+    setTrialStarting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+        body: JSON.stringify({ email: userEmail }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.url) { window.location.href = data.url; return; }
+      throw new Error(data.error || "Checkout failed");
+    } catch (err: any) {
+      alert(`Couldn't start your trial: ${err?.message || "please try again."}`);
+    } finally {
+      setTrialStarting(false);
+    }
   };
 
   const handleManageBilling = async () => {
@@ -312,6 +452,7 @@ export default function StackedWork() {
       setTimeout(() => setProfileMsg(null), 2500);
     } catch (err: any) {
       setProfileMsg(err.message || "Could not save profile.");
+      toastErr("Couldn't save profile", err);
     } finally {
       setProfileSaving(false);
     }
@@ -366,25 +507,33 @@ export default function StackedWork() {
     reader.readAsDataURL(file);
   };
 
+  const uniqueName = (file: File, label: string) => {
+    const fromName = (file.name.split(".").pop() || "").toLowerCase();
+    const ext = /^[a-z0-9]{2,5}$/.test(fromName) ? fromName : (file.type.split("/")[1] || "jpg").replace(/[^a-z0-9]/g, "") || "jpg";
+    const rand = (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+    return `${Date.now()}-${rand}-${label}.${ext}`;
+  };
+
   const handlePhotoUpload = async () => {
     if (!userId || !phBeforeFile || !phAfterFile) return;
     setPhUploading(true); setPhErr(null);
     try {
-      const ts = Date.now();
-      const up = async (file: File, path: string) => {
+      // Per-user folder + unique name, never overwrite (upsert:false): one user can't clobber another's files.
+      const up = async (file: File, side: "before"|"after") => {
+        const path = `${userId}/portfolio/${uniqueName(file, side)}`;
         const bytes = await file.arrayBuffer();
-        const { error } = await supabase.storage.from("stackedwork-images").upload(path, bytes, { contentType: file.type, upsert: true });
+        const { error } = await supabase.storage.from("stackedwork-images").upload(path, bytes, { contentType: file.type || "image/jpeg", upsert: false });
         if (error) throw error;
         return supabase.storage.from("stackedwork-images").getPublicUrl(path).data.publicUrl;
       };
-      const beforeUrl = await up(phBeforeFile, `portfolio/${ts}-before.jpg`);
-      const afterUrl = await up(phAfterFile, `portfolio/${ts}-after.jpg`);
+      const beforeUrl = await up(phBeforeFile, "before");
+      const afterUrl = await up(phAfterFile, "after");
       const { data, error } = await supabase.from("portfolio").insert({ contractor_id: userId, before_url: beforeUrl, after_url: afterUrl, job_type: phJobType, caption: phCaption }).select().single();
       if (error) throw error;
       if (data) setDbPhotos(prev => [data, ...prev]);
       setPhBefore(null); setPhAfter(null); setPhBeforeFile(null); setPhAfterFile(null); setPhCaption(""); setPhJobType("other");
       setPhotoView("gallery");
-    } catch (err: any) { setPhErr(err.message || "Upload failed. Please try again."); }
+    } catch (err: any) { setPhErr(err.message || "Upload failed. Please try again."); toastErr("Couldn't save photos", err); }
     finally { setPhUploading(false); }
   };
 
@@ -411,8 +560,10 @@ export default function StackedWork() {
 
   const deletePhoto = async (photo: any) => {
     if (!confirm("Delete this photo?")) return;
-    await supabase.from("portfolio").delete().eq("id", photo.id);
+    const { error } = await supabase.from("portfolio").delete().eq("id", photo.id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't delete photo", error); return; }
     setDbPhotos(prev => prev.filter(p => p.id !== photo.id));
+    showToast("Photo deleted.", "success");
   };
 
   const handleReceiptScan = async (file: File) => {
@@ -441,6 +592,7 @@ export default function StackedWork() {
       if (desc) setRcDesc(desc.slice(0, 120));
     } catch (err: any) {
       setRcErr("Scan failed — please fill in manually.");
+      toastErr("Receipt scan failed", err);
     } finally {
       setRcScanning(false);
     }
@@ -461,11 +613,9 @@ export default function StackedWork() {
     if (!userId || !rcFile || !rcAmount) return;
     setRcUploading(true); setRcErr(null);
     try {
-      const ts = Date.now();
-      const ext = rcFile.name.split(".").pop() || "jpg";
-      const path = `receipts/${userId}-${ts}.${ext}`;
+      const path = `${userId}/receipts/${uniqueName(rcFile, "receipt")}`;
       const bytes = await rcFile.arrayBuffer();
-      const { error: upErr } = await supabase.storage.from("stackedwork-images").upload(path, bytes, { contentType: rcFile.type, upsert: true });
+      const { error: upErr } = await supabase.storage.from("stackedwork-images").upload(path, bytes, { contentType: rcFile.type || "application/octet-stream", upsert: false });
       if (upErr) throw upErr;
       const fileUrl = supabase.storage.from("stackedwork-images").getPublicUrl(path).data.publicUrl;
       const { data, error } = await supabase.from("receipts").insert({
@@ -479,16 +629,18 @@ export default function StackedWork() {
       if (error) throw error;
       if (data) setDbReceipts(prev => [data, ...prev]);
       setRcFile(null); setRcPreview(null); setRcAmount(""); setRcCategory("Materials");
-      setRcDate(new Date().toISOString().split("T")[0]); setRcDesc("");
+      setRcDate(todayNY()); setRcDesc("");
       setRcView("list");
-    } catch (err: any) { setRcErr(err.message || "Upload failed. Please try again."); }
+    } catch (err: any) { setRcErr(err.message || "Upload failed. Please try again."); toastErr("Couldn't save receipt", err); }
     finally { setRcUploading(false); }
   };
 
   const deleteReceipt = async (rc: any) => {
     if (!confirm("Delete this receipt?")) return;
-    await supabase.from("receipts").delete().eq("id", rc.id);
+    const { error } = await supabase.from("receipts").delete().eq("id", rc.id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't delete receipt", error); return; }
     setDbReceipts(prev => prev.filter(r => r.id !== rc.id));
+    showToast("Receipt deleted.", "success");
   };
 
   const withTimeout = <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
@@ -507,7 +659,7 @@ export default function StackedWork() {
       } else {
         const { data: signInData, error } = await withTimeout(supabase.auth.signInWithPassword({ email: authEmail, password: authPassword }));
         if (error) throw error;
-        if (signInData?.user) { setUserId(signInData.user.id); setUserEmail(signInData.user.email ?? null); checkSub(signInData.user.email!).catch(() => {}); loadProfile(signInData.user.id, signInData.user.user_metadata || {}); }
+        if (signInData?.user) { setUserId(signInData.user.id); setUserEmail(signInData.user.email ?? null); checkSub(signInData.user.email ?? null, signInData.user.id).catch(() => {}); loadProfile(signInData.user.id, signInData.user.user_metadata || {}); }
         setAuthMode(null); setPage("app");
       }
     } catch (err: any) { setAuthError(err.message || "Something went wrong. Please try again."); }
@@ -515,23 +667,35 @@ export default function StackedWork() {
   };
 
   useEffect(() => { captureFirstTouch(); }, []);
+  // Never leave the mic running: stop recognition when the New Job modal closes or the page unmounts.
+  useEffect(() => { if (!newJobOpen) abortVoiceEntry(); }, [newJobOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => abortVoiceEntry(), []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (firstRun && newJobOpen) setTimeout(() => voiceBtnRef.current?.focus(), 50); }, [firstRun, newJobOpen]);
   useEffect(() => { const h = () => setScrollY(window.scrollY); window.addEventListener("scroll",h); return () => window.removeEventListener("scroll",h); }, []);
   useEffect(() => { const i = setInterval(() => setAf(p=>(p+1)%FEATURES.length),4000); return () => clearInterval(i); }, []);
   useEffect(() => { /* demo toast removed */ }, [page,vw,td]);
   useEffect(() => {
     // onAuthStateChange fires INITIAL_SESSION on mount and catches redirects from /login
-    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Token refreshes / profile updates don't need the full re-init (and would re-trigger first-run).
+      if (event !== "INITIAL_SESSION" && event !== "SIGNED_IN") return;
+      if (!session && event === "INITIAL_SESSION" && LANDING_AUTH_ERROR && !landingFirstRunConsumed) {
+        landingFirstRunConsumed = true;
+        setTimeout(() => showToast(`Couldn't confirm your email: ${LANDING_AUTH_ERROR}. Sign in, or sign up again to get a new link.`, "error"), 0);
+        try { window.history.replaceState(null, "", window.location.pathname); } catch { /* ignore */ }
+      }
       if (session) {
         setPage("app");
         setUserId(session.user.id);
         setUserEmail(session.user.email ?? null);
-        checkSub(session.user.email!);
+        checkSub(session.user.email ?? null, session.user.id);
         loadProfile(session.user.id, session.user.user_metadata || {});
-        // First-run: right after signup (/welcome → /?firstrun=1, email-confirm link, or first sign-in)
+        // First-run: email-confirm link / welcome redirect (/?firstrun=1, any device) or same-device flag.
         let fr = false;
         try {
-          fr = new URLSearchParams(window.location.search).get("firstrun") === "1" || window.localStorage.getItem("sw_firstrun") === "1";
+          const fromUrl = !landingFirstRunConsumed && LANDING_FIRSTRUN;
+          landingFirstRunConsumed = true;
+          fr = (fromUrl || window.localStorage.getItem("sw_firstrun") === "1") && !session.user.user_metadata?.first_run_done;
           if (window.location.search.includes("firstrun")) window.history.replaceState(null, "", window.location.pathname);
         } catch { /* ignore */ }
         if (fr) { setVw("dashboard"); setFirstRun(true); setNewJobOpen(true); }
@@ -539,45 +703,74 @@ export default function StackedWork() {
     });
     return () => authSub.unsubscribe();
   }, []);
+  const resetNewJobForm = () => {
+    setTypedJob(""); setVoiceTranscript(""); setVoiceError(null); setParsedReview(null);
+    setNjCustomer(""); setNjPhone(""); setNjAddress(""); setNjTime(""); setNjType("General"); setNjValue(""); setNjStatus("quoted"); setNjDate(todayNY()); setNjNotes(""); setNjHours(""); setNjMaterialCost(""); setNjError(null);
+  };
+  const closeNewJob = () => {
+    abortVoiceEntry();
+    setNewJobOpen(false);
+    setVoiceTranscript(""); setVoiceError(null);
+    if (firstRun) endFirstRun();
+  };
+
   const handleNewJob = async () => {
-    if (!userId || !njCustomer.trim() || !njValue) return;
+    if (!userId || !njCustomer.trim()) return;
     setNjLoading(true); setNjError(null);
-    const { data, error } = await supabase.from("jobs").insert({
+    // jobs has no address/time columns: keep them at the top of the notes.
+    const noteParts = [
+      njAddress.trim() ? `Address: ${njAddress.trim()}` : "",
+      njTime ? `Time: ${new Date(`2000-01-01T${njTime}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "",
+      njNotes.trim(),
+    ].filter(Boolean);
+    const row: any = {
       contractor_id: userId,
       customer: njCustomer.trim(),
       phone: njPhone.trim() || null,
       type: njType,
-      value: parseFloat(njValue),
+      value: njValue ? parseFloat(njValue) : null, // price is optional
       status: njStatus,
       date: njDate,
-      notes: njNotes.trim() || null,
+      notes: noteParts.length ? noteParts.join("\n") : null,
       hours_worked: njHours ? parseFloat(njHours) : null,
       material_cost: njMaterialCost ? parseFloat(njMaterialCost) : 0,
-    }).select().single();
+    };
+    let { data, error } = await supabase.from("jobs").insert(row).select().single();
+    // If jobs.value is still NOT NULL in the DB, store 0 for "no price yet".
+    if (error && error.code === "23502" && row.value === null) {
+      ({ data, error } = await supabase.from("jobs").insert({ ...row, value: 0 }).select().single());
+    }
     setNjLoading(false);
-    if (error) { setNjError(error.message); return; }
+    if (error) { setNjError(`Couldn't save the job: ${error.message}`); toastErr("Couldn't save job", error); return; }
     setDbJobs(prev => [data, ...prev]);
+    showToast("Job saved.", "success");
+    abortVoiceEntry();
     setNewJobOpen(false);
     if (firstRun) { endFirstRun(); setVw("jobs"); }
-    setTypedJob("");
-    setNjCustomer(""); setNjPhone(""); setNjType("General"); setNjValue(""); setNjStatus("quoted"); setNjDate(new Date().toISOString().split("T")[0]); setNjNotes(""); setNjHours(""); setNjMaterialCost(""); setNjError(null);
+    resetNewJobForm();
   };
 
   const updateJobStatus = async (id: string, status: string) => {
     const updates: any = { status };
-    if (status === "complete") updates.completed = new Date().toISOString().split("T")[0];
-    await supabase.from("jobs").update(updates).eq("id", id);
+    if (status === "complete") updates.completed = todayNY();
+    const { error } = await supabase.from("jobs").update(updates).eq("id", id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't update job", error); return; }
     setDbJobs(prev => prev.map(j => j.id === id ? { ...j, ...updates } : j));
   };
 
   useEffect(() => {
     if (!userId) return;
-    supabase.from("leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbLeads(data); });
-    supabase.from("jobs").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data }) => { if (data) setDbJobs(data); });
-    supabase.from("homeowner_leads").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => { if (data) setDbHomeownerLeads(data); });
-    supabase.from("portfolio").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbPhotos(data); });
-    supabase.from("receipts").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data }) => { if (data) setDbReceipts(data); });
-    supabase.from("estimates").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbEstimates(data); });
+    supabase.from("leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load leads", error); else if (data) setDbLeads(data); });
+    supabase.from("jobs").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load jobs", error); else if (data) setDbJobs(data); });
+    // homeowner_leads is service-role only under RLS (no client policies). Scope by contractor anyway so this
+    // can never list other contractors' requests; 42703 = contractor_id column not added yet (see migration).
+    supabase.from("homeowner_leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).limit(50).then(({ data, error }) => {
+      if (error) { if (error.code !== "42703") console.warn("homeowner_leads:", error.message); setDbHomeownerLeads([]); return; }
+      setDbHomeownerLeads(data || []);
+    });
+    supabase.from("portfolio").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load photos", error); else if (data) setDbPhotos(data); });
+    supabase.from("receipts").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load receipts", error); else if (data) setDbReceipts(data); });
+    supabase.from("estimates").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load estimates", error); else if (data) setDbEstimates(data); });
     const ch = supabase.channel("leads_" + userId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads", filter: `contractor_id=eq.${userId}` }, (payload) => {
         setDbLeads(prev => [payload.new as any, ...prev]);
@@ -588,19 +781,27 @@ export default function StackedWork() {
   }, [userId]);
 
   const activeJobs = userId ? dbJobs : JOBS;
-  const now = new Date();
+  // Revenue buckets by America/New_York calendar date (YYYY-MM-DD string compare, no UTC shift).
+  const todayKey = todayNY();
+  const wkAgoKey = daysAgoNY(6); // today + previous 6 days
   const done = activeJobs.filter((j:any)=>j.status==="complete");
-  const moR = done.filter((j:any)=>{if(!j.completed)return false;const d=new Date(j.completed);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()}).reduce((a:number,j:any)=>a+Number(j.value),0);
-  const wkAgo = new Date(now.getTime()-7*24*60*60*1000);
-  const wkR = done.filter((j:any)=>j.completed&&new Date(j.completed)>=wkAgo).reduce((a:number,j:any)=>a+Number(j.value),0);
-  const ytd = done.filter((j:any)=>j.completed&&new Date(j.completed).getFullYear()===now.getFullYear()).reduce((a:number,j:any)=>a+Number(j.value),0);
+  const doneKey = (j:any) => toDateKeyNY(j.completed);
+  const sumVal = (arr:any[]) => arr.reduce((a:number,j:any)=>a+(Number(j.value)||0),0);
+  const doneToday = done.filter((j:any)=>doneKey(j)===todayKey);
+  const tdR = sumVal(doneToday);
+  const moR = sumVal(done.filter((j:any)=>doneKey(j)?.slice(0,7)===todayKey.slice(0,7)));
+  const wkR = sumVal(done.filter((j:any)=>{const k=doneKey(j);return !!k&&k>=wkAgoKey&&k<=todayKey;}));
+  const ytd = sumVal(done.filter((j:any)=>doneKey(j)?.slice(0,4)===todayKey.slice(0,4)));
   const gl = 12000;
   const fJ = jf==="all"?activeJobs:activeJobs.filter((j:any)=>j.status===jf);
   const activeLeads = userId ? dbLeads : LEADS;
   const lMsg = (l: any) => l.msg || l.message || "";
-  const lTs = (l: any) => l.ts || (l.created_at ? new Date(l.created_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "");
+  const lTs = (l: any) => l.ts || (l.created_at ? new Date(l.created_at).toLocaleString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "");
   const markRead = async (id: any) => {
-    if (userId) await supabase.from("leads").update({ read: true }).eq("id", id);
+    if (userId) {
+      const { error } = await supabase.from("leads").update({ read: true }).eq("id", id).eq("contractor_id", userId);
+      if (error) { toastErr("Couldn't update lead", error); return; }
+    }
     setDbLeads(prev => prev.map(l => l.id === id ? { ...l, read: true } : l));
   };
 
@@ -638,12 +839,11 @@ export default function StackedWork() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobType: neJobType, description: neDesc }),
       });
-      const data = await res.json();
-      if (data.line_items) {
-        setNeLineItems(data.line_items.map((it: any, i: number) => ({ ...it, id: Date.now() + i })));
-        if (data.notes && !neNotes) setNeNotes(data.notes);
-      }
-    } catch { /* ignore */ }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.line_items) throw new Error(data.error || "no suggestions returned");
+      setNeLineItems(data.line_items.map((it: any, i: number) => ({ ...it, id: Date.now() + i })));
+      if (data.notes && !neNotes) setNeNotes(data.notes);
+    } catch (err: any) { toastErr("AI price suggestions failed", err); }
     finally { setAiLoading(false); }
   };
 
@@ -654,11 +854,38 @@ export default function StackedWork() {
     setNeLoading(false); setNeError(null); setNewEstimateOpen(false);
   };
 
+  // Calls the email API and returns true only when it reports a real send.
+  const postEstimateEmail = async (est: any): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const shareUrl = `${window.location.origin}/estimate/${est.share_token}`;
+      const res = await fetch("/api/estimate-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estimate: est, contractorName: userEmail?.split("@")[0] || "Your Contractor", contractorEmail: userEmail, shareUrl }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) return { ok: false, error: data?.error || `Email failed (HTTP ${res.status})` };
+      if (data.warning) return { ok: false, error: "Email sending isn't configured on the server yet" };
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || "Network error" };
+    }
+  };
+
+  const markEstimateSent = async (est: any) => {
+    const { error } = await supabase.from("estimates").update({ status: "sent" }).eq("id", est.id).eq("contractor_id", userId);
+    if (error) { toastErr("Email sent, but couldn't mark the estimate as sent", error); return false; }
+    setDbEstimates(prev => prev.map(e => e.id === est.id ? { ...e, status: "sent" } : e));
+    if (estimateDetail?.id === est.id) setEstimateDetail((e: any) => ({ ...e, status: "sent" }));
+    return true;
+  };
+
   const handleSaveEstimate = async (sendEmail = false) => {
     if (!userId || !neCustomer.trim()) return;
     setNeLoading(true); setNeError(null);
     const taxRate = parseFloat(neTaxRate) || 0;
     const { subtotal, taxAmount, total } = calcEstimateTotals(neLineItems, taxRate);
+    // Always save as draft first; only mark "sent" after the email API confirms.
     const { data, error } = await supabase.from("estimates").insert({
       contractor_id: userId,
       customer_name: neCustomer.trim(),
@@ -671,46 +898,45 @@ export default function StackedWork() {
       tax_amount: taxAmount,
       total,
       notes: neNotes.trim() || null,
-      status: sendEmail ? "sent" : "draft",
+      status: "draft",
       valid_until: neValidUntil || null,
     }).select().single();
-    setNeLoading(false);
-    if (error) { setNeError(error.message); return; }
+    if (error) { setNeLoading(false); setNeError(error.message); toastErr("Couldn't save estimate", error); return; }
     if (data) {
       setDbEstimates(prev => [data, ...prev]);
       if (sendEmail && data.customer_email) {
-        const shareUrl = `${window.location.origin}/estimate/${data.share_token}`;
-        await fetch("/api/estimate-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ estimate: data, contractorName: userEmail?.split("@")[0] || "Your Contractor", contractorEmail: userEmail, shareUrl }),
-        });
+        const r = await postEstimateEmail(data);
+        if (r.ok) { await markEstimateSent(data); showToast(`Estimate emailed to ${data.customer_email}.`, "success"); }
+        else showToast(`Estimate saved as draft, but the email was NOT sent: ${r.error}`, "error");
+      } else {
+        showToast("Estimate saved as draft.", "success");
       }
     }
+    setNeLoading(false);
     resetNewEstimate();
   };
 
   const deleteEstimate = async (est: any) => {
     if (!confirm("Delete this estimate?")) return;
-    await supabase.from("estimates").delete().eq("id", est.id);
+    const { error } = await supabase.from("estimates").delete().eq("id", est.id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't delete estimate", error); return; }
     setDbEstimates(prev => prev.filter(e => e.id !== est.id));
     if (estimateDetail?.id === est.id) setEstimateDetail(null);
+    showToast("Estimate deleted.", "success");
   };
 
   const sendEstimateEmail = async (est: any) => {
-    if (!est.customer_email) return;
+    if (!est.customer_email || sendingEmail) return;
     setSendingEmail(true);
-    const shareUrl = `${window.location.origin}/estimate/${est.share_token}`;
-    await fetch("/api/estimate-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ estimate: est, contractorName: userEmail?.split("@")[0] || "Your Contractor", contractorEmail: userEmail, shareUrl }),
-    });
-    await supabase.from("estimates").update({ status: "sent" }).eq("id", est.id);
-    setDbEstimates(prev => prev.map(e => e.id === est.id ? { ...e, status: "sent" } : e));
-    if (estimateDetail?.id === est.id) setEstimateDetail((e: any) => ({ ...e, status: "sent" }));
-    setSendingEmail(false); setEmailSent(true);
-    setTimeout(() => setEmailSent(false), 3000);
+    const r = await postEstimateEmail(est);
+    if (r.ok) {
+      await markEstimateSent(est);
+      setEmailSent(true);
+      setTimeout(() => setEmailSent(false), 3000);
+    } else {
+      showToast(`Estimate email was NOT sent: ${r.error}`, "error");
+    }
+    setSendingEmail(false);
   };
 
   const openEditEstimate = (est: any) => {
@@ -756,9 +982,9 @@ export default function StackedWork() {
       valid_until: editValidUntil || null,
       updated_at: new Date().toISOString(),
     };
-    const { data, error } = await supabase.from("estimates").update(updates).eq("id", estimateDetail.id).select().single();
+    const { data, error } = await supabase.from("estimates").update(updates).eq("id", estimateDetail.id).eq("contractor_id", userId).select().single();
     setEditLoading(false);
-    if (error) { setEditError(error.message); return; }
+    if (error) { setEditError(error.message); toastErr("Couldn't save estimate changes", error); return; }
     if (data) {
       setDbEstimates(prev => prev.map(e => e.id === data.id ? data : e));
       setEstimateDetail(data);
@@ -769,21 +995,38 @@ export default function StackedWork() {
   const handleSubscribe = () => {
     window.location.href = "/login?mode=signup";
   };
-  const BLOCKED = ["cancelled","incomplete_expired","unpaid","past_due"];
-  if(page==="app" && subStatus && BLOCKED.includes(subStatus)){
+  const toastStack = (toasts.length>0&&<div role="status" aria-live="assertive" style={{position:"fixed",bottom:84,left:"50%",transform:"translateX(-50%)",zIndex:200,display:"flex",flexDirection:"column",gap:8,width:"calc(100% - 32px)",maxWidth:420}}>
+          {toasts.map(t=><div key={t.id} style={{padding:"12px 14px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 8px 30px rgba(0,0,0,0.25)",display:"flex",gap:10,alignItems:"flex-start",justifyContent:"space-between",background:t.kind==="error"?"#FEE2E2":t.kind==="success"?"#D1FAE5":"#F1F5F9",color:t.kind==="error"?"#991B1B":t.kind==="success"?"#065F46":"#334155",border:`1px solid ${t.kind==="error"?"#FECACA":t.kind==="success"?"#6EE7B7":"#E2E8F0"}`}}>
+            <span>{t.msg}</span>
+            <button onClick={()=>setToasts(prev=>prev.filter(x=>x.id!==t.id))} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"inherit",fontSize:16,lineHeight:1,padding:0}}>×</button>
+          </div>)}
+        </div>);
+  // Allow-list: only an active or trialing Stripe subscription gets in. "none" (no row: signed up but never
+  // started the trial), canceled/cancelled, past_due, unpaid, incomplete*, paused all land on this screen.
+  // "unknown" = lookup failed (network/DB); we don't lock people out for our own errors.
+  const ACTIVE_SUB = ["active","trialing","unknown"];
+  if(page==="app" && userId && subStatus===null){
+    return(
+      <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"rgba(245,240,235,0.6)",fontSize:14}}>Checking your subscription...</div>
+    );
+  }
+  if(page==="app" && userId && subStatus && !ACTIVE_SUB.includes(subStatus)){
+    const noSub = subStatus === "none";
     return(
       <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center",color:"#F5F0EB"}}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&display=swap');*{margin:0;padding:0;box-sizing:border-box}`}</style>
         <div style={{fontSize:48,marginBottom:24}}>🔒</div>
-        <h1 style={{fontSize:28,fontWeight:700,marginBottom:12}}>Subscription {subStatus === "cancelled" ? "Cancelled" : "Inactive"}</h1>
+        <h1 style={{fontSize:28,fontWeight:700,marginBottom:12}}>{noSub ? "Start your free trial" : `Subscription ${subStatus === "cancelled" || subStatus === "canceled" ? "Cancelled" : "Inactive"}`}</h1>
         <p style={{fontSize:15,color:"rgba(245,240,235,0.5)",maxWidth:420,marginBottom:32,lineHeight:1.7}}>
-          {subStatus === "past_due"
+          {noSub
+            ? "Your account is set up, but your 14-day free trial hasn't started yet. No credit card required."
+            : subStatus === "past_due"
             ? "Your last payment failed. Please update your billing info to continue."
             : "Your StackedWork subscription is no longer active. Reactivate to get back in."}
         </p>
         <div style={{display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center"}}>
-          <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 32px",fontSize:15,fontWeight:700,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'"}}>Reactivate Subscription</button>
-          {stripeCustomerId && (
+          <button onClick={subStatus === "past_due" && stripeCustomerId ? handleManageBilling : startTrialCheckout} disabled={trialStarting} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 32px",fontSize:15,fontWeight:700,borderRadius:6,cursor:trialStarting?"wait":"pointer",fontFamily:"'DM Sans'",opacity:trialStarting?0.7:1}}>{trialStarting ? "Opening..." : noSub ? "Start Free Trial" : "Reactivate Subscription"}</button>
+          {stripeCustomerId && !noSub && (
             <button onClick={handleManageBilling} disabled={billingLoading} style={{background:"transparent",color:"#F5F0EB",border:"1px solid rgba(255,255,255,0.25)",padding:"14px 32px",fontSize:15,fontWeight:600,borderRadius:6,cursor:billingLoading?"wait":"pointer",fontFamily:"'DM Sans'",opacity:billingLoading?0.6:1}}>{billingLoading?"Opening...":"Manage Billing"}</button>
           )}
           <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);setSubDetail(null);}} style={{background:"transparent",color:"rgba(245,240,235,0.5)",border:"1px solid rgba(255,255,255,0.15)",padding:"14px 32px",fontSize:15,fontWeight:600,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
@@ -852,39 +1095,58 @@ export default function StackedWork() {
           <div style={{fontWeight:600,fontSize:13,color:"#0F172A",marginBottom:2}}>{tst.name}</div><div style={{fontSize:12,color:"#64748B",marginBottom:10}}>{tst.msg}</div>
           <div style={{display:"flex",gap:8}}><Btn onClick={()=>{setTd(true);setTst(null);setVw("leads")}} style={{flex:1,fontSize:11,padding:6}}>View Lead</Btn><BtnO onClick={()=>{setTd(true);setSms(true)}} style={{flex:1,fontSize:11,padding:6}}>SMS Alert</BtnO></div>
         </div>}
-        {newJobOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>{setNewJobOpen(false);if(firstRun)endFirstRun();}}>
+        {toastStack}
+        {newJobOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={closeNewJob}>
           <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
               <h2 style={{fontSize:18,fontWeight:700,color:"#0F172A"}}>{firstRun?"Log your first job by voice":"New Job"}</h2>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <button ref={voiceBtnRef} onClick={startVoiceEntry} title="Speak job details" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:voiceListening?`linear-gradient(135deg,${G},${GD})`:"#F1F5F9",color:voiceListening?"#132440":"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",transition:"all .2s"}}>
-                  {voiceListening
-                    ? <><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#132440",animation:"pulseMk 1s infinite"}}/>Listening...</>
-                    : <>🎤 Voice Entry</>}
-                </button>
-                <button onClick={()=>{setNewJobOpen(false);setVoiceTranscript("");if(firstRun)endFirstRun();}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button>
+                {voiceListening
+                  ? <>
+                      <span style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",borderRadius:8,fontSize:12,fontWeight:700,fontFamily:"'DM Sans'"}} aria-live="polite"><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#132440",animation:"pulseMk 1s infinite"}}/>Listening...</span>
+                      <button onClick={stopVoiceEntry} title="Stop listening" aria-label="Stop listening" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 12px",background:"#132440",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'"}}>■ Stop</button>
+                    </>
+                  : <button ref={voiceBtnRef} onClick={startVoiceEntry} disabled={voiceParsing} title="Speak job details" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:"#F1F5F9",color:"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:voiceParsing?"wait":"pointer",fontFamily:"'DM Sans'",transition:"all .2s",opacity:voiceParsing?0.6:1}}>🎤 Voice Entry</button>}
+                <button onClick={closeNewJob} aria-label="Close" style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button>
               </div>
             </div>
             {voiceTranscript&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534"}}>
               <span style={{fontWeight:700}}>Heard: </span>{voiceTranscript}
             </div>}
-            {!voiceTranscript&&<p style={{fontSize:firstRun?13:11,color:firstRun?"#475569":"#94A3B8",marginBottom:14}}>Tap <strong>Voice Entry</strong> and say something like: <em>&quot;John Smith, plumbing, $850, scheduled&quot;</em></p>}
+            {voiceError&&<div role="alert" style={{marginBottom:14,padding:"10px 14px",background:"#FEF3C7",border:"1px solid #FDE68A",borderRadius:8,fontSize:12,color:"#92400E"}}>{voiceError}</div>}
+            {voiceParsing&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F1F5F9",borderRadius:8,fontSize:12,color:"#475569"}}>Reading your job details...</div>}
+            {!voiceTranscript&&!voiceError&&<p style={{fontSize:firstRun?13:11,color:firstRun?"#475569":"#94A3B8",marginBottom:14}}>Tap <strong>Voice Entry</strong> and say something like: <em>&quot;Jane Doe, 12 Oak Street, water heater replacement, next Tuesday at 9, $1,200&quot;</em></p>}
+            {parsedReview&&!voiceParsing&&<div style={{marginBottom:14,padding:"12px 14px",background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:8,fontSize:12,color:"#1E3A8A"}}>
+              <div style={{fontWeight:700,marginBottom:6}}>Check these details before saving{parsedReview.source==="basic"?" (basic parsing)":""}</div>
+              <div style={{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:10,rowGap:2}}>
+                <span style={{color:"#64748B"}}>Customer</span><span>{parsedReview.customer_name||"—"}</span>
+                <span style={{color:"#64748B"}}>Address</span><span>{parsedReview.address||"—"}</span>
+                <span style={{color:"#64748B"}}>Phone</span><span>{parsedReview.phone||"—"}</span>
+                <span style={{color:"#64748B"}}>Service</span><span>{parsedReview.service||"—"}</span>
+                <span style={{color:"#64748B"}}>When</span><span>{parsedReview.scheduled_at||"—"}</span>
+                <span style={{color:"#64748B"}}>Price</span><span>{typeof parsedReview.price==="number"?`$${parsedReview.price.toLocaleString()}`:"not stated (optional)"}</span>
+                <span style={{color:"#64748B"}}>Status</span><span>{STC[parsedReview.status]?.label||parsedReview.status}</span>
+              </div>
+              <div style={{marginTop:6,color:"#475569"}}>Edit anything below, then tap <strong>Confirm &amp; Save Job</strong>. Nothing is saved until you do.</div>
+            </div>}
             <div style={{display:"flex",gap:8,marginBottom:14}}>
-              <input value={typedJob} onChange={e=>setTypedJob(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&typedJob.trim()){e.preventDefault();applyParsedJob(typedJob);}}} placeholder="Or type it: John Smith, plumbing, $850" aria-label="Type the job instead of speaking" style={{flex:1,padding:"9px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
-              <button type="button" onClick={()=>typedJob.trim()&&applyParsedJob(typedJob)} disabled={!typedJob.trim()} style={{padding:"9px 14px",background:"#F1F5F9",color:"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:typedJob.trim()?"pointer":"not-allowed",fontFamily:"'DM Sans'",opacity:typedJob.trim()?1:0.6}}>Fill in</button>
+              <input value={typedJob} onChange={e=>setTypedJob(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&typedJob.trim()&&!voiceParsing){e.preventDefault();applyParsedJob(typedJob);}}} placeholder="Or type it: Jane Doe, plumbing, Friday 10am" aria-label="Type the job instead of speaking" style={{flex:1,padding:"9px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+              <button type="button" onClick={()=>typedJob.trim()&&!voiceParsing&&applyParsedJob(typedJob)} disabled={!typedJob.trim()||voiceParsing} style={{padding:"9px 14px",background:"#F1F5F9",color:"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:typedJob.trim()?"pointer":"not-allowed",fontFamily:"'DM Sans'",opacity:typedJob.trim()?1:0.6}}>Fill in</button>
             </div>
             {[
               {label:"Customer Name *",val:njCustomer,set:setNjCustomer,placeholder:"John Smith",type:"text"},
               {label:"Phone",val:njPhone,set:setNjPhone,placeholder:"(410) 555-0100",type:"tel"},
+              {label:"Address (saved in notes)",val:njAddress,set:setNjAddress,placeholder:"Street, city",type:"text"},
             ].map((f,i)=><div key={i} style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>{f.label}</label><input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.placeholder} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>)}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Job Type</label><select value={njType} onChange={e=>setNjType(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>{["General","Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","Other"].map(t=><option key={t}>{t}</option>)}</select></div>
+              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Job Type</label><select value={njType} onChange={e=>setNjType(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>{JOB_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
               <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Status</label><select value={njStatus} onChange={e=>setNjStatus(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}><option value="quoted">Quoted</option><option value="scheduled">Scheduled</option><option value="in-progress">In Progress</option><option value="complete">Complete</option></select></div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
-              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Job Value ($) *</label><input type="number" min="0" step="0.01" value={njValue} onChange={e=>setNjValue(e.target.value)} placeholder="0.00" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Price ($, optional)</label><input type="number" min="0" step="0.01" value={njValue} onChange={e=>setNjValue(e.target.value)} placeholder="0.00" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
               <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Date</label><input type="date" value={njDate} onChange={e=>setNjDate(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
             </div>
+            <div style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Time (optional, saved in notes)</label><input type="time" value={njTime} onChange={e=>setNjTime(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
             <div style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Notes</label><textarea value={njNotes} onChange={e=>setNjNotes(e.target.value)} placeholder="Job details..." rows={3} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",resize:"vertical",boxSizing:"border-box"}}/></div>
             <div style={{background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:10,padding:"12px 14px",marginBottom:20}}>
               <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:10}}>Profitability (optional)</div>
@@ -897,7 +1159,7 @@ export default function StackedWork() {
               </div>}
             </div>
             {njError&&<div style={{marginBottom:14,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:13,color:"#991B1B"}}>{njError}</div>}
-            <button onClick={handleNewJob} disabled={njLoading||!njCustomer.trim()||!njValue} style={{width:"100%",padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:njLoading||!njCustomer.trim()||!njValue?"not-allowed":"pointer",opacity:njLoading||!njCustomer.trim()||!njValue?0.6:1,fontFamily:"'DM Sans'"}}>{njLoading?"Saving...":"Save Job"}</button>
+            <button onClick={handleNewJob} disabled={njLoading||voiceParsing||voiceListening||!njCustomer.trim()} style={{width:"100%",padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:njLoading||voiceParsing||voiceListening||!njCustomer.trim()?"not-allowed":"pointer",opacity:njLoading||voiceParsing||voiceListening||!njCustomer.trim()?0.6:1,fontFamily:"'DM Sans'"}}>{njLoading?"Saving...":parsedReview?"Confirm & Save Job":"Save Job"}</button>
           </div>
         </div>}
         {newEstimateOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={resetNewEstimate}>
@@ -933,7 +1195,7 @@ export default function StackedWork() {
                   {aiLoading?<><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#94A3B8",animation:"pulseMk 1s infinite"}}/>Getting prices...</>:<>🤖 AI Price Suggestions</>}
                 </button>
               </div>
-              {aiLoading&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534"}}>Analyzing {neJobType} pricing for {new Date().getFullYear()}...</div>}
+              {aiLoading&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534"}}>Analyzing {neJobType} pricing for {yearNY()}...</div>}
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
                 {neLineItems.map((it,i)=>(
                   <div key={it.id} style={{display:"grid",gridTemplateColumns:"2fr 0.7fr 0.7fr 0.8fr 0.8fr auto",gap:6,alignItems:"center"}}>
@@ -1016,13 +1278,16 @@ export default function StackedWork() {
           <main style={{flex:1,padding:"20px 16px 100px",maxWidth:960,overflow:"auto"}}>
             {vw==="dashboard"&&<>
               {(()=>{
-                const tickerLeads = dbHomeownerLeads.length > 0 ? dbHomeownerLeads : [
-                  {name:"Jamie R.",zip_code:"Baltimore, MD",job_type:"kitchen remodel",phone:"(410) 555-0182"},
-                  {name:"Marcus T.",zip_code:"Annapolis, MD",job_type:"deck build",email:"marcus.t@gmail.com"},
-                  {name:"Sarah K.",zip_code:"Columbia, MD",job_type:"bathroom gut",phone:"(443) 555-0344"},
-                  {name:"Derek W.",zip_code:"Towson, MD",job_type:"HVAC replacement",email:"derekw@yahoo.com"},
-                  {name:"Lisa M.",zip_code:"Bowie, MD",job_type:"roof repair",phone:"(301) 555-0561"},
-                ];
+                // Real leads only (this contractor's own leads + scoped homeowner requests). No sample data.
+                const tickerLeads = userId ? [...activeLeads, ...dbHomeownerLeads].slice(0, 10) : [];
+                if (tickerLeads.length === 0) {
+                  return (
+                    <div style={{background:"rgba(200,230,74,0.05)",border:"1px dashed rgba(200,230,74,0.25)",borderRadius:10,marginBottom:20,padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+                      <span style={{fontSize:12,color:"rgba(245,240,235,0.7)"}}>📥 No leads yet. Share your lead form link and new requests will show up here.</span>
+                      {userId&&<button onClick={copyLeadLink} style={{fontSize:11,fontWeight:700,padding:"5px 12px",borderRadius:6,border:"none",background:G,color:"#132440",cursor:"pointer",fontFamily:"'DM Sans'"}}>{linkCopied?"Copied!":"Copy lead link"}</button>}
+                    </div>
+                  );
+                }
                 const items = [...tickerLeads, ...tickerLeads];
                 return (
                   <div style={{background:"rgba(200,230,74,0.07)",border:"1px solid rgba(200,230,74,0.2)",borderRadius:10,marginBottom:20,overflow:"hidden",position:"relative",height:38}}>
@@ -1036,10 +1301,9 @@ export default function StackedWork() {
                         <span key={i} style={{fontSize:12,color:"rgba(245,240,235,0.85)",padding:"0 28px",display:"inline-flex",alignItems:"center",gap:7,flexShrink:0}}>
                           <span style={{fontSize:14}}>🏡</span>
                           <strong style={{color:"#fff"}}>{lead.name?.split(" ")[0] || "Someone"}</strong>
-                          <span style={{color:"rgba(245,240,235,0.45)"}}>from</span>
-                          <span>{lead.zip_code}</span>
-                          <span style={{color:"rgba(245,240,235,0.45)"}}>wants an estimate for</span>
-                          <strong style={{color:G}}>{lead.job_type}</strong>
+                          {lead.zip_code&&<><span style={{color:"rgba(245,240,235,0.45)"}}>from</span><span>{lead.zip_code}</span></>}
+                          <span style={{color:"rgba(245,240,235,0.45)"}}>{lead.job_type?"wants an estimate for":"sent a request"}</span>
+                          {lead.job_type&&<strong style={{color:G}}>{lead.job_type}</strong>}
                           {lead.email && <span style={{color:"rgba(245,240,235,0.5)"}}>· {lead.email}</span>}
                           {lead.phone && <span style={{color:"rgba(245,240,235,0.5)"}}>· {lead.phone}</span>}
                           <span style={{color:"rgba(245,240,235,0.15)",padding:"0 4px"}}>|</span>
@@ -1050,7 +1314,7 @@ export default function StackedWork() {
                 );
               })()}
               <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:18}}>Revenue Dashboard</h1>
-              <div className="sw-sg">{[{l:"Today",v:"$0",s:"0 jobs"},{l:"This Week",v:`$${wkR.toLocaleString()}`,s:"last 7 days"},{l:"This Month",v:`$${moR.toLocaleString()}`,s:`$${gl.toLocaleString()} goal`},{l:"YTD 2026",v:`$${ytd.toLocaleString()}`,s:`${done.length} jobs`}].map((s,i)=>
+              <div className="sw-sg">{[{l:"Today",v:`$${tdR.toLocaleString()}`,s:`${doneToday.length} job${doneToday.length!==1?"s":""} completed`},{l:"This Week",v:`$${wkR.toLocaleString()}`,s:"last 7 days"},{l:"This Month",v:`$${moR.toLocaleString()}`,s:`$${gl.toLocaleString()} goal`},{l:`YTD ${todayKey.slice(0,4)}`,v:`$${ytd.toLocaleString()}`,s:`${done.filter((j:any)=>doneKey(j)?.slice(0,4)===todayKey.slice(0,4)).length} jobs`}].map((s,i)=>
                 <div key={i} style={{background:"linear-gradient(135deg,#0F172A,#1E293B)",borderRadius:12,padding:16,color:"#fff"}}><div style={{fontSize:10,color:"#94A3B8",fontFamily:"'Space Mono'",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:6}}>{s.l}</div><div style={{fontSize:22,fontWeight:700,marginBottom:2}}>{s.v}</div><div style={{fontSize:11,color:"#94A3B8"}}>{s.s}</div></div>
               )}</div>
               <Card style={{padding:20,marginBottom:20}}>
@@ -1060,14 +1324,14 @@ export default function StackedWork() {
               </Card>
               <Card style={{overflow:"hidden",marginBottom:20}}>
                 <div style={{padding:"14px 18px",borderBottom:"1px solid #E2E8F0",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:14,fontWeight:600,color:"#0F172A"}}>Recent Jobs</span><Btn onClick={()=>setVw("jobs")} style={{fontSize:11,padding:"5px 12px"}}>View All</Btn></div>
-                {activeJobs.length===0?<div style={{padding:"28px 18px",textAlign:"center",color:"#94A3B8",fontSize:13}}>No jobs yet — <span style={{color:GD,cursor:"pointer",fontWeight:600}} onClick={()=>setVw("jobs")}>add your first job</span></div>:activeJobs.slice(0,4).map((j:any,i:number)=><div key={j.id||i} style={{padding:"12px 18px",borderBottom:i<3?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.date}</div></div><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontWeight:600,fontSize:13}}>${Number(j.value).toLocaleString()}</span><Badge s={j.status}/></div></div>)}
+                {activeJobs.length===0?<div style={{padding:"28px 18px",textAlign:"center",color:"#94A3B8",fontSize:13}}>No jobs yet — <span style={{color:GD,cursor:"pointer",fontWeight:600}} onClick={()=>setVw("jobs")}>add your first job</span></div>:activeJobs.slice(0,4).map((j:any,i:number)=><div key={j.id||i} style={{padding:"12px 18px",borderBottom:i<3?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {fmtDateNY(j.date)}</div></div><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontWeight:600,fontSize:13}}>{j.value==null||j.value===""?"No price":`$${Number(j.value).toLocaleString()}`}</span><Badge s={j.status}/></div></div>)}
               </Card>
             </>}
             {vw==="jobs"&&<>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Jobs</h1><Btn onClick={()=>userId?setNewJobOpen(true):setAuthMode("login")}>+ New Job</Btn></div>
               <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{["all","quoted","scheduled","in-progress","complete"].map(f=><button key={f} className={`sw-fb ${jf===f?"sw-a":""}`} onClick={()=>setJf(f)}>{f==="all"?"All":STC[f]?.label||f}</button>)}</div>
               {fJ.length===0?<Card style={{padding:40,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🔨</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No jobs yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Add your first job to start tracking revenue.</div><Btn onClick={()=>userId?setNewJobOpen(true):setAuthMode("login")}>+ Add First Job</Btn></Card>
-              :<Card style={{overflow:"hidden"}}>{fJ.map((j:any)=><div key={j.id} className="sw-jm"><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><div><div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.date}{j.phone?` · ${j.phone}`:""}</div></div><div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>${Number(j.value).toLocaleString()}</div></div><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge s={j.status}/>{userId&&j.status!=="complete"&&<select value={j.status} onChange={e=>updateJobStatus(j.id,e.target.value)} style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"'DM Sans'"}}><option value="quoted">→ Quoted</option><option value="scheduled">→ Scheduled</option><option value="in-progress">→ In Progress</option><option value="complete">→ Complete</option></select>}</div></div>)}</Card>}
+              :<Card style={{overflow:"hidden"}}>{fJ.map((j:any)=><div key={j.id} className="sw-jm"><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><div><div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {fmtDateNY(j.date)}{j.phone?` · ${j.phone}`:""}</div></div><div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>{j.value==null||j.value===""?<span style={{fontSize:12,color:"#94A3B8",fontWeight:600}}>No price</span>:`$${Number(j.value).toLocaleString()}`}</div></div><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge s={j.status}/>{userId&&j.status!=="complete"&&<select value={j.status} onChange={e=>updateJobStatus(j.id,e.target.value)} style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"'DM Sans'"}}><option value="quoted">→ Quoted</option><option value="scheduled">→ Scheduled</option><option value="in-progress">→ In Progress</option><option value="complete">→ Complete</option></select>}</div></div>)}</Card>}
             </>}
             {vw==="photos"&&<>
               <input ref={beforeRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handlePhotoFile(f,"before");e.target.value="";}}/>
@@ -1102,7 +1366,7 @@ export default function StackedWork() {
                 ? <Card style={{padding:"48px 20px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>📸</div><div style={{fontWeight:700,fontSize:16,color:"#0F172A",marginBottom:6}}>No photos yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Upload before & after photos to build your portfolio and share to social media.</div>{userId&&<Btn onClick={()=>setPhotoView("upload")}>+ Add First Photos</Btn>}</Card>
                 : <div style={{display:"flex",flexDirection:"column",gap:14}}>
                     {dbPhotos.map((p,i)=>{
-                      const d=p.created_at?new Date(p.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"";
+                      const d=p.created_at?new Date(p.created_at).toLocaleDateString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",year:"numeric"}):"";
                       const jtEmoji:any={"bathroom":"🚿","kitchen":"🍳","paint":"🎨","exterior":"🏡","deck":"🪵","other":"🔧"};
                       return<Card key={p.id||i} style={{overflow:"hidden"}}>
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
@@ -1175,7 +1439,7 @@ export default function StackedWork() {
                 ? <Card style={{padding:"28px 20px",textAlign:"center"}}><div style={{fontSize:32,marginBottom:10}}>🏡</div><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:4}}>No homeowner requests yet</div><div style={{fontSize:12,color:"#94A3B8"}}>Homeowner project requests will show here when the marketplace is available.</div></Card>
                 : <div style={{display:"flex",flexDirection:"column",gap:10}}>
                     {dbHomeownerLeads.map((l:any,i:number)=>{
-                      const d=l.created_at?new Date(l.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
+                      const d=l.created_at?new Date(l.created_at).toLocaleDateString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
                       const jtEmoji:any={"bathroom":"🚿","kitchen":"🍳","paint":"🎨","exterior":"🏡","deck":"🪵","electrical":"⚡","plumbing":"🔧","hvac":"❄️","general":"🏗️","other":"🛠️"};
                       return(
                         <Card key={l.id||i} style={{padding:16,borderLeft:`4px solid #4A82C4`}}>
@@ -1202,10 +1466,10 @@ export default function StackedWork() {
             </>}
             {vw==="receipts"&&(()=>{
               const RC_CATS = ["Materials","Fuel/Gas","Equipment","Tools","Subcontractor","Insurance","Office/Software","Other"];
-              const nowY = new Date().getFullYear();
-              const nowM = new Date().getMonth();
-              const ytdR = dbReceipts.filter((r:any)=>new Date(r.date).getFullYear()===nowY).reduce((a:number,r:any)=>a+Number(r.amount),0);
-              const moR2 = dbReceipts.filter((r:any)=>{const d=new Date(r.date);return d.getFullYear()===nowY&&d.getMonth()===nowM}).reduce((a:number,r:any)=>a+Number(r.amount),0);
+              const nowKey = todayNY();
+              const nowY = yearNY();
+              const ytdR = dbReceipts.filter((r:any)=>toDateKeyNY(r.date)?.slice(0,4)===nowKey.slice(0,4)).reduce((a:number,r:any)=>a+Number(r.amount),0);
+              const moR2 = dbReceipts.filter((r:any)=>toDateKeyNY(r.date)?.slice(0,7)===nowKey.slice(0,7)).reduce((a:number,r:any)=>a+Number(r.amount),0);
               const filtered = rcFilter==="all" ? dbReceipts : dbReceipts.filter((r:any)=>r.category===rcFilter);
               return(<>
                 <input ref={rcFileRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handleReceiptFile(f);e.target.value="";}}/>
@@ -1265,7 +1529,7 @@ export default function StackedWork() {
                             <div style={{flex:1,minWidth:0}}>
                               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
                                 <div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>${Number(rc.amount).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-                                <div style={{fontSize:11,color:"#94A3B8"}}>{new Date(rc.date+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                                <div style={{fontSize:11,color:"#94A3B8"}}>{fmtDateNY(rc.date)}</div>
                               </div>
                               <div style={{display:"flex",gap:6,alignItems:"center",marginTop:3}}>
                                 <span style={{fontSize:10,fontWeight:700,background:"#EEF2FF",color:"#3730A3",padding:"2px 8px",borderRadius:100}}>{rc.category}</span>
@@ -1362,7 +1626,7 @@ export default function StackedWork() {
                         <div key={est.id} style={{padding:"14px 18px",borderBottom:i<dbEstimates.length-1?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setEstimateDetail(est)}>
                           <div>
                             <div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{est.customer_name}</div>
-                            <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{est.job_type} · {new Date(est.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}{est.customer_email?` · ${est.customer_email}`:""}</div>
+                            <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{est.job_type} · {new Date(est.created_at).toLocaleDateString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",year:"numeric"})}{est.customer_email?` · ${est.customer_email}`:""}</div>
                           </div>
                           <div style={{display:"flex",alignItems:"center",gap:10}}>
                             <span style={{fontWeight:700,fontSize:14}}>${Number(est.total).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
@@ -1379,7 +1643,7 @@ export default function StackedWork() {
                     <div style={{background:"linear-gradient(135deg,#132440,#1E3A5F)",borderRadius:"16px 16px 0 0",padding:"20px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                       <div>
                         <div style={{fontWeight:700,fontSize:16,color:"#fff"}}>{estimateDetail.customer_name}</div>
-                        <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginTop:2}}>{estimateDetail.job_type} · {new Date(estimateDetail.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</div>
+                        <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginTop:2}}>{estimateDetail.job_type} · {new Date(estimateDetail.created_at).toLocaleDateString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",year:"numeric"})}</div>
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         {!editingEstimate&&<EstBadge s={estimateDetail.status}/>}
@@ -1541,8 +1805,8 @@ export default function StackedWork() {
               <div style={{padding:"40px 20px",textAlign:"center",color:"#94A3B8"}}><div style={{fontSize:36,marginBottom:12}}>🔔</div><div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>No follow-ups yet</div><div style={{fontSize:12}}>Completed jobs will appear here as reminders to re-engage past clients.</div></div>
             </>}
             {vw==="settings"&&(()=>{
-              const fmtDate = (iso?: string|null) => iso ? new Date(iso).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}) : null;
-              const statusLabel = subStatus==="trialing" ? "Free Trial" : subStatus==="active" ? "Active" : subStatus==="past_due" ? "Past Due" : subStatus==="cancelled" ? "Cancelled" : subStatus==="incomplete" || subStatus==="incomplete_expired" ? "Incomplete" : subStatus==="unpaid" ? "Unpaid" : "No active subscription";
+              const fmtDate = (iso?: string|null) => iso ? fmtDateNY(iso,{month:"long",day:"numeric",year:"numeric"}) : null;
+              const statusLabel = subStatus==="trialing" ? "Free Trial" : subStatus==="active" ? "Active" : subStatus==="past_due" ? "Past Due" : (subStatus==="cancelled"||subStatus==="canceled") ? "Cancelled" : subStatus==="incomplete" || subStatus==="incomplete_expired" ? "Incomplete" : subStatus==="unpaid" ? "Unpaid" : "No active subscription";
               const statusColor = subStatus==="active"||subStatus==="trialing" ? "#22C55E" : subStatus==="past_due"||subStatus==="unpaid" ? "#F59E0B" : subStatus==="cancelled" ? "#EF4444" : "#94A3B8";
               const trialEnd = fmtDate(subDetail?.trial_end);
               const periodEnd = fmtDate(subDetail?.current_period_end);
@@ -2025,15 +2289,16 @@ export default function StackedWork() {
           <div style={{display:"flex",gap:20,flexWrap:"wrap",alignItems:"center"}}>
             <a href="mailto:ryan@remventures.tech" style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>Contact: ryan@remventures.tech</a>
             <a href="tel:4105306456" style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>410-530-6456</a>
-            {[[t.privacy,"Privacy"],[t.terms,"Terms"]].map(([label,key])=><span key={key} style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer"}}>{label}</span>)}
+            {[[t.privacy,"/privacy"],[t.terms,"/terms"]].map(([label,href])=><a key={href} href={href} style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>{label}</a>)}
           </div>
         </div>
         <div style={{borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:20}}>
           <p style={{fontSize:11,color:"rgba(245,240,235,0.25)",lineHeight:1.7,maxWidth:800}}>
-            <strong style={{color:"rgba(245,240,235,0.35)"}}>Privacy Policy:</strong> StackedWork, a REM Ventures product, collects information you provide when signing up and using our services, including name, email, business details, and usage data. We use this information solely to provide and improve our services. We do not sell your personal information to third parties. Your data is secured using industry-standard encryption. By using StackedWork, you agree to this policy. For questions, contact Rmetzgar@REMVentures.Tech. StackedWork uses Stripe for payment processing — your payment information is handled securely by Stripe and never stored on our servers.
+            StackedWork is a REM Ventures product. We don&apos;t sell your data. Payments are handled by Stripe, and we never see or store card numbers. Read our <a href="/privacy" style={{color:"rgba(245,240,235,0.45)"}}>Privacy Policy</a> and <a href="/terms" style={{color:"rgba(245,240,235,0.45)"}}>Terms of Service</a>. Questions: <a href="mailto:ryan@remventures.tech" style={{color:"rgba(245,240,235,0.45)"}}>ryan@remventures.tech</a>.
           </p>
         </div>
       </footer>
+      {toastStack}
       <ChatWidget mode="contractor" />
     </div>
   );

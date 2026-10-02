@@ -57,7 +57,7 @@ const SECTIONS = [
     title: "Pricing & Conversion Strategy",
     color: "#10B981",
     items: [
-      { head: "Hook", body: "14-day free trial, full access. Credit card required — qualifies serious users and reduces churn from unengaged free users." },
+      { head: "Hook", body: "14-day free trial, full access. No credit card required. Sign up with just an email and password. The trial ends on its own unless a payment method is added, so nobody gets a surprise charge." },
       { head: "Core Offer", body: "$49.99/mo — all-in. Position against the $200+/mo stack they're probably already paying for piecemeal." },
       { head: "Annual Discount", body: "Offer 2 months free on annual ($499/yr). Increases LTV and reduces monthly churn exposure." },
       { head: "Ad Upsell", body: "Featured placement on Find a Contractor page at $49.99–$199.99/mo. Contractors who want leads, not just management tools." },

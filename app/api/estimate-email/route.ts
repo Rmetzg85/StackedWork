@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       .join("");
 
     const validUntilHtml = estimate.valid_until
-      ? `<p style="font-size:13px;color:#64748B;margin:0 0 4px;">Valid until: <strong>${new Date(estimate.valid_until + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</strong></p>`
+      ? `<p style="font-size:13px;color:#64748B;margin:0 0 4px;">Valid until: <strong>${new Date(estimate.valid_until + "T12:00:00Z").toLocaleDateString("en-US", { timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric" })}</strong></p>`
       : "";
 
     const taxHtml =

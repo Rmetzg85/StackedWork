@@ -48,7 +48,7 @@ export async function POST(request) {
 
         if (event.type === "customer.subscription.created") {
           const trialEnd = subscription.trial_end
-            ? new Date(subscription.trial_end * 1000).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+            ? new Date(subscription.trial_end * 1000).toLocaleDateString("en-US", { timeZone: "America/New_York", month: "long", day: "numeric", year: "numeric" })
             : null;
           await notifyOwner(
             `🎉 New StackedWork subscriber — ${email}`,
@@ -62,7 +62,7 @@ export async function POST(request) {
           );
         }
 
-        await supabase.from("subscriptions").upsert({
+        const { error: upsertErr } = await supabase.from("subscriptions").upsert({
           stripe_customer_id: subscription.customer,
           stripe_subscription_id: subscription.id,
           email,
@@ -75,6 +75,19 @@ export async function POST(request) {
           cancel_at: subscription.cancel_at ? new Date(subscription.cancel_at * 1000).toISOString() : null,
           updated_at: new Date().toISOString(),
         }, { onConflict: "stripe_subscription_id" });
+        // Previously ignored. Surface it in Vercel logs (e.g. missing columns before schema_align is applied).
+        if (upsertErr) console.error("subscriptions upsert failed:", upsertErr.code, upsertErr.message);
+
+        // Link to the Supabase user when checkout carried a verified user id (see /api/checkout).
+        // Separate update so a missing user_id column (migration 20261002060100 not applied yet)
+        // can never break the main subscription write.
+        const linkedUserId = (subscription.metadata as Record<string, string> | undefined)?.user_id;
+        if (linkedUserId && /^[0-9a-f-]{36}$/i.test(linkedUserId)) {
+          const { error: linkErr } = await supabase.from("subscriptions")
+            .update({ user_id: linkedUserId })
+            .eq("stripe_subscription_id", subscription.id);
+          if (linkErr && linkErr.code !== "42703") console.warn("subscriptions user_id link:", linkErr.message);
+        }
         break;
       }
       case "customer.subscription.deleted": {
