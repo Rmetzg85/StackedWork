@@ -6,6 +6,7 @@ http.createServer((req, res) => {
   const u = new URL(req.url, "http://x");
   if (u.pathname === "/__mode") { mode = u.searchParams.get("m") || "fenced"; res.end(mode); return; }
   let body = ""; req.on("data", (c) => (body += c)); req.on("end", () => {
+    if (mode === "error") { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "INTERNAL-DETAIL: org quota xyz-123 exceeded" } })); return; }
     const j = JSON.parse(body || "{}");
     const prompt = JSON.stringify(j.messages || "") + JSON.stringify(j.system || "");
     let text;

@@ -1,0 +1,30 @@
+# Local build + Supabase stub (:54400) + Anthropic mock (:54401) + Resend mock (:54402). 2026-10-02 12:13 ET
+## (4) estimate-email loads the saved row by id (own rows only); client content ignored
+no token:                          {"error":"Please sign in to email estimates."} HTTP 401
+invalid id:                        {"error":"Missing or invalid estimate id."} HTTP 400
+someone else's estimate id:        {"error":"Estimate not found."} HTTP 404
+own id, no RESEND key (:3055):     {"error":"Email sending isn't set up yet. Your estimate was saved as a draft; you can share its link instead."} HTTP 503
+own id + spoofed client fields:    {"ok":true,"status":"sent"} HTTP 200
+what the Resend mock received:
+  from: StackedWork <notifications@letstaystacked.com>
+  to: saved.customer@example.test
+  reply_to: a.contractor@example.test
+  subject: Your Plumbing Estimate from Saved Profile Name
+  html contains 'Saved Row Customer': True
+  html contains 'Replace water heater': True
+  html contains '$1500.00': True
+  html contains '/estimate/abcd1234abcd1234abcd1234abcd1234': True
+  html contains 'https://www.letstaystacked.com/estimate/': True
+  html contains 'Saved Profile Name': True
+  html contains 'attacker@evil.test': False
+  html contains 'evil.test': False
+  html contains '<script>': False
+  html contains 'Spoofed': False
+stub log (estimates load + server-side mark sent):
+  GET estimates id= eeeeeeee-0000-4000-8000-000000000099 contractor_id= 11111111-1111-4111-8111-111111111111 -> 0 auth= Bearer good-local-token
+  GET estimates id= eeeeeeee-0000-4000-8000-000000000002 contractor_id= 11111111-1111-4111-8111-111111111111 -> 1 auth= Bearer good-local-token
+  GET estimates id= eeeeeeee-0000-4000-8000-000000000002 contractor_id= 11111111-1111-4111-8111-111111111111 -> 1 auth= Bearer good-local-token
+  PATCH estimates ?id=eq.eeeeeeee-0000-4000-8000-000000000002&contractor_id=eq.11111111-1111-4111-8111-111111111111
+## (3) /api/chat with an upstream error does not leak err.message
+chat:   {"error":"The assistant couldn't answer right now. Please try again."} HTTP 500
+server log has the detail: 1 line(s)

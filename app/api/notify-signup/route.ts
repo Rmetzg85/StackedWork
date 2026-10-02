@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { EMAIL_FROM } from "../../lib/email";
 
 export async function POST(request: Request) {
   const { username, email, phone, website } = await request.json();
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
       Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
     },
     body: JSON.stringify({
-      from: "StackedWork <notifications@stackedwork.com>",
+      from: EMAIL_FROM,
       to: "Rmetzgar@REMVentures.Tech",
       subject: `New StackedWork signup: ${username || email}`,
       html: `

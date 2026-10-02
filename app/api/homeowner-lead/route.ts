@@ -30,6 +30,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error("Homeowner lead error:", err);
-    return NextResponse.json({ error: err.message || "Submission failed" }, { status: 500 });
+    return NextResponse.json({ error: "We couldn't submit your request. Please try again." }, { status: 500 });
   }
 }

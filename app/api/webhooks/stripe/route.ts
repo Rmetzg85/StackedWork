@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import { EMAIL_FROM } from "../../../lib/email";
 
 export async function POST(request) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -30,7 +31,7 @@ export async function POST(request) {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
       body: JSON.stringify({
-        from: "StackedWork <notifications@stackedwork.com>",
+        from: EMAIL_FROM,
         to: "Rmetzgar@REMVentures.Tech",
         subject,
         html,

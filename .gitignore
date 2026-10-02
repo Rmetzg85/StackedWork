@@ -8,10 +8,9 @@ out/
 # Build artifacts
 tsconfig.tsbuildinfo
 
-# Environment
-.env
-.env.local
-.env.*.local
+# Environment: never commit real env files (set values in Vercel). Only the template is tracked.
+.env*
+!.env.example
 
 # Misc
 .DS_Store
