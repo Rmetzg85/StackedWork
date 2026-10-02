@@ -400,18 +400,15 @@ export default function StackedWork() {
 
   const handleManageBilling = async () => {
     if (billingLoading) return;
-    if (!stripeCustomerId) {
-      alert("We couldn't find your billing account. Please contact support@stackedwork.com.");
-      return;
-    }
     setBillingLoading(true);
     try {
+      // The server finds the billing account from the signed-in user; no customer id is sent.
       const res = await fetch("/api/manage-billing", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stripeCustomerId }),
+        headers: await authJsonHeaders(),
+        body: "{}",
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.url) {
         window.location.href = data.url;
       } else {
