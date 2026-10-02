@@ -2,17 +2,20 @@ import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import PrintButton from "./PrintButton";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Created per request (not at module load) so builds don't need Supabase env to be present.
+const getSupabase = () => {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) throw new Error("Supabase env is not configured");
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+};
 
 // Next 15+/16: dynamic route params are a Promise and must be awaited (reading params.token
 // synchronously gives undefined, so every real share link 404'd).
 export default async function EstimatePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   if (!token || !/^[A-Za-z0-9_-]{8,128}$/.test(token)) notFound();
-  const { data: estimate } = await supabase
+  const { data: estimate } = await getSupabase()
     .from("estimates")
     .select("*")
     .eq("share_token", token)
