@@ -156,6 +156,13 @@ export default function StackedWork() {
   const [njTime, setNjTime] = useState("");
   const voiceBtnRef = useRef<HTMLButtonElement>(null);
   const recRef = useRef<any>(null);
+  const [toasts, setToasts] = useState<{id:number;msg:string;kind:"error"|"success"|"info"}[]>([]);
+  const showToast = (msg: string, kind: "error"|"success"|"info" = "error") => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev.slice(-3), { id, msg, kind }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), kind === "error" ? 8000 : 4000);
+  };
+  const toastErr = (what: string, err: any) => showToast(`${what}: ${err?.message || "please try again."}`, "error");
   const endFirstRun = () => {
     setFirstRun(false);
     try { window.localStorage.removeItem("sw_firstrun"); } catch { /* ignore */ }
@@ -359,6 +366,7 @@ export default function StackedWork() {
       setTimeout(() => setProfileMsg(null), 2500);
     } catch (err: any) {
       setProfileMsg(err.message || "Could not save profile.");
+      toastErr("Couldn't save profile", err);
     } finally {
       setProfileSaving(false);
     }
@@ -431,7 +439,7 @@ export default function StackedWork() {
       if (data) setDbPhotos(prev => [data, ...prev]);
       setPhBefore(null); setPhAfter(null); setPhBeforeFile(null); setPhAfterFile(null); setPhCaption(""); setPhJobType("other");
       setPhotoView("gallery");
-    } catch (err: any) { setPhErr(err.message || "Upload failed. Please try again."); }
+    } catch (err: any) { setPhErr(err.message || "Upload failed. Please try again."); toastErr("Couldn't save photos", err); }
     finally { setPhUploading(false); }
   };
 
@@ -458,8 +466,10 @@ export default function StackedWork() {
 
   const deletePhoto = async (photo: any) => {
     if (!confirm("Delete this photo?")) return;
-    await supabase.from("portfolio").delete().eq("id", photo.id);
+    const { error } = await supabase.from("portfolio").delete().eq("id", photo.id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't delete photo", error); return; }
     setDbPhotos(prev => prev.filter(p => p.id !== photo.id));
+    showToast("Photo deleted.", "success");
   };
 
   const handleReceiptScan = async (file: File) => {
@@ -488,6 +498,7 @@ export default function StackedWork() {
       if (desc) setRcDesc(desc.slice(0, 120));
     } catch (err: any) {
       setRcErr("Scan failed — please fill in manually.");
+      toastErr("Receipt scan failed", err);
     } finally {
       setRcScanning(false);
     }
@@ -528,14 +539,16 @@ export default function StackedWork() {
       setRcFile(null); setRcPreview(null); setRcAmount(""); setRcCategory("Materials");
       setRcDate(new Date().toISOString().split("T")[0]); setRcDesc("");
       setRcView("list");
-    } catch (err: any) { setRcErr(err.message || "Upload failed. Please try again."); }
+    } catch (err: any) { setRcErr(err.message || "Upload failed. Please try again."); toastErr("Couldn't save receipt", err); }
     finally { setRcUploading(false); }
   };
 
   const deleteReceipt = async (rc: any) => {
     if (!confirm("Delete this receipt?")) return;
-    await supabase.from("receipts").delete().eq("id", rc.id);
+    const { error } = await supabase.from("receipts").delete().eq("id", rc.id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't delete receipt", error); return; }
     setDbReceipts(prev => prev.filter(r => r.id !== rc.id));
+    showToast("Receipt deleted.", "success");
   };
 
   const withTimeout = <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
@@ -627,8 +640,9 @@ export default function StackedWork() {
       ({ data, error } = await supabase.from("jobs").insert({ ...row, value: 0 }).select().single());
     }
     setNjLoading(false);
-    if (error) { setNjError(`Couldn't save the job: ${error.message}`); return; }
+    if (error) { setNjError(`Couldn't save the job: ${error.message}`); toastErr("Couldn't save job", error); return; }
     setDbJobs(prev => [data, ...prev]);
+    showToast("Job saved.", "success");
     abortVoiceEntry();
     setNewJobOpen(false);
     if (firstRun) { endFirstRun(); setVw("jobs"); }
@@ -638,18 +652,19 @@ export default function StackedWork() {
   const updateJobStatus = async (id: string, status: string) => {
     const updates: any = { status };
     if (status === "complete") updates.completed = new Date().toISOString().split("T")[0];
-    await supabase.from("jobs").update(updates).eq("id", id);
+    const { error } = await supabase.from("jobs").update(updates).eq("id", id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't update job", error); return; }
     setDbJobs(prev => prev.map(j => j.id === id ? { ...j, ...updates } : j));
   };
 
   useEffect(() => {
     if (!userId) return;
-    supabase.from("leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbLeads(data); });
-    supabase.from("jobs").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data }) => { if (data) setDbJobs(data); });
+    supabase.from("leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load leads", error); else if (data) setDbLeads(data); });
+    supabase.from("jobs").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load jobs", error); else if (data) setDbJobs(data); });
     supabase.from("homeowner_leads").select("*").order("created_at", { ascending: false }).limit(50).then(({ data }) => { if (data) setDbHomeownerLeads(data); });
-    supabase.from("portfolio").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbPhotos(data); });
-    supabase.from("receipts").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data }) => { if (data) setDbReceipts(data); });
-    supabase.from("estimates").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data }) => { if (data) setDbEstimates(data); });
+    supabase.from("portfolio").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load photos", error); else if (data) setDbPhotos(data); });
+    supabase.from("receipts").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load receipts", error); else if (data) setDbReceipts(data); });
+    supabase.from("estimates").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load estimates", error); else if (data) setDbEstimates(data); });
     const ch = supabase.channel("leads_" + userId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads", filter: `contractor_id=eq.${userId}` }, (payload) => {
         setDbLeads(prev => [payload.new as any, ...prev]);
@@ -672,7 +687,10 @@ export default function StackedWork() {
   const lMsg = (l: any) => l.msg || l.message || "";
   const lTs = (l: any) => l.ts || (l.created_at ? new Date(l.created_at).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "");
   const markRead = async (id: any) => {
-    if (userId) await supabase.from("leads").update({ read: true }).eq("id", id);
+    if (userId) {
+      const { error } = await supabase.from("leads").update({ read: true }).eq("id", id).eq("contractor_id", userId);
+      if (error) { toastErr("Couldn't update lead", error); return; }
+    }
     setDbLeads(prev => prev.map(l => l.id === id ? { ...l, read: true } : l));
   };
 
@@ -710,12 +728,11 @@ export default function StackedWork() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jobType: neJobType, description: neDesc }),
       });
-      const data = await res.json();
-      if (data.line_items) {
-        setNeLineItems(data.line_items.map((it: any, i: number) => ({ ...it, id: Date.now() + i })));
-        if (data.notes && !neNotes) setNeNotes(data.notes);
-      }
-    } catch { /* ignore */ }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.line_items) throw new Error(data.error || "no suggestions returned");
+      setNeLineItems(data.line_items.map((it: any, i: number) => ({ ...it, id: Date.now() + i })));
+      if (data.notes && !neNotes) setNeNotes(data.notes);
+    } catch (err: any) { toastErr("AI price suggestions failed", err); }
     finally { setAiLoading(false); }
   };
 
@@ -726,11 +743,38 @@ export default function StackedWork() {
     setNeLoading(false); setNeError(null); setNewEstimateOpen(false);
   };
 
+  // Calls the email API and returns true only when it reports a real send.
+  const postEstimateEmail = async (est: any): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const shareUrl = `${window.location.origin}/estimate/${est.share_token}`;
+      const res = await fetch("/api/estimate-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estimate: est, contractorName: userEmail?.split("@")[0] || "Your Contractor", contractorEmail: userEmail, shareUrl }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) return { ok: false, error: data?.error || `Email failed (HTTP ${res.status})` };
+      if (data.warning) return { ok: false, error: "Email sending isn't configured on the server yet" };
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || "Network error" };
+    }
+  };
+
+  const markEstimateSent = async (est: any) => {
+    const { error } = await supabase.from("estimates").update({ status: "sent" }).eq("id", est.id).eq("contractor_id", userId);
+    if (error) { toastErr("Email sent, but couldn't mark the estimate as sent", error); return false; }
+    setDbEstimates(prev => prev.map(e => e.id === est.id ? { ...e, status: "sent" } : e));
+    if (estimateDetail?.id === est.id) setEstimateDetail((e: any) => ({ ...e, status: "sent" }));
+    return true;
+  };
+
   const handleSaveEstimate = async (sendEmail = false) => {
     if (!userId || !neCustomer.trim()) return;
     setNeLoading(true); setNeError(null);
     const taxRate = parseFloat(neTaxRate) || 0;
     const { subtotal, taxAmount, total } = calcEstimateTotals(neLineItems, taxRate);
+    // Always save as draft first; only mark "sent" after the email API confirms.
     const { data, error } = await supabase.from("estimates").insert({
       contractor_id: userId,
       customer_name: neCustomer.trim(),
@@ -743,46 +787,45 @@ export default function StackedWork() {
       tax_amount: taxAmount,
       total,
       notes: neNotes.trim() || null,
-      status: sendEmail ? "sent" : "draft",
+      status: "draft",
       valid_until: neValidUntil || null,
     }).select().single();
-    setNeLoading(false);
-    if (error) { setNeError(error.message); return; }
+    if (error) { setNeLoading(false); setNeError(error.message); toastErr("Couldn't save estimate", error); return; }
     if (data) {
       setDbEstimates(prev => [data, ...prev]);
       if (sendEmail && data.customer_email) {
-        const shareUrl = `${window.location.origin}/estimate/${data.share_token}`;
-        await fetch("/api/estimate-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ estimate: data, contractorName: userEmail?.split("@")[0] || "Your Contractor", contractorEmail: userEmail, shareUrl }),
-        });
+        const r = await postEstimateEmail(data);
+        if (r.ok) { await markEstimateSent(data); showToast(`Estimate emailed to ${data.customer_email}.`, "success"); }
+        else showToast(`Estimate saved as draft, but the email was NOT sent: ${r.error}`, "error");
+      } else {
+        showToast("Estimate saved as draft.", "success");
       }
     }
+    setNeLoading(false);
     resetNewEstimate();
   };
 
   const deleteEstimate = async (est: any) => {
     if (!confirm("Delete this estimate?")) return;
-    await supabase.from("estimates").delete().eq("id", est.id);
+    const { error } = await supabase.from("estimates").delete().eq("id", est.id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't delete estimate", error); return; }
     setDbEstimates(prev => prev.filter(e => e.id !== est.id));
     if (estimateDetail?.id === est.id) setEstimateDetail(null);
+    showToast("Estimate deleted.", "success");
   };
 
   const sendEstimateEmail = async (est: any) => {
-    if (!est.customer_email) return;
+    if (!est.customer_email || sendingEmail) return;
     setSendingEmail(true);
-    const shareUrl = `${window.location.origin}/estimate/${est.share_token}`;
-    await fetch("/api/estimate-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ estimate: est, contractorName: userEmail?.split("@")[0] || "Your Contractor", contractorEmail: userEmail, shareUrl }),
-    });
-    await supabase.from("estimates").update({ status: "sent" }).eq("id", est.id);
-    setDbEstimates(prev => prev.map(e => e.id === est.id ? { ...e, status: "sent" } : e));
-    if (estimateDetail?.id === est.id) setEstimateDetail((e: any) => ({ ...e, status: "sent" }));
-    setSendingEmail(false); setEmailSent(true);
-    setTimeout(() => setEmailSent(false), 3000);
+    const r = await postEstimateEmail(est);
+    if (r.ok) {
+      await markEstimateSent(est);
+      setEmailSent(true);
+      setTimeout(() => setEmailSent(false), 3000);
+    } else {
+      showToast(`Estimate email was NOT sent: ${r.error}`, "error");
+    }
+    setSendingEmail(false);
   };
 
   const openEditEstimate = (est: any) => {
@@ -828,9 +871,9 @@ export default function StackedWork() {
       valid_until: editValidUntil || null,
       updated_at: new Date().toISOString(),
     };
-    const { data, error } = await supabase.from("estimates").update(updates).eq("id", estimateDetail.id).select().single();
+    const { data, error } = await supabase.from("estimates").update(updates).eq("id", estimateDetail.id).eq("contractor_id", userId).select().single();
     setEditLoading(false);
-    if (error) { setEditError(error.message); return; }
+    if (error) { setEditError(error.message); toastErr("Couldn't save estimate changes", error); return; }
     if (data) {
       setDbEstimates(prev => prev.map(e => e.id === data.id ? data : e));
       setEstimateDetail(data);
@@ -923,6 +966,12 @@ export default function StackedWork() {
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:G}}/><span style={{fontWeight:700,fontSize:14,color:"#0F172A"}}>New Lead!</span></div><button onClick={()=>{setTd(true);setTst(null)}} style={{background:"none",border:"none",color:"#94A3B8",cursor:"pointer",fontSize:18,padding:0}}>x</button></div>
           <div style={{fontWeight:600,fontSize:13,color:"#0F172A",marginBottom:2}}>{tst.name}</div><div style={{fontSize:12,color:"#64748B",marginBottom:10}}>{tst.msg}</div>
           <div style={{display:"flex",gap:8}}><Btn onClick={()=>{setTd(true);setTst(null);setVw("leads")}} style={{flex:1,fontSize:11,padding:6}}>View Lead</Btn><BtnO onClick={()=>{setTd(true);setSms(true)}} style={{flex:1,fontSize:11,padding:6}}>SMS Alert</BtnO></div>
+        </div>}
+        {toasts.length>0&&<div role="status" aria-live="assertive" style={{position:"fixed",bottom:84,left:"50%",transform:"translateX(-50%)",zIndex:200,display:"flex",flexDirection:"column",gap:8,width:"calc(100% - 32px)",maxWidth:420}}>
+          {toasts.map(t=><div key={t.id} style={{padding:"12px 14px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 8px 30px rgba(0,0,0,0.25)",display:"flex",gap:10,alignItems:"flex-start",justifyContent:"space-between",background:t.kind==="error"?"#FEE2E2":t.kind==="success"?"#D1FAE5":"#F1F5F9",color:t.kind==="error"?"#991B1B":t.kind==="success"?"#065F46":"#334155",border:`1px solid ${t.kind==="error"?"#FECACA":t.kind==="success"?"#6EE7B7":"#E2E8F0"}`}}>
+            <span>{t.msg}</span>
+            <button onClick={()=>setToasts(prev=>prev.filter(x=>x.id!==t.id))} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"inherit",fontSize:16,lineHeight:1,padding:0}}>×</button>
+          </div>)}
         </div>}
         {newJobOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={closeNewJob}>
           <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
