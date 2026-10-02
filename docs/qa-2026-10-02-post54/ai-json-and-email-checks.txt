@@ -1,0 +1,15 @@
+# Local build + Supabase stub + Anthropic mock returning ```json-fenced output (the prod failure shape). 2026-10-02 11:55 ET
+## (a) fenced model JSON
+scan-receipt:      {"vendor":"Local Hardware","date":"2026-10-02","subtotal":40,"tax":2.17,"total":42.17,"currency":"USD","usd_total":42.17,"description":"lumber, screws","category":"Materials"} HTTP 200
+estimate-ai-price: {"line_items":[{"description":"Labor","quantity":4,"unit":"hours","unit_price":85,"total":340},{"description":"Materials","quantity":1,"unit":"each","unit_price":120,"total":120}],"notes":"Estimates only; verify locally."} HTTP 200
+parse-job:         {"job":{"customer_name":"Mike Johnson","address":"123 Oak St","phone":null,"service":"water heater replacement","job_type":"Plumbing","scheduled_at":"2026-10-02T14:00","price":null,"status":"scheduled"}} HTTP 200
+## (a) unparseable model output -> 422 (was 500)
+scan-receipt:      {"error":"We couldn't read that receipt. Please fill in the amount and details by hand."} HTTP 422
+estimate-ai-price: {"error":"Couldn't build price suggestions for that job. Try adding a short description, or enter line items by hand."} HTTP 422
+parse-job:         {"error":"Couldn't understand that. Please fill in the fields."} HTTP 422
+## (d) estimate-email, RESEND_API_KEY not set
+no token:     {"error":"Please sign in to email estimates."} HTTP 401
+signed in:    {"error":"Email sending isn't set up yet. Your estimate was saved as a draft; you can share its link instead."} HTTP 503
+main (90fff6c/ddd0b94) scan-receipt JSON.parse on fenced text throws: Unexpected token '`', "```json
+{"a":1}
+```" is not valid JSON

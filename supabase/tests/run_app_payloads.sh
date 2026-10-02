@@ -145,6 +145,12 @@ r=$(as $A a.contractor@example.test "insert into storage.objects (bucket_id,name
 check "storage: old shared 'portfolio/' prefix denied" "row-level security" "$r"
 r=$(as $B b.contractor@example.test "delete from storage.objects where name like '$A/%' returning name;")
 check "storage: B cannot delete A's files" "^$" "$r"
+# ── deletePhoto / deleteReceipt -> storage.remove([paths]) = DELETE on storage.objects for own-folder names ──
+r=$(as $A a.contractor@example.test "insert into storage.objects (bucket_id,name,owner) values ('stackedwork-images','$A/portfolio/2-uuid-after.jpg','$A') returning name;")
+r=$(as $A a.contractor@example.test "delete from storage.objects where bucket_id='stackedwork-images' and name in ('$A/portfolio/1-uuid-before.jpg','$A/portfolio/2-uuid-after.jpg') returning name;")
+check "storage.remove own photo files as A (2 objects)" "^$A/portfolio/1-uuid-before.jpg" "$r"
+r=$(q "select count(*) from storage.objects where name like '$A/portfolio/%';")
+check "storage: A's photo objects gone after remove" "^0$" "$r"
 
 echo "TOTAL pass=$pass fail=$fail"
 [ $fail -eq 0 ]
