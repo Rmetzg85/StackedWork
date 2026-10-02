@@ -1,4 +1,5 @@
 -- StackedWork: RLS verify + contractor scoping (QA bundle 2026-10-02)
+-- ORDER: run AFTER 20261002055900_schema_align.sql.
 -- Project: ucjnajvgpxsijzpaigpm
 --
 -- *** NOT APPLIED. Review, then run manually in the Supabase SQL editor (or `supabase db push`). ***
@@ -23,6 +24,13 @@ alter table public.receipts   enable row level security;
 alter table public.homeowner_leads enable row level security;
 alter table public.subscriptions   enable row level security;
 
+-- Owner policies below reference contractor_id; make sure it exists on every owner table (no-op normally).
+alter table public.jobs      add column if not exists contractor_id uuid;
+alter table public.estimates add column if not exists contractor_id uuid;
+alter table public.leads     add column if not exists contractor_id uuid;
+alter table public.portfolio add column if not exists contractor_id uuid;
+alter table public.receipts  add column if not exists contractor_id uuid;
+
 -- 2) Owner-only policies: contractor_id = auth.uid()  (same names as the 2026-09-15 lockdown)
 do $$
 declare
@@ -46,28 +54,47 @@ end $$;
 alter table public.homeowner_leads add column if not exists contractor_id uuid;
 create index if not exists homeowner_leads_contractor_id_idx on public.homeowner_leads (contractor_id);
 
--- 4) jobs.value: price is optional in the app now. Allow NULL (no-op if already nullable).
-alter table public.jobs alter column value drop not null;
+
+-- 4) jobs.value: price is optional in the app now. Allow NULL. Guarded: 20261002055900_schema_align.sql
+--    creates the column (nullable); on a DB where it doesn't exist this is skipped instead of aborting.
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='jobs' and column_name='value') then
+    alter table public.jobs alter column value drop not null;
+  end if;
+end $$;
 
 -- 5) Storage: per-user folders in stackedwork-images ("<auth.uid()>/portfolio/...", "<auth.uid()>/receipts/...").
 --    These are ADDITIVE permissive policies. If older broad policies exist on storage.objects for this bucket
 --    (e.g. "any authenticated user may insert/update"), they still apply (permissive policies are OR'ed),
 --    so review `select * from pg_policies where schemaname='storage'` and drop broad ones separately.
-drop policy if exists sw_images_insert_own_folder on storage.objects;
-create policy sw_images_insert_own_folder on storage.objects
-  for insert to authenticated
-  with check (bucket_id = 'stackedwork-images' and (storage.foldername(name))[1] = auth.uid()::text);
-
-drop policy if exists sw_images_update_own_folder on storage.objects;
-create policy sw_images_update_own_folder on storage.objects
-  for update to authenticated
-  using (bucket_id = 'stackedwork-images' and (storage.foldername(name))[1] = auth.uid()::text)
-  with check (bucket_id = 'stackedwork-images' and (storage.foldername(name))[1] = auth.uid()::text);
-
-drop policy if exists sw_images_delete_own_folder on storage.objects;
-create policy sw_images_delete_own_folder on storage.objects
-  for delete to authenticated
-  using (bucket_id = 'stackedwork-images' and (storage.foldername(name))[1] = auth.uid()::text);
+-- Guarded: skipped (with a NOTICE) if the storage schema isn't there.
+--    storage.objects currently has RLS ON and NO policies, so ALL client uploads are denied until this runs.
+--    Bucket id must match the code: supabase.storage.from("stackedwork-images").
+do $$ begin
+  if to_regclass('storage.objects') is null or to_regprocedure('storage.foldername(text)') is null then
+    raise notice 'storage.objects / storage.foldername not found; skipping storage policies';
+    return;
+  end if;
+  execute 'drop policy if exists sw_images_insert_own_folder on storage.objects';
+  execute $p$create policy sw_images_insert_own_folder on storage.objects
+    for insert to authenticated
+    with check (bucket_id = 'stackedwork-images' and (storage.foldername(name))[1] = auth.uid()::text)$p$;
+  -- SELECT on own folder: needed by the storage API for upsert/overwrite checks and listing.
+  -- (Public bucket URLs are served without RLS, so this does not affect getPublicUrl.)
+  execute 'drop policy if exists sw_images_select_own_folder on storage.objects';
+  execute $p$create policy sw_images_select_own_folder on storage.objects
+    for select to authenticated
+    using (bucket_id = 'stackedwork-images' and (storage.foldername(name))[1] = auth.uid()::text)$p$;
+  execute 'drop policy if exists sw_images_update_own_folder on storage.objects';
+  execute $p$create policy sw_images_update_own_folder on storage.objects
+    for update to authenticated
+    using (bucket_id = 'stackedwork-images' and (storage.foldername(name))[1] = auth.uid()::text)
+    with check (bucket_id = 'stackedwork-images' and (storage.foldername(name))[1] = auth.uid()::text)$p$;
+  execute 'drop policy if exists sw_images_delete_own_folder on storage.objects';
+  execute $p$create policy sw_images_delete_own_folder on storage.objects
+    for delete to authenticated
+    using (bucket_id = 'stackedwork-images' and (storage.foldername(name))[1] = auth.uid()::text)$p$;
+end $$;
 
 -- 6) Assertions: abort the transaction if RLS or a policy is missing.
 do $$
