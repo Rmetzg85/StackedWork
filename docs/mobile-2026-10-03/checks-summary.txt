@@ -1,0 +1,24 @@
+before {'w': 320, 'view': 'new-estimate line items', 'docScrollWidth': 351, 'innerWidth': 351, 'pageOk': True, 'boxScrollWidth': 713, 'boxClientWidth': 319, 'boxOk': False}
+before {'w': 320, 'view': 'edit-estimate line items', 'docScrollWidth': 351, 'innerWidth': 351, 'pageOk': True, 'boxScrollWidth': 684, 'boxClientWidth': 319, 'boxOk': False}
+before {'w': 320, 'view': 'voice review card', 'when': '2026-10-06T10:00'}
+before {'w': 320, 'view': 'public estimate', 'docScrollWidth': 412, 'innerWidth': 412, 'pageOk': True, 'amountRightEdges': [285, 412, 412, 412], 'allAmountsVisible': False}
+before {'w': 375, 'view': 'new-estimate line items', 'docScrollWidth': 375, 'innerWidth': 375, 'pageOk': True, 'boxScrollWidth': 713, 'boxClientWidth': 343, 'boxOk': False}
+before {'w': 375, 'view': 'edit-estimate line items', 'docScrollWidth': 375, 'innerWidth': 375, 'pageOk': True, 'boxScrollWidth': 684, 'boxClientWidth': 343, 'boxOk': False}
+before {'w': 375, 'view': 'voice review card', 'when': '2026-10-06T10:00'}
+before {'w': 375, 'view': 'public estimate', 'docScrollWidth': 412, 'innerWidth': 412, 'pageOk': True, 'amountRightEdges': [285, 412, 412, 412], 'allAmountsVisible': False}
+before {'w': 390, 'view': 'new-estimate line items', 'docScrollWidth': 390, 'innerWidth': 390, 'pageOk': True, 'boxScrollWidth': 713, 'boxClientWidth': 358, 'boxOk': False}
+before {'w': 390, 'view': 'edit-estimate line items', 'docScrollWidth': 390, 'innerWidth': 390, 'pageOk': True, 'boxScrollWidth': 684, 'boxClientWidth': 358, 'boxOk': False}
+before {'w': 390, 'view': 'voice review card', 'when': '2026-10-06T10:00'}
+before {'w': 390, 'view': 'public estimate', 'docScrollWidth': 413, 'innerWidth': 413, 'pageOk': True, 'amountRightEdges': [285, 412, 412, 412], 'allAmountsVisible': False}
+after {'w': 320, 'view': 'new-estimate line items', 'device': 320, 'docScrollWidth': 320, 'innerWidth': 320, 'pageOk': True, 'boxScrollWidth': 288, 'boxClientWidth': 288, 'boxOk': True}
+after {'w': 320, 'view': 'edit-estimate line items', 'device': 320, 'docScrollWidth': 320, 'innerWidth': 320, 'pageOk': True, 'boxScrollWidth': 288, 'boxClientWidth': 288, 'boxOk': True}
+after {'w': 320, 'view': 'voice review card', 'when': 'Tue, Oct 6 · 10:00 AM'}
+after {'w': 320, 'view': 'public estimate', 'device': 320, 'docScrollWidth': 320, 'innerWidth': 320, 'pageOk': True, 'amountRightEdges': [138, 283, 287, 287], 'allAmountsVisible': True}
+after {'w': 375, 'view': 'new-estimate line items', 'device': 375, 'docScrollWidth': 375, 'innerWidth': 375, 'pageOk': True, 'boxScrollWidth': 343, 'boxClientWidth': 343, 'boxOk': True}
+after {'w': 375, 'view': 'edit-estimate line items', 'device': 375, 'docScrollWidth': 375, 'innerWidth': 375, 'pageOk': True, 'boxScrollWidth': 343, 'boxClientWidth': 343, 'boxOk': True}
+after {'w': 375, 'view': 'voice review card', 'when': 'Tue, Oct 6 · 10:00 AM'}
+after {'w': 375, 'view': 'public estimate', 'device': 375, 'docScrollWidth': 375, 'innerWidth': 375, 'pageOk': True, 'amountRightEdges': [138, 338, 342, 342], 'allAmountsVisible': True}
+after {'w': 390, 'view': 'new-estimate line items', 'device': 390, 'docScrollWidth': 390, 'innerWidth': 390, 'pageOk': True, 'boxScrollWidth': 358, 'boxClientWidth': 358, 'boxOk': True}
+after {'w': 390, 'view': 'edit-estimate line items', 'device': 390, 'docScrollWidth': 390, 'innerWidth': 390, 'pageOk': True, 'boxScrollWidth': 358, 'boxClientWidth': 358, 'boxOk': True}
+after {'w': 390, 'view': 'voice review card', 'when': 'Tue, Oct 6 · 10:00 AM'}
+after {'w': 390, 'view': 'public estimate', 'device': 390, 'docScrollWidth': 390, 'innerWidth': 390, 'pageOk': True, 'amountRightEdges': [138, 353, 357, 357], 'allAmountsVisible': True}

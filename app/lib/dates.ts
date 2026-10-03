@@ -45,3 +45,32 @@ export function fmtDateNY(v: string | null | undefined, opts: Intl.DateTimeForma
 
 /** Current year in America/New_York. */
 export const yearNY = (): number => Number(todayNY().slice(0, 4));
+
+const LOCAL_DT = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/;
+const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MO = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/**
+ * Human-friendly "when" for job review cards, in America/New_York:
+ *   "2026-10-06T10:00"      -> "Tue, Oct 6 · 10:00 AM"  (zone-less = NY wall-clock time, shown as-is)
+ *   "2026-10-06"            -> "Tue, Oct 6"             (date-only: no time)
+ *   "2026-10-06T14:00:00Z"  -> "Tue, Oct 6 · 10:00 AM"  (instants are converted to NY)
+ * Unparseable input is returned unchanged; empty input returns "".
+ */
+export function fmtWhenNY(v: string | null | undefined): string {
+  if (!v) return "";
+  const s = String(v).trim();
+  const md = (y: number, m: number, d: number) => {
+    const dt = new Date(Date.UTC(y, m - 1, d, 12));
+    return `${WD[dt.getUTCDay()]}, ${MO[m - 1]} ${d}`;
+  };
+  const hm = (h: number, mi: number) => `${((h + 11) % 12) + 1}:${String(mi).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+  if (DATE_ONLY.test(s)) { const [y, m, d] = s.split("-").map(Number); return md(y, m, d); }
+  const l = LOCAL_DT.exec(s);
+  if (l) { const [, y, m, d, h, mi] = l.map(Number); if (h < 24 && mi < 60) return `${md(y, m, d)} · ${hm(h, mi)}`; }
+  const t = new Date(s);
+  if (isNaN(t.getTime())) return s;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: APP_TZ, year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", hourCycle: "h23" })
+    .formatToParts(t).map((p) => [p.type, p.value]));
+  return `${md(+parts.year, +parts.month, +parts.day)} · ${hm(+parts.hour % 24, +parts.minute)}`;
+}
