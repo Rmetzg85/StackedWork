@@ -1,6 +1,6 @@
 import subprocess, json, re, sys
 TOTAL = 41.8
-PLACE = [('vo/a.wav', 0.40), ('../phrase.wav', 6.739), ('vo/c.wav', 13.60), ('vo/d.wav', 18.60), ('vo/d2.wav', 21.80),
+PLACE = [('vo/a.wav', 0.40), ('vo/contractor.wav', 6.739), ('vo/c.wav', 13.60), ('vo/d.wav', 18.60), ('vo/d2.wav', 21.80),
          ('vo/e.wav', 23.90), ('vo/f.wav', 29.40), ('vo/g.wav', 33.50), ('vo/h.wav', 37.85)]
 MUSIC_LUFS = float(sys.argv[1]) if len(sys.argv) > 1 else -25.0
 def run(args): return subprocess.run(['ffmpeg', '-hide_banner', '-nostdin', '-y', *args], capture_output=True, text=True, timeout=300)

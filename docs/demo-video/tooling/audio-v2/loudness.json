@@ -1,15 +1,15 @@
 {
  "voice_bus_lufs": -16.0,
  "music_pre_duck_lufs": -25.0,
- "music_ducked_lufs": -27.9,
- "duck_db_during_speech": 5.2,
- "duck_db_in_gaps": 0.7,
+ "music_ducked_lufs": -27.8,
+ "duck_db_during_speech": 5.1,
+ "duck_db_in_gaps": 0.8,
  "mix_wav": [
-  -16.1,
+  -16.2,
   -2.0
  ],
  "final_mp4": [
-  -16.2,
+  -16.3,
   -1.8
  ]
 }
