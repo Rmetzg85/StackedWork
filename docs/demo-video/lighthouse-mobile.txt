@@ -1,0 +1,4 @@
+before runs score: [81, 76, 78, 63, 81] LCP: [4.4, 4.85, 4.39, 4.99, 4.4]
+before MEDIAN score=78  LCP=4.40s  total bytes=1008 KiB  TBT=203ms  CLS=0.000
+after runs score: [77, 79, 82, 61, 82] LCP: [4.85, 4.99, 4.41, 5.01, 4.39]
+after MEDIAN score=79  LCP=4.85s  total bytes=1044 KiB  TBT=182ms  CLS=0.002
