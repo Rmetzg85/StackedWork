@@ -36,12 +36,12 @@ export default async function EstimatePage({ params }: { params: Promise<{ token
 
   return (
     <div style={{ fontFamily: "'DM Sans', Helvetica, Arial, sans-serif", background: "#F8FAFC", minHeight: "100vh", padding: "24px 16px" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&display=swap');*{margin:0;padding:0;box-sizing:border-box}@media print{.no-print{display:none!important}body{background:#fff}}`}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700;9..40,800&display=swap');*{margin:0;padding:0;box-sizing:border-box}@media print{.no-print{display:none!important}body{background:#fff}}.est-tbl td,.est-tbl th{overflow-wrap:anywhere}.est-tbl .c-amt,.est-tbl .c-price,.est-tbl .c-val{white-space:nowrap}@media screen and (max-width:560px){.est-pad{padding:20px 16px!important}.est-info{grid-template-columns:1fr!important;gap:16px!important}.est-tbl,.est-tbl tbody,.est-tbl tfoot{display:block;width:100%}.est-tbl thead{display:none}.est-tbl tbody tr{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:8px;padding:12px 4px;border-bottom:1px solid #F1F5F9}.est-tbl tbody td{display:block;padding:0!important;border:none!important}.est-tbl .c-desc{flex:0 0 100%;margin-bottom:4px;font-weight:600}.est-tbl .c-qty,.est-tbl .c-price{font-size:13px!important;color:#64748B!important;text-align:left!important}.est-tbl .c-price::before{content:'\u00d7 '}.est-tbl .c-amt{margin-left:auto;text-align:right!important}.est-tbl tfoot tr{display:flex;justify-content:space-between;align-items:baseline;gap:12px}.est-tbl tfoot td{display:block;padding-left:4px!important;padding-right:4px!important}.est-tbl tfoot .c-lbl{text-align:left!important}.est-tbl tfoot .c-grand{font-size:20px!important}}`}</style>
 
       <div style={{ maxWidth: 700, margin: "0 auto" }}>
 
         {/* Header */}
-        <div style={{ background: "linear-gradient(135deg,#132440,#1E3A5F)", borderRadius: "12px 12px 0 0", padding: "28px 32px" }}>
+        <div className="est-pad" style={{ background: "linear-gradient(135deg,#132440,#1E3A5F)", borderRadius: "12px 12px 0 0", padding: "28px 32px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
             <div style={{ width: 36, height: 36, background: "#4A82C4", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 12, color: "#fff" }}>SW</div>
             <span style={{ fontWeight: 700, fontSize: 15, color: "#fff" }}>StackedWork</span>
@@ -61,10 +61,10 @@ export default async function EstimatePage({ params }: { params: Promise<{ token
         </div>
 
         {/* Main content */}
-        <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderTop: "none", padding: "28px 32px" }}>
+        <div className="est-pad" style={{ background: "#fff", border: "1px solid #E2E8F0", borderTop: "none", padding: "28px 32px" }}>
 
           {/* Client & Job info */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 28 }}>
+          <div className="est-info" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 28, overflowWrap: "anywhere" }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Prepared For</div>
               <div style={{ fontWeight: 700, fontSize: 16, color: "#0F172A", marginBottom: 3 }}>{estimate.customer_name}</div>
@@ -84,7 +84,7 @@ export default async function EstimatePage({ params }: { params: Promise<{ token
 
           {/* Line Items */}
           <div style={{ marginBottom: 24 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <table className="est-tbl" style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: "#F8FAFC" }}>
                   <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "2px solid #E2E8F0" }}>Description</th>
@@ -96,27 +96,27 @@ export default async function EstimatePage({ params }: { params: Promise<{ token
               <tbody>
                 {lineItems.map((item: any, i: number) => (
                   <tr key={i}>
-                    <td style={{ padding: "12px", borderBottom: "1px solid #F1F5F9", fontSize: 14, color: "#374151" }}>{item.description}</td>
-                    <td style={{ padding: "12px", borderBottom: "1px solid #F1F5F9", fontSize: 14, color: "#374151", textAlign: "center" }}>{item.quantity} {item.unit}</td>
-                    <td style={{ padding: "12px", borderBottom: "1px solid #F1F5F9", fontSize: 14, color: "#374151", textAlign: "right" }}>${Number(item.unit_price).toFixed(2)}</td>
-                    <td style={{ padding: "12px", borderBottom: "1px solid #F1F5F9", fontSize: 14, fontWeight: 600, color: "#0F172A", textAlign: "right" }}>${Number(item.total).toFixed(2)}</td>
+                    <td className="c-desc" style={{ padding: "12px", borderBottom: "1px solid #F1F5F9", fontSize: 14, color: "#374151" }}>{item.description}</td>
+                    <td className="c-qty" style={{ padding: "12px", borderBottom: "1px solid #F1F5F9", fontSize: 14, color: "#374151", textAlign: "center" }}>{item.quantity} {item.unit}</td>
+                    <td className="c-price" style={{ padding: "12px", borderBottom: "1px solid #F1F5F9", fontSize: 14, color: "#374151", textAlign: "right" }}>${Number(item.unit_price).toFixed(2)}</td>
+                    <td className="c-amt" style={{ padding: "12px", borderBottom: "1px solid #F1F5F9", fontSize: 14, fontWeight: 600, color: "#0F172A", textAlign: "right" }}>${Number(item.total).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan={3} style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, color: "#64748B" }}>Subtotal</td>
-                  <td style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, color: "#64748B" }}>${Number(estimate.subtotal).toFixed(2)}</td>
+                  <td className="c-lbl" colSpan={3} style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, color: "#64748B" }}>Subtotal</td>
+                  <td className="c-val" style={{ padding: "10px 12px", textAlign: "right", fontSize: 13, color: "#64748B" }}>${Number(estimate.subtotal).toFixed(2)}</td>
                 </tr>
                 {estimate.tax_rate > 0 && (
                   <tr>
-                    <td colSpan={3} style={{ padding: "8px 12px", textAlign: "right", fontSize: 13, color: "#64748B" }}>Tax ({estimate.tax_rate}%)</td>
-                    <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 13, color: "#64748B" }}>${Number(estimate.tax_amount).toFixed(2)}</td>
+                    <td className="c-lbl" colSpan={3} style={{ padding: "8px 12px", textAlign: "right", fontSize: 13, color: "#64748B" }}>Tax ({estimate.tax_rate}%)</td>
+                    <td className="c-val" style={{ padding: "8px 12px", textAlign: "right", fontSize: 13, color: "#64748B" }}>${Number(estimate.tax_amount).toFixed(2)}</td>
                   </tr>
                 )}
                 <tr style={{ background: "#F0FDF4" }}>
-                  <td colSpan={3} style={{ padding: "14px 12px", textAlign: "right", fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Total</td>
-                  <td style={{ padding: "14px 12px", textAlign: "right", fontSize: 22, fontWeight: 800, color: "#132440" }}>${Number(estimate.total).toFixed(2)}</td>
+                  <td className="c-lbl" colSpan={3} style={{ padding: "14px 12px", textAlign: "right", fontSize: 16, fontWeight: 700, color: "#0F172A" }}>Total</td>
+                  <td className="c-val c-grand" style={{ padding: "14px 12px", textAlign: "right", fontSize: 22, fontWeight: 800, color: "#132440" }}>${Number(estimate.total).toFixed(2)}</td>
                 </tr>
               </tfoot>
             </table>
@@ -137,7 +137,7 @@ export default async function EstimatePage({ params }: { params: Promise<{ token
         </div>
 
         {/* Footer */}
-        <div style={{ padding: "18px 32px", textAlign: "center" }}>
+        <div className="est-pad" style={{ padding: "18px 32px", textAlign: "center" }}>
           <p style={{ fontSize: 12, color: "#94A3B8" }}>Powered by <strong>StackedWork</strong> · Contractor CRM</p>
         </div>
       </div>
