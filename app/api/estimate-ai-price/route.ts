@@ -36,7 +36,7 @@ Rules:
 - Use realistic 2025-2026 market prices
 - Labor rates should reflect regional averages ($45-$120/hr depending on trade)
 - Materials should reflect current supply costs
-- Units should be appropriate (hours, sq ft, linear ft, each, etc.)
+- Units should be appropriate: one of "hours", "job" (flat-rate items), "each", "sq ft", "linear ft", "days", "lbs", "bags", "gallons"
 - Keep descriptions concise and professional
 - The notes field should mention that prices are estimates and suggest verifying current material costs with local suppliers
 - Only return valid JSON, no other text`;

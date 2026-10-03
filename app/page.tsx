@@ -5,6 +5,7 @@ import ChatWidget from "./components/ChatWidget";
 import { captureFirstTouch } from "./lib/first-touch";
 import { parseVoiceToJobLocal, JOB_TYPES } from "./lib/parse-job-local";
 import { todayNY, daysAgoNY, toDateKeyNY, fmtDateNY, yearNY, APP_TZ } from "./lib/dates";
+import { unitOptions } from "./lib/units";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -1274,7 +1275,7 @@ export default function StackedWork() {
                     <input value={it.description} onChange={e=>updateLineItem(it.id,"description",e.target.value)} placeholder="Description" style={{padding:"8px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none"}}/>
                     <input type="number" min="0" value={it.quantity} onChange={e=>updateLineItem(it.id,"quantity",e.target.value)} placeholder="Qty" style={{padding:"8px 8px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"center"}}/>
                     <select value={it.unit} onChange={e=>updateLineItem(it.id,"unit",e.target.value)} style={{padding:"8px 6px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:11,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>
-                      {["hours","sq ft","linear ft","each","lbs","bags","gallons","days"].map(u=><option key={u}>{u}</option>)}
+                      {unitOptions(it.unit).map(u=><option key={u.value} value={u.value}>{u.label}</option>)}
                     </select>
                     <input type="number" min="0" step="0.01" value={it.unit_price} onChange={e=>updateLineItem(it.id,"unit_price",e.target.value)} placeholder="$/unit" style={{padding:"8px 8px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"right"}}/>
                     <div style={{padding:"8px 8px",background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:7,fontSize:12,fontWeight:600,color:"#374151",textAlign:"right"}}>${Number(it.total).toFixed(2)}</div>
@@ -1791,7 +1792,7 @@ export default function StackedWork() {
                               <input value={it.description} onChange={e=>updateEditLineItem(it.id,"description",e.target.value)} placeholder="Description" style={{padding:"7px 8px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none"}}/>
                               <input type="number" min="0" value={it.quantity} onChange={e=>updateEditLineItem(it.id,"quantity",e.target.value)} style={{padding:"7px 6px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"center"}}/>
                               <select value={it.unit} onChange={e=>updateEditLineItem(it.id,"unit",e.target.value)} style={{padding:"7px 4px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:11,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>
-                                {["hours","sq ft","linear ft","each","lbs","bags","gallons","days"].map(u=><option key={u}>{u}</option>)}
+                                {unitOptions(it.unit).map(u=><option key={u.value} value={u.value}>{u.label}</option>)}
                               </select>
                               <input type="number" min="0" step="0.01" value={it.unit_price} onChange={e=>updateEditLineItem(it.id,"unit_price",e.target.value)} style={{padding:"7px 6px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"right"}}/>
                               <div style={{padding:"7px 6px",background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:6,fontSize:12,fontWeight:600,color:"#374151",textAlign:"right"}}>${Number(it.total).toFixed(2)}</div>
