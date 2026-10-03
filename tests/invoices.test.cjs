@@ -57,7 +57,7 @@ test("create from estimate copies customer, line items, subtotal, tax and total 
   assert.equal(inv.subtotal, 3600); assert.equal(inv.tax_rate, 6); assert.equal(inv.tax_amount, 216); assert.equal(inv.total, 3816);
   assert.equal(inv.estimate_id, "e1"); assert.equal(inv.contractor_id, "u1"); assert.equal(inv.status, "draft");
   assert.equal(inv.issue_date, "2026-10-03"); assert.equal(inv.due_date, "2026-10-18");
-  assert.equal("number" in inv, false, "the DB assigns the number");
+  for (const k of ["number", "share_token", "created_at", "updated_at", "invoice_number", "id"]) assert.equal(k in inv, false, `the DB assigns ${k}`);
 });
 test("totals round to cents", () => {
   assert.deepEqual(L.calcInvoiceTotals([{ total: 100.005 }, { total: 0.1 }, { total: 0.2 }], 6.25), { subtotal: 100.31, taxAmount: 6.27, total: 106.58 });

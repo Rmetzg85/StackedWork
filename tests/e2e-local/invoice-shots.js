@@ -9,7 +9,7 @@ const SESSION = () => { const now = Math.floor(Date.now() / 1000); return JSON.s
 const todayNY = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const plus = (d, n) => { const t = new Date(d + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10); };
 const inv = async () => (await fetch(S + '/__invoices')).json();
-const res = []; let fails = 0;
+const res = []; let fails = 0; let expectNum = 3; // counters: INV-0003, then 0004, 0005 (deleted numbers are never reused)
 const check = (name, cond, extra) => { res.push({ check: name, ok: !!cond, ...(extra || {}) }); if (!cond) fails++; };
 const measure = (p, sel, w) => p.evaluate(([sel, w]) => {
   const d = document.documentElement; const m = sel ? [...document.querySelectorAll(sel)].pop() : null;
@@ -37,8 +37,16 @@ const measure = (p, sel, w) => p.evaluate(([sel, w]) => {
     check(`${w}: created from estimate`, all.length === before + 1 && created, { number: created && created.invoice_number });
     check(`${w}: copied totals + items`, created && created.total === 5787.6 && created.subtotal === 5460 && created.tax_amount === 327.6 && created.tax_rate === 6 && created.line_items.length === 2 && created.customer_email === 'deck.client@example.test' && created.estimate_id === 'eeeeeeee-0000-4000-8000-000000000003');
     check(`${w}: Net 15 due date`, created && created.issue_date === todayNY() && created.due_date === plus(todayNY(), 15), { issue: created && created.issue_date, due: created && created.due_date });
-    check(`${w}: numbered INV-0003`, created && created.invoice_number === 'INV-0003' && created.status === 'draft');
+    const want = 'INV-' + String(expectNum).padStart(4, '0');
+    check(`${w}: numbered ${want} (no reuse after earlier deletes)`, created && created.invoice_number === want && created.status === 'draft', { got: created && created.invoice_number });
+    expectNum++;
     const dlg = '[role="dialog"]';
+    // Share link uses the server-generated token from the returned row.
+    const [pop] = await Promise.all([ctx.waitForEvent('page'), p.locator(`${dlg} button:has-text("Preview")`).click()]);
+    await pop.waitForLoadState('domcontentloaded').catch(() => {});
+    check(`${w}: share link uses server token`, pop.url().endsWith('/invoice/' + created.share_token) && /^[0-9a-f]{32}$/.test(created.share_token), { url: pop.url().replace(B, '') });
+    check(`${w}: preview renders the invoice`, (await pop.content()).includes(created.invoice_number));
+    await pop.close();
     res.push({ w, view: 'invoice detail', ...(await measure(p, dlg, w)) });
     await p.locator(dlg).last().screenshot({ path: `${OUT}/invoice-detail-draft-${w}.png` });
     // 2) Edit: change due date, save
@@ -61,7 +69,7 @@ const measure = (p, sel, w) => p.evaluate(([sel, w]) => {
     check(`${w}: list shows overdue fixture as Overdue`, rows.some((r) => /INV-0002/.test(r) && /Overdue/.test(r) && /days? overdue/.test(r)));
     await p.screenshot({ path: `${OUT}/invoices-list-${w}.png`, fullPage: !mobile });
     // 5) Delete the created invoice
-    await p.locator('[data-testid="inv-row"]:has-text("INV-0003")').click(); await sleep(400);
+    await p.locator(`[data-testid="inv-row"]:has-text("${created.invoice_number}")`).click(); await sleep(400);
     await p.locator(`${dlg} button:has-text("Delete")`).click(); await sleep(800);
     check(`${w}: delete`, !(await inv()).some((x) => x.id === created.id));
     // 6) New blank invoice editor (mobile overflow)

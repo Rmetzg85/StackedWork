@@ -74,8 +74,11 @@ export default function InvoicesPanel(p: Props) {
     setDetail((d: any) => (d && d.id === row.id ? row : d));
   };
 
-  // Insert with one retry on a unique violation (the DB trigger numbers under a lock; this is the backstop).
-  const insertInvoice = async (payload: any) => {
+  // Insert with one retry on a unique violation (backstop; the DB trigger numbers from a per-contractor counter).
+  // number, share_token and created_at/updated_at are assigned by the DB trigger, so they're never sent;
+  // the share link always uses the share_token from the returned row (.select().single()).
+  const insertInvoice = async (input: any) => {
+    const { number: _n, share_token: _t, created_at: _c, updated_at: _u, invoice_number: _i, id: _id, ...payload } = input || {};
     let res = await supabase.from("invoices").insert(payload).select().single();
     if (res.error && (res.error as any).code === "23505") res = await supabase.from("invoices").insert(payload).select().single();
     return res;

@@ -3,7 +3,7 @@
 All screenshots are from a local production build (`next start -p 3090`) against the local Supabase stub
 (`tests/e2e-local/stub-supabase.js`). The data is fictional test data. Nothing here touched prod.
 
-Re-run: `OUT=docs/invoicing-2026-10-03 PLAYWRIGHT=<path> node tests/e2e-local/invoice-shots.js` (34 flow checks + 16 width checks; `results.json`).
+Re-run: `OUT=docs/invoicing-2026-10-03 PLAYWRIGHT=<path> node tests/e2e-local/invoice-shots.js` (40 flow checks + 16 width checks; `results.json`).
 
 | File | What |
 |---|---|

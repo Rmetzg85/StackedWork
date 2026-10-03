@@ -36,9 +36,17 @@ let INVOICES = [
   { id: "11110000-0000-4000-8000-000000000099", contractor_id: OTHER_UID, estimate_id: null, number: 1, invoice_number: "INV-0001", status: "sent", customer_name: "Other Contractor's Client", customer_email: "other.inv@example.test", customer_phone: null, job_type: "General",
     line_items: [], subtotal: 10, tax_rate: 0, tax_amount: 0, total: 10, notes: null, issue_date: "2026-10-01", due_date: "2026-10-16", sent_at: null, paid_at: null, share_token: "inv0other000000000000000000000099", created_at: "2026-10-01T14:00:00Z", updated_at: "2026-10-01T14:00:00Z" },
 ];
+// contractor_invoice_counters: numbers never reused after deletes. Trigger also owns share_token/created_at
+// and rejects an estimate_id that isn't the same contractor's.
+const COUNTERS = {}; for (const i of INVOICES) COUNTERS[i.contractor_id] = Math.max(COUNTERS[i.contractor_id] || 0, i.number);
+const OWN_ESTIMATES = { "eeeeeeee-0000-4000-8000-000000000002": UID, "eeeeeeee-0000-4000-8000-000000000003": UID, "eeeeeeee-0000-4000-8000-000000000099": OTHER_UID };
 const invTrigger = (row, old) => {
+  if (row.estimate_id && (!old || row.estimate_id !== old.estimate_id) && OWN_ESTIMATES[row.estimate_id] !== (old ? old.contractor_id : row.contractor_id))
+    return { code: "42501", message: "invoices.estimate_id must reference one of your own estimates" };
   if (!old) {
-    row.number = INVOICES.filter((i) => i.contractor_id === row.contractor_id).reduce((m, i) => Math.max(m, i.number), 0) + 1;
+    row.number = COUNTERS[row.contractor_id] = (COUNTERS[row.contractor_id] || 0) + 1;
+    row.share_token = require("crypto").randomUUID().replace(/-/g, "");
+    row.created_at = new Date().toISOString();
     row.issue_date = row.issue_date || new Date().toISOString().slice(0, 10);
   } else { row.number = old.number; row.contractor_id = old.contractor_id; row.share_token = old.share_token; row.created_at = old.created_at; }
   row.invoice_number = fmtInv(row.number);
@@ -119,7 +127,7 @@ http.createServer((req, res) => {
     let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => {
       const body = JSON.parse(b || "{}");
       if (req.method === "POST") {
-        const row = { id: "11110000-0000-4000-8000-" + String(100000000000 + INVOICES.length + 1), share_token: "inv0new" + Math.random().toString(36).slice(2, 12).padEnd(10, "0") + "0000000000000000", created_at: new Date().toISOString(), sent_at: null, paid_at: null, notes: null, ...body };
+        const row = { sent_at: null, paid_at: null, notes: null, ...body, id: require("crypto").randomUUID() };
         const e = invTrigger(row, null); if (e) return send(400, e);
         INVOICES.push(row); console.log("INSERT invoices", row.invoice_number, row.customer_name, row.total, "due", row.due_date);
         return send(201, single ? row : [row]);
