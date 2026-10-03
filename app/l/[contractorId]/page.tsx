@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import Honeypot from "../../components/Honeypot";
+import { HONEYPOT_FIELD } from "../../lib/honeypot-field";
 
 const G = "#C8E64A";
 const GD = "#A8C435";
@@ -28,6 +30,7 @@ export default function ContractorLeadForm() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [jobType, setJobType] = useState("");
+  const [hp, setHp] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +61,7 @@ export default function ContractorLeadForm() {
           message: message.trim() || null,
           job_type: jobType || null,
           source: "lead_form",
+          [HONEYPOT_FIELD]: hp,
         }),
       });
       const data = await res.json();
@@ -117,6 +121,7 @@ export default function ContractorLeadForm() {
                 setEmail("");
                 setMessage("");
                 setJobType("");
+                setHp("");
               }}
               style={{ background: G, color: "#132440", border: "none", borderRadius: 10, padding: "12px 28px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
             >
@@ -127,6 +132,7 @@ export default function ContractorLeadForm() {
           <div style={{ background: "#fff", borderRadius: 20, padding: "32px 28px" }}>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: "#0F172A", marginBottom: 4 }}>Contact form</h2>
             <p style={{ fontSize: 13, color: "#94A3B8", marginBottom: 24 }}>Takes about a minute.</p>
+            <Honeypot value={hp} onChange={setHp} />
 
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", display: "block", marginBottom: 6, letterSpacing: "0.03em" }}>YOUR NAME *</label>

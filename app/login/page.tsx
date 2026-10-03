@@ -3,6 +3,8 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { captureFirstTouch, getFirstTouch } from "../lib/first-touch";
+import Honeypot from "../components/Honeypot";
+import { HONEYPOT_FIELD } from "../lib/honeypot-field";
 
 const G = "#C8E64A";
 const GD = "#A8C435";
@@ -26,6 +28,7 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [hp, setHp] = useState("");
 
   // Ads may link straight to /login — capture first-touch UTM here too (no-op if already stored).
   useEffect(() => { captureFirstTouch(); }, []);
@@ -38,6 +41,11 @@ function LoginForm() {
 
     try {
       if (mode === "signup") {
+        // Honeypot filled = bot. Show the normal confirmation message and create nothing (no auth user, no email).
+        if (hp.trim()) {
+          setSuccess(`Check your email to confirm your account. We sent a confirmation link to ${email.trim()}.`);
+          return;
+        }
         // Short signup: email + password only. Username is derived from the email
         // (editable later in Settings); phone/website are collected later.
         const cleanEmail = email.trim();
@@ -68,7 +76,7 @@ function LoginForm() {
         await fetch("/api/notify-signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, email: cleanEmail, ...firstTouch }),
+          body: JSON.stringify({ username, email: cleanEmail, ...firstTouch, [HONEYPOT_FIELD]: hp }),
         }).catch(() => {});
 
         // After signup, send them to Stripe checkout
@@ -147,7 +155,8 @@ function LoginForm() {
             : "Enter your email and we'll send you a reset link."}
         </p>
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14, position: "relative" }}>
+          {mode === "signup" && <Honeypot value={hp} onChange={setHp} />}
           <div>
             <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
               Email
