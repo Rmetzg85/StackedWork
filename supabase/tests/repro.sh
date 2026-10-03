@@ -39,4 +39,12 @@ if out=$($P -d sw_rlsonly -f supabase/migrations/20261002060000_rls_verify.sql 2
 
 echo "== 4) App payloads against migrated DB"
 PSQL="psql $PGCONN -d sw_repro" supabase/tests/run_app_payloads.sh || ok=0
+echo "== 5) Rate limit counter (20261003200000_rate_limits.sql)"
+rl() { $P -d sw_repro -t -A -c "begin; set local role $1; $2; commit;" 2>&1 | grep -v '^BEGIN\|^COMMIT\|^SET' | head -1; }
+c1=$(rl service_role "select public.rate_limit_hit('leads:test', 600)"); c2=$(rl service_role "select public.rate_limit_hit('leads:test', 600)"); c3=$(rl service_role "select public.rate_limit_hit('leads:other', 600)")
+[ "$c1/$c2/$c3" = "1/2/1" ] && echo "   PASS service_role counts per key: $c1,$c2 (same key), $c3 (other key)" || { echo "   FAIL counts: $c1/$c2/$c3"; ok=0; }
+for r in anon authenticated; do
+  e=$(rl $r "select public.rate_limit_hit('x', 60)"); echo "$e" | grep -q "permission denied" && echo "   PASS $r cannot execute rate_limit_hit" || { echo "   FAIL $r execute: $e"; ok=0; }
+  e=$(rl $r "select count(*) from public.rate_limits"); echo "$e" | grep -q "permission denied" && echo "   PASS $r cannot read rate_limits" || { echo "   FAIL $r read: $e"; ok=0; }
+done
 [ $ok -eq 1 ] && echo "REPRO: ALL PASS" || { echo "REPRO: FAILURES"; exit 1; }
