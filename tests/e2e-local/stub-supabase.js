@@ -21,7 +21,8 @@ let PHOTOS = [
     before_url: `http://127.0.0.1:54400/storage/v1/object/public/stackedwork-images/${UID}/portfolio/1-aaa-before.jpg`,
     after_url: `http://127.0.0.1:54400/storage/v1/object/public/stackedwork-images/${UID}/portfolio/1-aaa-after.jpg` },
 ];
-let MODE = { allRead: false, unpriced: false };
+let MODE = { allRead: false, unpriced: false, rpcMissing: false };
+const RL = {}; const INSERTS = [];
 const STORAGE_REMOVED = [];
 const USER = { id: UID, aud: "authenticated", role: "authenticated", email: "a.contractor@example.test", user_metadata: { first_run_done: true }, app_metadata: {}, created_at: "2026-09-01T00:00:00Z" };
 const log = [];
@@ -61,6 +62,19 @@ http.createServer((req, res) => {
     let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { const pre = (JSON.parse(b || "{}").prefixes) || []; STORAGE_REMOVED.push(...pre); console.log("STORAGE remove", pre); send(200, pre.map((name) => ({ name, bucket_id: "stackedwork-images" }))); });
     return;
   }
+  if (u.pathname === "/rest/v1/rpc/rate_limit_hit") {
+    // MODE.rpcMissing=1 behaves like prod before migration 20261003200000 (PostgREST: function not found).
+    let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => {
+      if (MODE.rpcMissing) { console.log("RPC rate_limit_hit -> 404 PGRST202 (missing)"); return send(404, { code: "PGRST202", message: "Could not find the function public.rate_limit_hit(p_key, p_window_seconds) in the schema cache" }); }
+      const { p_key } = JSON.parse(b || "{}"); RL[p_key] = (RL[p_key] || 0) + 1; console.log("RPC rate_limit_hit key=", p_key, "->", RL[p_key]); send(200, RL[p_key]);
+    });
+    return;
+  }
+  if (req.method === "POST" && /^\/rest\/v1\/(leads|homeowner_leads)$/.test(u.pathname)) {
+    let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { INSERTS.push({ t: u.pathname.slice(9), row: JSON.parse(b || "{}") }); console.log("INSERT", u.pathname.slice(9)); send(201, []); });
+    return;
+  }
+  if (u.pathname === "/__inserts") return send(200, INSERTS);
   const t = u.pathname.replace("/rest/v1/", "");
   if (t === "estimates" && u.searchParams.get("share_token")) {
     const tok = u.searchParams.get("share_token").replace(/^eq\./, "");

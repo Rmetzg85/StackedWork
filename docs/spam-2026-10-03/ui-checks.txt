@@ -1,0 +1,7 @@
+lead form honeypot: exists= 1 x= -10000 tabindex= -1 aria-hidden ancestor= true autocomplete= off
+  Tab ever focuses honeypot: false
+  real submit -> success screen: true | new lead rows: 1
+  bot submit (honeypot filled) -> success screen: true | new lead rows: 0
+signup honeypot: exists= 1
+  bot signup -> message: "Check your email to confirm your account. We sent a confirmation link to bot.signup@example.test." | signup/notify/checkout requests: []
+human signup (honeypot empty) -> requests: ["/auth/v1/signup","/api/notify-signup","/api/checkout"]

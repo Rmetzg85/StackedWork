@@ -1,0 +1,67 @@
+# 2026-10-03 17:16 EDT local build + Supabase stub
+
+## rate_limit_hit() missing  (migration not applied -> in-memory fallback)
+### /api/leads (limit 5 per 10 min per IP)
+  IP 203.0.113.7  #1: {"success":true} HTTP 200 
+  IP 203.0.113.7  #2: {"success":true} HTTP 200 
+  IP 203.0.113.7  #3: {"success":true} HTTP 200 
+  IP 203.0.113.7  #4: {"success":true} HTTP 200 
+  IP 203.0.113.7  #5: {"success":true} HTTP 200 
+  IP 203.0.113.7  #6: {"error":"Too many requests. Please wait a few minutes and try again."} HTTP 429 Retry-After=600
+  IP 198.51.100.9 #1: {"success":true} HTTP 200 
+  honeypot filled:   {"success":true} HTTP 200 
+### /api/homeowner-lead (limit 5 per 10 min per IP)
+  #1: {"success":true} HTTP 200 
+  #2: {"success":true} HTTP 200 
+  #3: {"success":true} HTTP 200 
+  #4: {"success":true} HTTP 200 
+  #5: {"success":true} HTTP 200 
+  #6: {"error":"Too many requests. Please wait a few minutes and try again."} HTTP 429 Retry-After=600
+  honeypot filled: {"success":true} HTTP 200 
+### /api/notify-signup (limit 5 per hour per IP)
+  #1: {"ok":true} HTTP 200 
+  #2: {"ok":true} HTTP 200 
+  #3: {"ok":true} HTTP 200 
+  #4: {"ok":true} HTTP 200 
+  #5: {"ok":true} HTTP 200 
+  #6: {"error":"Too many requests. Please wait a few minutes and try again."} HTTP 429 Retry-After=3600
+  honeypot filled: {"ok":true} HTTP 200 
+### server log (rate-limit lines)
+        1 rate-limit: rate_limit_hit() not found; using in-memory fallback (apply migration 20261003200000_rate_limits.sql)
+
+## rate_limit_hit() table  (migration applied -> table counter)
+### /api/leads (limit 5 per 10 min per IP)
+  IP 203.0.113.7  #1: {"success":true} HTTP 200 
+  IP 203.0.113.7  #2: {"success":true} HTTP 200 
+  IP 203.0.113.7  #3: {"success":true} HTTP 200 
+  IP 203.0.113.7  #4: {"success":true} HTTP 200 
+  IP 203.0.113.7  #5: {"success":true} HTTP 200 
+  IP 203.0.113.7  #6: {"error":"Too many requests. Please wait a few minutes and try again."} HTTP 429 Retry-After=235
+  IP 198.51.100.9 #1: {"success":true} HTTP 200 
+  honeypot filled:   {"success":true} HTTP 200 
+### /api/homeowner-lead (limit 5 per 10 min per IP)
+  #1: {"success":true} HTTP 200 
+  #2: {"success":true} HTTP 200 
+  #3: {"success":true} HTTP 200 
+  #4: {"success":true} HTTP 200 
+  #5: {"success":true} HTTP 200 
+  #6: {"error":"Too many requests. Please wait a few minutes and try again."} HTTP 429 Retry-After=235
+  honeypot filled: {"success":true} HTTP 200 
+### /api/notify-signup (limit 5 per hour per IP)
+  #1: {"ok":true} HTTP 200 
+  #2: {"ok":true} HTTP 200 
+  #3: {"ok":true} HTTP 200 
+  #4: {"ok":true} HTTP 200 
+  #5: {"ok":true} HTTP 200 
+  #6: {"error":"Too many requests. Please wait a few minutes and try again."} HTTP 429 Retry-After=2634
+  honeypot filled: {"ok":true} HTTP 200 
+### server log (rate-limit lines)
+
+## stub: rows inserted (honeypot submissions must not appear)
+   22 inserts: {'leads': 12, 'homeowner_leads': 10} | any honeypot/bot rows: False
+## stub: RPC keys seen (salted hashes; no raw IPs)
+        6 key= homeowner-lead:bc51e50a617ca601ceb74ae42c095f84
+        1 key= leads:93a8bad033e39e166cd17a099a291d2f
+        6 key= leads:e280955922efc329036159bc9141af3e
+        6 key= notify-signup:7f3dd8ef94676eb22ad547ed1901f210
+  raw IP in any key: 0
