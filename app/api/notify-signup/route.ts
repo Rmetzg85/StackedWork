@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { EMAIL_FROM } from "../../lib/email";
+import { isHoneypot, rateLimit, clientIp } from "../../lib/abuse";
 
 // Unauthenticated by necessity (signup with email confirmation has no session yet). Everything below is
 // caller-supplied, so it is length-limited and HTML-escaped; website links only allow http(s).
@@ -7,6 +8,12 @@ const esc = (v: unknown) => String(v ?? "").slice(0, 200).replace(/[&<>"']/g, (c
 
 export async function POST(request: Request) {
   const raw = await request.json().catch(() => ({}));
+  if (isHoneypot(raw)) return NextResponse.json({ ok: true }); // silent fake success for bots
+  // 5 per hour per IP: real people sign up once.
+  const rl = await rateLimit("notify-signup", clientIp(request), 5, 3600);
+  if (!rl.ok) {
+    return NextResponse.json({ error: "Too many requests. Please wait a few minutes and try again." }, { status: 429, headers: { "Retry-After": String(rl.retryAfter) } });
+  }
   const username = esc(raw?.username), email = esc(raw?.email), phone = esc(raw?.phone);
   const website = esc(raw?.website);
   const websiteHref = /^https?:\/\/[^\s"'<>]{1,200}$/i.test(String(raw?.website || "")) ? website : "";
