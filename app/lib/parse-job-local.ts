@@ -114,6 +114,14 @@ export function parseVoiceToJobLocal(text: string, today: string = todayNY()): L
     if (/p/i.test(tm[3])) h += 12;
     time = `${pad(h)}:${tm[2] || "00"}`;
   } else if (take(/\b(?:at\s+)?noon\b/i)) time = "12:00";
+  else {
+    // "at 3", "at 10:30" with no am/pm: assume working hours (7-11 morning, 12 noon, 1-6 afternoon).
+    const bh = take(/\bat\s+(\d{1,2})(?::(\d{2}))?(?=\s*(?:o'?clock\b)?\s*(?:[,.;]|$|(?:on|tomorrow|today|tonight|next|this|for|and|then|in the|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b))/i);
+    if (bh && Number(bh[1]) >= 1 && Number(bh[1]) <= 12) {
+      const h = Number(bh[1]);
+      time = `${pad(h >= 7 && h <= 11 ? h : h === 12 ? 12 : h + 12)}:${bh[2] || "00"}`;
+    }
+  }
 
   // --- Date ---
   let date = "";
@@ -204,19 +212,29 @@ export function parseVoiceToJobLocal(text: string, today: string = todayNY()): L
   const isCap = (w: string) => /^[A-Z][a-zA-Z'’-]*$/.test(w) && !/^[A-Z]{2,}$/.test(w); // "AC"/"HVAC" aren't names
   const isTradeWord = (w: string) => TYPE_RULES.some(([, re]) => re.test(w.toLowerCase()));
   let name = "";
-  const nameWords: string[] = [];
-  for (const raw of words) {
-    const w = raw.replace(/[,.;:!?]+$/, "");
-    const lw = w.toLowerCase();
-    if (!w || NAME_STOP.has(lw) || /\d/.test(w) || isTradeWord(w) || !isCap(w) || WEEKDAYS.includes(lw)) break;
-    nameWords.push(w);
-    if (raw !== w || nameWords.length >= 3) break; // punctuation ends the name
+  // 1) "<job> for <Name>" wins over a leading capitalised word: "Water heater replacement for Mike Davis at 42 Oak St"
+  //    is Mike Davis, not "Water". Also "…for the Hendersons", "…for Mrs. Lee", "customer is Ana Ortiz".
+  const fm = work.match(/\b(?:for|customer(?: is)?|client(?: is)?|name is)\s+(?:the\s+)?((?:Mr|Mrs|Ms|Dr)\.?\s+)?([A-Z][a-zA-Z'’-]+(?:\s+[A-Z][a-zA-Z'’-]+){0,2})/);
+  if (fm) {
+    const fw: string[] = [];
+    for (const w of fm[2].split(/\s+/)) {
+      const lw = w.toLowerCase();
+      if (NAME_STOP.has(lw) || WEEKDAYS.includes(lw) || MONTHS.includes(lw) || /^(?:today|tomorrow|tonight|yesterday|next|this)$/.test(lw) || !isCap(w) || isTradeWord(w)) break;
+      fw.push(w);
+    }
+    if (fw.length) name = ((fm[1] || "") + fw.join(" ")).trim();
   }
-  if (nameWords.length) name = nameWords.join(" ");
+  // 2) Otherwise, leading capitalised words: "Mike Johnson, 123 Oak St, lawn mow".
   if (!name) {
-    // "roof repair for the Hendersons", "…for Mrs. Lee"
-    const fm = work.match(/\b(?:for|customer(?: is)?|client(?: is)?|name is)\s+(?:the\s+)?((?:Mr|Mrs|Ms|Dr)\.?\s+)?([A-Z][a-zA-Z'’-]+(?:\s+[A-Z][a-zA-Z'’-]+){0,2})/);
-    if (fm && !WEEKDAYS.includes(fm[2].toLowerCase())) name = ((fm[1] || "") + fm[2]).trim();
+    const nameWords: string[] = [];
+    for (const raw of words) {
+      const w = raw.replace(/[,.;:!?]+$/, "");
+      const lw = w.toLowerCase();
+      if (!w || NAME_STOP.has(lw) || /\d/.test(w) || isTradeWord(w) || !isCap(w) || WEEKDAYS.includes(lw)) break;
+      nameWords.push(w);
+      if (raw !== w || nameWords.length >= 3) break; // punctuation ends the name
+    }
+    if (nameWords.length) name = nameWords.join(" ");
   }
   if (!name) {
     // All-lowercase transcripts: leading words up to a stop word / trade word / number, max 2 words.

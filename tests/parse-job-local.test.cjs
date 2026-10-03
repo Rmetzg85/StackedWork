@@ -51,3 +51,24 @@ test("job-type keyword mapping (QA: water heater / AC / lawn were General)", () 
   assert.equal(parseVoiceToJobLocal("Mike Johnson, 123 Oak St, lawn mow Friday 2pm", TODAY).jobType, "Landscaping");
 });
 test.after(() => console.log(`\nQA phrase score: ${pass}/${cases.length}`));
+
+// "<job> for <Name>": the name after "for" wins over a leading capitalised word (2026-10-03).
+const forCases = [
+  ["Water heater replacement for Mike Davis at 42 Oak Street, Tuesday at 10, $1,850", { name: "Mike Davis", jobType: "Plumbing", address: "42 Oak Street", date: "2026-10-06", time: "10:00", value: "1850", status: "scheduled" }],
+  ["Water Heater replacement for Mike Davis at 42 Oak Street Tuesday at 10:00 a.m. 1850", { name: "Mike Davis", jobType: "Plumbing", address: "42 Oak Street", date: "2026-10-06", time: "10:00", value: "1850" }],
+  ["AC tune-up for Sarah Lee tomorrow at 3", { name: "Sarah Lee", jobType: "HVAC", date: "2026-10-03", time: "15:00", status: "scheduled" }],
+  ["Lawn mowing for the Johnsons Friday", { name: "Johnsons", jobType: "Landscaping", date: "2026-10-02" }],
+  ["Deck stain for Mrs. Patel next Monday, 600", { name: "Mrs. Patel", jobType: "Deck", date: "2026-10-05", value: "600" }],
+  ["Roof inspection for Tom Reed on Thursday", { name: "Tom Reed", jobType: "Roofing", date: "2026-10-08" }],
+  ["Painting for Friday", { name: "" }],
+];
+for (const [phrase, exp] of forCases) {
+  test(`for-name: ${phrase}`, () => {
+    const out = parseVoiceToJobLocal(phrase, TODAY);
+    for (const [k, v] of Object.entries(exp)) assert.equal(out[k], v, `${k} for "${phrase}" -> ${JSON.stringify(out)}`);
+  });
+}
+test("bare 'at N' hour isn't taken from quantities or prices", () => {
+  assert.equal(parseVoiceToJobLocal("Mike Johnson gutter cleaning at 3 houses", TODAY).time, "");
+  assert.equal(parseVoiceToJobLocal("John Smith fence repair at 45 dollars", TODAY).time, "");
+});
