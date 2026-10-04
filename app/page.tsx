@@ -6,7 +6,7 @@ import HeroDemoVideo from "./components/HeroDemoVideo";
 import InvoicesPanel from "./components/InvoicesPanel";
 import { formatInvoiceNumber } from "./lib/invoices";
 import { captureFirstTouch } from "./lib/first-touch";
-import { isInAppBrowser, voiceErrorMessage, VOICE_UNAVAILABLE_MSG } from "./lib/browser-env";
+import { isInAppBrowser, voiceMessage } from "./lib/browser-env";
 import { parseVoiceToJobLocal, JOB_TYPES } from "./lib/parse-job-local";
 import { todayNY, daysAgoNY, toDateKeyNY, fmtDateNY, yearNY, APP_TZ, fmtWhenNY } from "./lib/dates";
 import { unitOptions } from "./lib/units";
@@ -289,7 +289,8 @@ export default function StackedWork() {
     if (recRef.current) { stopVoiceEntry(); return; }
     // Instagram/Facebook in-app browsers (FBAN, FBAV, FB_IAB, FB4A, Instagram, "; wv)"): don't start recognition.
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (isInAppBrowser(navigator.userAgent) || !SR) { voiceFail(VOICE_UNAVAILABLE_MSG); return; }
+    if (isInAppBrowser(navigator.userAgent)) { voiceFail(voiceMessage(null, navigator.userAgent)); return; }
+    if (!SR) { voiceFail(voiceMessage("no-sr", navigator.userAgent)); return; }
     const rec = new SR();
     rec.continuous = false;
     rec.interimResults = true;
@@ -304,14 +305,14 @@ export default function StackedWork() {
       failed = true;
       const code = e?.error;
       if (code === "aborted") return;
-      // iOS Chrome "service-not-allowed" suggests Safari; every other error points to a real browser or the typed box.
-      voiceFail(voiceErrorMessage(code, navigator.userAgent));
+      // Specific text per error in real browsers (iOS Chrome service-not-allowed -> Safari); in-app browsers get the open-in-browser hint.
+      voiceFail(voiceMessage(code, navigator.userAgent));
     };
     rec.onend = () => {
       if (recRef.current === rec) recRef.current = null;
       setVoiceListening(false);
       if (heard.trim()) { applyParsedJob(heard); return; }
-      if (!failed) voiceFail(VOICE_UNAVAILABLE_MSG);
+      if (!failed) voiceFail(voiceMessage("empty", navigator.userAgent));
     };
     try {
       rec.start();
@@ -320,7 +321,7 @@ export default function StackedWork() {
       setVoiceTranscript("");
       setParsedReview(null);
     } catch {
-      voiceFail(VOICE_UNAVAILABLE_MSG);
+      voiceFail(voiceMessage("start-failed", navigator.userAgent));
     }
   };
 
