@@ -6,6 +6,8 @@ import HeroDemoVideo from "./components/HeroDemoVideo";
 import InvoicesPanel from "./components/InvoicesPanel";
 import { formatInvoiceNumber } from "./lib/invoices";
 import { captureFirstTouch } from "./lib/first-touch";
+import { useFounderOffer } from "./lib/use-founder-offer";
+import { trialDays, founderBadge, FOUNDER_HEADLINE, FOUNDER_SUB, FOUNDER_TRIAL_DAYS, FOUNDER_PRICE, LIST_PRICE } from "./lib/offer";
 import { isInAppBrowser, voiceErrorMessage, VOICE_UNAVAILABLE_MSG } from "./lib/browser-env";
 import { parseVoiceToJobLocal, JOB_TYPES } from "./lib/parse-job-local";
 import { todayNY, daysAgoNY, toDateKeyNY, fmtDateNY, yearNY, APP_TZ, fmtWhenNY } from "./lib/dates";
@@ -71,6 +73,9 @@ const BtnO = ({ children, onClick, style, ...rest }: any) => <button onClick={on
 const Card = ({ children, style }: any) => <div style={{ background:"#fff", border:"1px solid #E2E8F0", borderRadius:12, ...style }}>{children}</div>;
 const Divider = () => <div style={{ height:1, background:"linear-gradient(90deg,transparent,rgba(200,230,74,0.25),transparent)", margin:"0 auto", maxWidth:600 }} />;
 export default function StackedWork() {
+  // Founder offer (staged): off until the server has STRIPE_FOUNDER_COUPON_ID and live spots remain; then 60 days, else 14.
+  const founder = useFounderOffer();
+  const TD = trialDays(founder);
   const [page, setPage] = useState("landing");
   const [authMode, setAuthMode] = useState<"login"|"signup"|"forgot"|null>(null);
   const [authEmail, setAuthEmail] = useState("");
@@ -1092,7 +1097,7 @@ export default function StackedWork() {
         <h1 style={{fontSize:28,fontWeight:700,marginBottom:12}}>{noSub ? "Start your free trial" : `Subscription ${subStatus === "cancelled" || subStatus === "canceled" ? "Cancelled" : "Inactive"}`}</h1>
         <p style={{fontSize:15,color:"rgba(245,240,235,0.5)",maxWidth:420,marginBottom:32,lineHeight:1.7}}>
           {noSub
-            ? "Your account is set up, but your 14-day free trial hasn't started yet. No credit card required."
+            ? `Your account is set up, but your ${TD}-day free trial hasn't started yet. No credit card required.`
             : subStatus === "past_due"
             ? "Your last payment failed. Please update your billing info to continue."
             : "Your StackedWork subscription is no longer active. Reactivate to get back in."}
@@ -1180,7 +1185,7 @@ export default function StackedWork() {
           <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:380,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)",textAlign:"center"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
             <div style={{fontSize:34,marginBottom:10}}>🔒</div>
             <h2 id="sw-demo-gate-title" style={{fontSize:19,fontWeight:700,color:"#0F172A",marginBottom:6}}>You&apos;re in the demo</h2>
-            <p style={{fontSize:14,color:"#64748B",marginBottom:20,lineHeight:1.5}}>Start your free 14-day trial to {demoGate}. The demo data here is sample data and isn&apos;t saved.</p>
+            <p style={{fontSize:14,color:"#64748B",marginBottom:20,lineHeight:1.5}}>Start your free {TD}-day trial to {demoGate}. The demo data here is sample data and isn&apos;t saved.</p>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
               <Btn onClick={handleSubscribe} style={{padding:12,fontSize:14}}>Start free trial</Btn>
               <BtnO onClick={()=>{window.location.href="/login?mode=signin";}} style={{padding:12,fontSize:14}}>I already have an account</BtnO>
@@ -2112,10 +2117,10 @@ export default function StackedWork() {
     signupLabel: es?"Empieza gratis hoy":"Start free today",
     signupTitle: es?"Listo en":"Set up in",
     signupTitleGreen: es?"5 minutos.":"5 minutes.",
-    signupSub: es?"Prueba gratuita de 14 días. Sin tarjeta de crédito.":"14-day free trial. No credit card required.",
+    signupSub: es?"Prueba gratuita de 14 días. Sin tarjeta de crédito.":`${TD}-day free trial. No credit card required.`,
     signupPlaceholder: es?"tu@email.com":"your@email.com",
     signupBtn: es?"Comenzar →":"Get Started →",
-    signupSmall: es?"$49.99/MES · PRUEBA GRATIS 14 DÍAS · SIN CARGO DE INSTALACIÓN · CANCELA CUANDO QUIERAS":"$49.99/MO · 14-DAY FREE TRIAL · NO SETUP FEE · CANCEL ANYTIME",
+    signupSmall: es?"$49.99/MES · PRUEBA GRATIS 14 DÍAS · SIN CARGO DE INSTALACIÓN · CANCELA CUANDO QUIERAS":founder.active?`FOUNDING CONTRACTORS: ${FOUNDER_TRIAL_DAYS} DAYS FREE, THEN ${FOUNDER_PRICE}/MO LOCKED IN · REGULAR ${LIST_PRICE}/MO · NO SETUP FEE · CANCEL ANYTIME`:"$49.99/MO · 14-DAY FREE TRIAL · NO SETUP FEE · CANCEL ANYTIME",
     videoLabel: es?"Míralo en acción":"See it in action",
     videoTitle: es?"Administra tu negocio desde la camioneta.":"Run your business from the truck.",
     featLabel: es?"Lo que obtienes":"What you get",
@@ -2138,9 +2143,9 @@ export default function StackedWork() {
     howTitle: es?"En línea en":"Live in",
     howTitleGreen: es?"48 horas.":"48 hours.",
     ctaTitle: es?"¿Listo para dejar de trabajar al revés?":"Ready to stop hustling backwards?",
-    ctaDesc: es?"$49.99/mes · Prueba gratis de 14 días · Sin cargo de instalación · Cancela cuando quieras.":"$49.99/mo · 14-day free trial · no setup fee · cancel anytime.",
+    ctaDesc: es?"$49.99/mes · Prueba gratis de 14 días · Sin cargo de instalación · Cancela cuando quieras.":founder.active?`${FOUNDER_HEADLINE} ${FOUNDER_SUB} No setup fee, cancel anytime.`:"$49.99/mo · 14-day free trial · no setup fee · cancel anytime.",
     ctaBtn: es?"Inicia tu prueba gratis":"Start Your Free Trial",
-    ctaSmall: es?"$49.99/MES · PRUEBA GRATIS 14 DÍAS · SIN CARGO DE INSTALACIÓN · CANCELA CUANDO QUIERAS":"$49.99/MO · 14-DAY FREE TRIAL · NO SETUP FEE · CANCEL ANYTIME",
+    ctaSmall: es?"$49.99/MES · PRUEBA GRATIS 14 DÍAS · SIN CARGO DE INSTALACIÓN · CANCELA CUANDO QUIERAS":founder.active?`FOUNDING CONTRACTORS: ${FOUNDER_TRIAL_DAYS} DAYS FREE, THEN ${FOUNDER_PRICE}/MO LOCKED IN · REGULAR ${LIST_PRICE}/MO · NO SETUP FEE · CANCEL ANYTIME`:"$49.99/MO · 14-DAY FREE TRIAL · NO SETUP FEE · CANCEL ANYTIME",
     homeTitle: es?"¿Buscas un contratista con licencia?":"Looking for a Licensed Contractor?",
     homeDesc: es?"Describe tu proyecto y conéctate con contratistas con licencia estatal en tu área — gratis, rápido y sin compromiso. Los 50 estados.":"Describe your project and get connected with state-licensed contractors in your area — free, fast, and no obligation. All 50 states.",
     homeBtn: es?"Encontrar un Contratista →":"Find a Licensed Contractor →",
@@ -2214,7 +2219,7 @@ export default function StackedWork() {
               {authMode==="login"?"Welcome back":authMode==="signup"?"Create your account":"Reset your password"}
             </h2>
             <p style={{fontSize:13,color:"#64748B"}}>
-              {authMode==="login"?"Sign in to your StackedWork account":authMode==="signup"?"Start your 14-day free trial today":"Enter your email and we'll send a reset link"}
+              {authMode==="login"?"Sign in to your StackedWork account":authMode==="signup"?`Start your ${TD}-day free trial today`:"Enter your email and we'll send a reset link"}
             </p>
           </div>
           {authSuccess ? (
@@ -2263,9 +2268,13 @@ export default function StackedWork() {
       <section style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"120px 24px 80px",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",inset:0,backgroundImage:"url(https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1400&q=80)",backgroundSize:"cover",backgroundPosition:"center",filter:"brightness(0.3)"}} />
         <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(19,36,64,0.7) 0%,rgba(19,36,64,0.9) 70%,#132440 100%)"}} />
-        <div className="sw-f0" style={{position:"relative",zIndex:1}}><div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(200,230,74,0.15)",border:"1px solid rgba(200,230,74,0.35)",borderRadius:100,padding:"8px 20px",fontSize:13,fontWeight:500,color:G,fontFamily:"'Space Mono'",marginBottom:32}}>{t.heroBadge}</div></div>
+        <div className="sw-f0" style={{position:"relative",zIndex:1}}><div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(200,230,74,0.15)",border:"1px solid rgba(200,230,74,0.35)",borderRadius:100,padding:"8px 20px",fontSize:13,fontWeight:500,color:G,fontFamily:"'Space Mono'",marginBottom:32}}>{(!es&&founderBadge(founder))||t.heroBadge}</div></div>
         <h1 className="sw-f1" style={{position:"relative",zIndex:1,fontSize:"clamp(38px,6vw,72px)",fontWeight:700,lineHeight:1.05,letterSpacing:"-0.03em",maxWidth:800,marginBottom:24,whiteSpace:"pre-line"}}>{t.heroTitle.split("\n")[0]} <span style={{color:G}}>{t.heroTitle.split("\n")[1]}</span></h1>
         <p className="sw-f2" style={{position:"relative",zIndex:1,fontSize:18,lineHeight:1.7,color:"rgba(245,240,235,0.6)",maxWidth:560,marginBottom:16}}>{t.heroDesc}</p>
+        {!es&&founder.active&&<div style={{position:"relative",zIndex:1,maxWidth:560,marginBottom:20}}>
+          <p style={{fontSize:20,fontWeight:700,color:G,lineHeight:1.4,marginBottom:6}}>{FOUNDER_HEADLINE}</p>
+          <p style={{fontSize:14,color:"rgba(245,240,235,0.6)",lineHeight:1.6}}>{FOUNDER_SUB}</p>
+        </div>}
         <div className="sw-f3" style={{position:"relative",zIndex:1,marginBottom:48}}>
           <div className="sw-price" style={{fontFamily:"'Space Mono'",fontSize:72,fontWeight:700,color:G,lineHeight:1,marginBottom:4}}>$49.99<span style={{fontSize:24,color:"rgba(245,240,235,0.4)"}}>/mo</span></div>
           <p style={{fontFamily:"'Space Mono'",fontSize:13,color:"rgba(245,240,235,0.4)",letterSpacing:"0.05em"}}>{t.pricingSub}</p>

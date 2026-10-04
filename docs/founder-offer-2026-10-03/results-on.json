@@ -1,0 +1,92 @@
+[
+ {
+  "case": "on",
+  "scenario": "3-taken",
+  "founderSpots": {
+   "active": true,
+   "spotsLeft": 17,
+   "limit": 20
+  },
+  "heroLines": [
+   "Founder pricing · 17 of 20 spots left",
+   "Your CRM. Your AI. One price.",
+   "Stop juggling spreadsheets and apps you never open. StackedWork runs your contracting business in one place — CRM, lead tracking, before & after portfolio, and revenue dashboards.",
+   "Founding contractors: 60 days free, then $29.99/mo locked in.",
+   "No credit card. If you don't add one, it just ends. Regular price $49.99/mo.",
+   "$49.99/mo",
+   "CRM + VOICE-TO-JOB + LEAD TRACKING. NO SETUP FEES.",
+   "Need a website? Ask us about our AI website building services."
+  ],
+  "loginSub": "No credit card required · 60-day free trial · cancel anytime",
+  "checkoutStatus": 200,
+  "checkoutUrl": "http://localhost:3093/welcome?session_id=cs_test_1&offer=founder",
+  "session": {
+   "trial_period_days": "60",
+   "discount_coupon": "FOUNDER2999",
+   "allow_promotion_codes": null,
+   "offer_meta": "founder",
+   "success_url": "http://localhost:3093/welcome?session_id={CHECKOUT_SESSION_ID}&offer=founder",
+   "missing_pm": "cancel"
+  }
+ },
+ {
+  "case": "on",
+  "scenario": "coupon-cap-hit",
+  "founderSpots": {
+   "active": false,
+   "spotsLeft": null,
+   "limit": 20
+  },
+  "heroLines": [
+   "Built for contractors",
+   "Your CRM. Your AI. One price.",
+   "Stop juggling spreadsheets and apps you never open. StackedWork runs your contracting business in one place — CRM, lead tracking, before & after portfolio, and revenue dashboards.",
+   "$49.99/mo",
+   "CRM + VOICE-TO-JOB + LEAD TRACKING. NO SETUP FEES.",
+   "Need a website? Ask us about our AI website building services.",
+   "Start Free Trial",
+   "See Live Demo"
+  ],
+  "loginSub": "No credit card required · 14-day free trial · cancel anytime",
+  "checkoutStatus": 200,
+  "checkoutUrl": "http://localhost:3093/welcome?session_id=cs_test_1",
+  "session": {
+   "trial_period_days": "14",
+   "discount_coupon": null,
+   "allow_promotion_codes": "true",
+   "offer_meta": null,
+   "success_url": "http://localhost:3093/welcome?session_id={CHECKOUT_SESSION_ID}",
+   "missing_pm": "cancel"
+  }
+ },
+ {
+  "case": "on",
+  "scenario": "20-taken",
+  "founderSpots": {
+   "active": false,
+   "spotsLeft": null,
+   "limit": 20
+  },
+  "heroLines": [
+   "Built for contractors",
+   "Your CRM. Your AI. One price.",
+   "Stop juggling spreadsheets and apps you never open. StackedWork runs your contracting business in one place — CRM, lead tracking, before & after portfolio, and revenue dashboards.",
+   "$49.99/mo",
+   "CRM + VOICE-TO-JOB + LEAD TRACKING. NO SETUP FEES.",
+   "Need a website? Ask us about our AI website building services.",
+   "Start Free Trial",
+   "See Live Demo"
+  ],
+  "loginSub": "No credit card required · 14-day free trial · cancel anytime",
+  "checkoutStatus": 200,
+  "checkoutUrl": "http://localhost:3093/welcome?session_id=cs_test_1",
+  "session": {
+   "trial_period_days": "14",
+   "discount_coupon": null,
+   "allow_promotion_codes": "true",
+   "offer_meta": null,
+   "success_url": "http://localhost:3093/welcome?session_id={CHECKOUT_SESSION_ID}",
+   "missing_pm": "cancel"
+  }
+ }
+]
