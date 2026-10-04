@@ -13,6 +13,8 @@ const UA = {
   fbIos: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBAV/480.0.0.0;FBBV/1;FBDV/iPhone15,2;FBMD/iPhone;FBSN/iOS;FBSV/17.5;FBSS/3;FBCR/;FBID/phone;FBLC/en_US;FBOP/5]',
   fbAndroid: 'Mozilla/5.0 (Linux; Android 14; Pixel 7; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/129.0.0.0 Mobile Safari/537.36 [FB_IAB/FB4A;FBAV/480.0.0.0;]',
   iosChrome: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/129.0.0.0 Mobile/15E148 Safari/604.1',
+  firefoxDesktop: 'Mozilla/5.0 (X11; Linux x86_64; rv:155.0) Gecko/20100101 Firefox/155.0',
+  iosSafari: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
   androidChrome: 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36',
 };
 // sr: 'present' (a stub that would fire `err`), 'absent' (no SpeechRecognition, like Android WebView).
@@ -23,18 +25,23 @@ const TARGETS = {
   'fb-android': { engine: chromium, ua: UA.fbAndroid, sr: 'absent' },
   'ios-chrome': { engine: webkit, ua: UA.iosChrome, sr: 'present', err: 'service-not-allowed' },
   'android-chrome-no-speech': { engine: chromium, ua: UA.androidChrome, sr: 'present', err: 'no-speech' },
+  'android-chrome-empty-result': { engine: chromium, ua: UA.androidChrome, sr: 'present', err: 'empty' },
+  'android-chrome-no-mic': { engine: chromium, ua: UA.androidChrome, sr: 'present', err: 'audio-capture' },
+  'android-chrome-network': { engine: chromium, ua: UA.androidChrome, sr: 'present', err: 'network' },
   'android-chrome-mic-blocked': { engine: chromium, ua: UA.androidChrome, sr: 'present', err: 'not-allowed' },
+  'ios-safari-no-speech': { engine: webkit, ua: UA.iosSafari, sr: 'present', err: 'no-speech' },
+  'firefox-desktop': { engine: chromium, ua: UA.firefoxDesktop, sr: 'absent', desktop: true },
 };
 const res = [];
 (async () => {
   for (const [name, t] of Object.entries(TARGETS)) {
     const b = await t.engine.launch();
-    const ctx = await b.newContext({ userAgent: t.ua, viewport: { width: 390, height: 844 }, isMobile: t.engine !== webkit ? true : undefined, hasTouch: true, deviceScaleFactor: 2 });
+    const ctx = await b.newContext({ userAgent: t.ua, viewport: t.desktop ? { width: 1280, height: 800 } : { width: 390, height: 844 }, isMobile: t.engine !== webkit && !t.desktop ? true : undefined, hasTouch: true, deviceScaleFactor: 2 });
     await ctx.addInitScript(([s, sr, err]) => {
       localStorage.setItem('sb-127-auth-token', s);
       window.__srStarts = 0;
       if (sr === 'absent') { try { delete window.SpeechRecognition; delete window.webkitSpeechRecognition; } catch {} window.SpeechRecognition = undefined; window.webkitSpeechRecognition = undefined; return; }
-      class FakeSR { start() { window.__srStarts++; setTimeout(() => { this.onerror && this.onerror({ error: err }); this.onend && this.onend(); }, 50); } stop() {} abort() {} }
+      class FakeSR { start() { window.__srStarts++; setTimeout(() => { if (err !== 'empty' && this.onerror) this.onerror({ error: err }); this.onend && this.onend(); }, 50); } stop() {} abort() {} }
       window.SpeechRecognition = FakeSR; window.webkitSpeechRecognition = FakeSR;
     }, [SESSION(), t.sr, t.err]);
     const p = await ctx.newPage();

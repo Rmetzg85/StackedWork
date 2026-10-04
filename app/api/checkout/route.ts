@@ -4,6 +4,7 @@ import { stripeClient } from "../../lib/stripe-client";
 import { founderCouponId, founderSpotsLeft, FOUNDER_META } from "../../lib/founder";
 import { FOUNDER_TRIAL_DAYS, STANDARD_TRIAL_DAYS } from "../../lib/offer";
 import { createClient } from "@supabase/supabase-js";
+import { normalizeTrade } from "../../lib/first-touch";
 
 // Optional: if the caller sends a Supabase access token, link the Stripe subscription to that
 // user id (metadata.user_id). Never trusts a user id from the request body, and only reuses an existing
@@ -40,6 +41,8 @@ export async function POST(request) {
       const v = utm?.[k];
       if (typeof v === "string" && v.trim()) utmMeta[k] = v.trim().slice(0, 100);
     }
+    const trade = normalizeTrade(utm?.first_touch_trade);
+    if (trade) utmMeta.first_touch_trade = trade;
 
     let customer;
     if (email && user?.email) {
