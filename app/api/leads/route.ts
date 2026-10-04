@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { isHoneypot, rateLimit, clientIp } from "../../lib/abuse";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -16,6 +17,14 @@ export async function POST(request: Request) {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  // Honeypot: bots that fill the hidden field get a normal-looking success, and nothing is stored.
+  if (isHoneypot(body)) return NextResponse.json({ success: true });
+  // 5 submissions per 10 minutes per IP.
+  const rl = await rateLimit("leads", clientIp(request), 5, 600);
+  if (!rl.ok) {
+    return NextResponse.json({ error: "Too many requests. Please wait a few minutes and try again." }, { status: 429, headers: { "Retry-After": String(rl.retryAfter) } });
   }
 
   const { contractor_id, name, phone, email, message, urgent, job_type, source } = body;

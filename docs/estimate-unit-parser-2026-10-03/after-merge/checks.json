@@ -1,0 +1,128 @@
+[
+ {
+  "w": 320,
+  "view": "new-estimate line items",
+  "device": 320,
+  "docScrollWidth": 320,
+  "innerWidth": 320,
+  "pageOk": true,
+  "boxScrollWidth": 288,
+  "boxClientWidth": 288,
+  "boxOk": true
+ },
+ {
+  "w": 320,
+  "view": "edit-estimate line items",
+  "device": 320,
+  "docScrollWidth": 320,
+  "innerWidth": 320,
+  "pageOk": true,
+  "boxScrollWidth": 288,
+  "boxClientWidth": 288,
+  "boxOk": true
+ },
+ {
+  "w": 320,
+  "view": "voice review card",
+  "when": "Tue, Oct 6 · 10:00 AM"
+ },
+ {
+  "w": 320,
+  "view": "public estimate",
+  "device": 320,
+  "docScrollWidth": 320,
+  "innerWidth": 320,
+  "pageOk": true,
+  "amountRightEdges": [
+   138,
+   283,
+   287,
+   287
+  ],
+  "allAmountsVisible": true
+ },
+ {
+  "w": 375,
+  "view": "new-estimate line items",
+  "device": 375,
+  "docScrollWidth": 375,
+  "innerWidth": 375,
+  "pageOk": true,
+  "boxScrollWidth": 343,
+  "boxClientWidth": 343,
+  "boxOk": true
+ },
+ {
+  "w": 375,
+  "view": "edit-estimate line items",
+  "device": 375,
+  "docScrollWidth": 375,
+  "innerWidth": 375,
+  "pageOk": true,
+  "boxScrollWidth": 343,
+  "boxClientWidth": 343,
+  "boxOk": true
+ },
+ {
+  "w": 375,
+  "view": "voice review card",
+  "when": "Tue, Oct 6 · 10:00 AM"
+ },
+ {
+  "w": 375,
+  "view": "public estimate",
+  "device": 375,
+  "docScrollWidth": 375,
+  "innerWidth": 375,
+  "pageOk": true,
+  "amountRightEdges": [
+   138,
+   338,
+   342,
+   342
+  ],
+  "allAmountsVisible": true
+ },
+ {
+  "w": 390,
+  "view": "new-estimate line items",
+  "device": 390,
+  "docScrollWidth": 390,
+  "innerWidth": 390,
+  "pageOk": true,
+  "boxScrollWidth": 358,
+  "boxClientWidth": 358,
+  "boxOk": true
+ },
+ {
+  "w": 390,
+  "view": "edit-estimate line items",
+  "device": 390,
+  "docScrollWidth": 390,
+  "innerWidth": 390,
+  "pageOk": true,
+  "boxScrollWidth": 358,
+  "boxClientWidth": 358,
+  "boxOk": true
+ },
+ {
+  "w": 390,
+  "view": "voice review card",
+  "when": "Tue, Oct 6 · 10:00 AM"
+ },
+ {
+  "w": 390,
+  "view": "public estimate",
+  "device": 390,
+  "docScrollWidth": 390,
+  "innerWidth": 390,
+  "pageOk": true,
+  "amountRightEdges": [
+   138,
+   353,
+   357,
+   357
+  ],
+  "allAmountsVisible": true
+ }
+]

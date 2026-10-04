@@ -3,9 +3,12 @@ import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import ChatWidget from "./components/ChatWidget";
 import HeroDemoVideo from "./components/HeroDemoVideo";
+import InvoicesPanel from "./components/InvoicesPanel";
+import { formatInvoiceNumber } from "./lib/invoices";
 import { captureFirstTouch } from "./lib/first-touch";
 import { parseVoiceToJobLocal, JOB_TYPES } from "./lib/parse-job-local";
-import { todayNY, daysAgoNY, toDateKeyNY, fmtDateNY, yearNY, APP_TZ } from "./lib/dates";
+import { todayNY, daysAgoNY, toDateKeyNY, fmtDateNY, yearNY, APP_TZ, fmtWhenNY } from "./lib/dates";
+import { unitOptions } from "./lib/units";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -147,6 +150,12 @@ export default function StackedWork() {
   const [rcScanning, setRcScanning] = useState(false);
   const [rcFilter, setRcFilter] = useState("all");
   const [dbEstimates, setDbEstimates] = useState<any[]>([]);
+  // Invoices v1: shown as a section of the Estimates tab.
+  const [dbInvoices, setDbInvoices] = useState<any[]>([]);
+  const [invoicesUnavailable, setInvoicesUnavailable] = useState(false);
+  const [estSection, setEstSection] = useState<"estimates"|"invoices">("estimates");
+  const [invFromEstimate, setInvFromEstimate] = useState<any|null>(null);
+  const [openInvoiceId, setOpenInvoiceId] = useState<string|null>(null);
   const [newEstimateOpen, setNewEstimateOpen] = useState(false);
   const [neStep, setNeStep] = useState<1|2>(1);
   const [neCustomer, setNeCustomer] = useState("");
@@ -828,6 +837,11 @@ export default function StackedWork() {
     supabase.from("portfolio").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load photos", error); else if (data) setDbPhotos(data); });
     supabase.from("receipts").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load receipts", error); else if (data) setDbReceipts(data); });
     supabase.from("estimates").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load estimates", error); else if (data) setDbEstimates(data); });
+    // Until 20261003210000_invoices.sql is applied the table doesn't exist: show "almost ready", no error toast.
+    supabase.from("invoices").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => {
+      if (error) { if (["42P01","PGRST205","PGRST204"].includes((error as any).code) || /does not exist|schema cache/i.test(error.message||"")) setInvoicesUnavailable(true); else toastErr("Couldn't load invoices", error); }
+      else if (data) { setInvoicesUnavailable(false); setDbInvoices(data); }
+    });
     const ch = supabase.channel("leads_" + userId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads", filter: `contractor_id=eq.${userId}` }, (payload) => {
         setDbLeads(prev => [payload.new as any, ...prev]);
@@ -976,6 +990,14 @@ export default function StackedWork() {
     resetNewEstimate();
   };
 
+  const setEstimateStatus = async (est: any, status: "accepted"|"declined"|"sent"|"draft") => {
+    const { error } = await supabase.from("estimates").update({ status }).eq("id", est.id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't update the estimate", error); return; }
+    setDbEstimates(prev => prev.map(e => e.id === est.id ? { ...e, status } : e));
+    if (estimateDetail?.id === est.id) setEstimateDetail((e: any) => ({ ...e, status }));
+    showToast(status === "accepted" ? "Estimate marked accepted." : "Estimate updated.", "success");
+  };
+
   const deleteEstimate = async (est: any) => {
     if (!confirm("Delete this estimate?")) return;
     const { error } = await supabase.from("estimates").delete().eq("id", est.id).eq("contractor_id", userId);
@@ -1115,6 +1137,12 @@ export default function StackedWork() {
           @media(min-width:768px){.sw-sd{display:flex;flex-direction:column;gap:4px;width:220px;background:#0F1D32;border-right:1px solid rgba(255,255,255,0.08);padding:24px 12px;flex-shrink:0}.sw-bn{display:none}
           .sw-sl{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;transition:all .2s;color:#94A3B8}
           .sw-sl:hover{background:rgba(255,255,255,0.08);color:#fff}.sw-sl.sw-a{background:${G};color:#132440;font-weight:700}}
+          .sw-li{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,.7fr) minmax(0,.8fr) minmax(0,.8fr) minmax(0,.9fr) auto;grid-template-areas:"d q u p t x";gap:6px;align-items:center}
+          .sw-li>*{min-width:0;width:100%;box-sizing:border-box}.sw-li>.sw-li-x{width:auto}
+          .sw-li-d{grid-area:d}.sw-li-q{grid-area:q}.sw-li-u{grid-area:u}.sw-li-p{grid-area:p}.sw-li-t{grid-area:t}.sw-li-x{grid-area:x}
+          @media(max-width:560px){.sw-li{grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.2fr) auto;grid-template-areas:"d d d d x" "q u p t .";padding-bottom:8px;border-bottom:1px dashed #E2E8F0}.sw-li input,.sw-li select{font-size:16px !important}}
+          @media(max-width:360px){.sw-li{grid-template-columns:minmax(0,.8fr) minmax(0,1.3fr) minmax(0,1.2fr) auto;grid-template-areas:"d d d x" "q u p ." "t t t ."}.sw-li>.sw-li-t{background:none !important;border:none !important;padding:0 2px !important;font-size:13px !important}.sw-li-t::before{content:"Amount  ";font-weight:500;color:#64748B}}
+          @media(max-width:360px){.sw-hw{display:none}.sw-ha{gap:6px !important}}
           .sw-sg{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
           @media(min-width:768px){.sw-sg{grid-template-columns:repeat(4,1fr)}}
           .sw-jm{padding:14px 16px;border-bottom:1px solid #F1F5F9}.sw-jd,.sw-jh{display:none}
@@ -1126,10 +1154,10 @@ export default function StackedWork() {
         <div style={{background:"#0F1D32",borderBottom:"1px solid rgba(255,255,255,0.08)",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,zIndex:40}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <div style={{width:30,height:30,background:"#4A82C4",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:11,color:"#fff",fontFamily:"'DM Sans'",letterSpacing:"-0.03em"}}>SW</div>
-            <span style={{fontWeight:700,fontSize:15,color:"#fff"}}>StackedWork</span>
+            <span className="sw-hw" style={{fontWeight:700,fontSize:15,color:"#fff"}}>StackedWork</span>
             {!userId&&<span style={{background:"#FEF3C7",color:"#92400E",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:100,fontFamily:"'Space Mono'"}}>DEMO</span>}
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div className="sw-ha" style={{display:"flex",alignItems:"center",gap:10}}>
             <div style={{position:"relative"}}>
               <button onClick={()=>setNtf(!ntf)} aria-label={unreadLeads>0?`Notifications: ${unreadLeads} unread lead${unreadLeads!==1?"s":""}`:"Notifications"} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>🔔{unreadLeads>0&&<span style={{position:"absolute",top:-4,right:-4,width:18,height:18,background:"#EF4444",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",border:"2px solid #0F1D32"}}>{unreadLeads>99?"99+":unreadLeads}</span>}</button>
               {ntf&&<div style={{position:"absolute",top:50,right:0,width:360,maxWidth:"calc(100vw - 32px)",background:"#fff",border:"1px solid #E2E8F0",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.15)",zIndex:60,overflow:"hidden"}}>
@@ -1196,7 +1224,7 @@ export default function StackedWork() {
                 <span style={{color:"#64748B"}}>Address</span><span>{parsedReview.address||"—"}</span>
                 <span style={{color:"#64748B"}}>Phone</span><span>{parsedReview.phone||"—"}</span>
                 <span style={{color:"#64748B"}}>Service</span><span>{parsedReview.service||"—"}</span>
-                <span style={{color:"#64748B"}}>When</span><span>{parsedReview.scheduled_at||"—"}</span>
+                <span style={{color:"#64748B"}}>When</span><span title={parsedReview.scheduled_at||undefined}>{fmtWhenNY(parsedReview.scheduled_at)||"—"}</span>
                 <span style={{color:"#64748B"}}>Price</span><span>{typeof parsedReview.price==="number"?`$${parsedReview.price.toLocaleString()}`:"not stated (optional)"}</span>
                 <span style={{color:"#64748B"}}>Status</span><span>{STC[parsedReview.status]?.label||parsedReview.status}</span>
               </div>
@@ -1271,15 +1299,15 @@ export default function StackedWork() {
               {aiLoading&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534"}}>Analyzing {neJobType} pricing for {yearNY()}...</div>}
               <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
                 {neLineItems.map((it,i)=>(
-                  <div key={it.id} style={{display:"grid",gridTemplateColumns:"2fr 0.7fr 0.7fr 0.8fr 0.8fr auto",gap:6,alignItems:"center"}}>
-                    <input value={it.description} onChange={e=>updateLineItem(it.id,"description",e.target.value)} placeholder="Description" style={{padding:"8px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none"}}/>
-                    <input type="number" min="0" value={it.quantity} onChange={e=>updateLineItem(it.id,"quantity",e.target.value)} placeholder="Qty" style={{padding:"8px 8px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"center"}}/>
-                    <select value={it.unit} onChange={e=>updateLineItem(it.id,"unit",e.target.value)} style={{padding:"8px 6px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:11,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>
-                      {["hours","sq ft","linear ft","each","lbs","bags","gallons","days"].map(u=><option key={u}>{u}</option>)}
+                  <div key={it.id} className="sw-li">
+                    <input className="sw-li-d" aria-label="Description" value={it.description} onChange={e=>updateLineItem(it.id,"description",e.target.value)} placeholder="Description" style={{padding:"8px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none"}}/>
+                    <input className="sw-li-q" aria-label="Quantity" type="number" min="0" value={it.quantity} onChange={e=>updateLineItem(it.id,"quantity",e.target.value)} placeholder="Qty" style={{padding:"8px 8px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"center"}}/>
+                    <select className="sw-li-u" aria-label="Unit" value={it.unit} onChange={e=>updateLineItem(it.id,"unit",e.target.value)} style={{padding:"8px 6px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:11,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>
+                      {unitOptions(it.unit).map(u=><option key={u.value} value={u.value}>{u.label}</option>)}
                     </select>
-                    <input type="number" min="0" step="0.01" value={it.unit_price} onChange={e=>updateLineItem(it.id,"unit_price",e.target.value)} placeholder="$/unit" style={{padding:"8px 8px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"right"}}/>
-                    <div style={{padding:"8px 8px",background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:7,fontSize:12,fontWeight:600,color:"#374151",textAlign:"right"}}>${Number(it.total).toFixed(2)}</div>
-                    <button onClick={()=>removeLineItem(it.id)} style={{background:"none",border:"none",color:"#CBD5E1",cursor:"pointer",fontSize:16,padding:"0 2px"}} title="Remove">×</button>
+                    <input className="sw-li-p" aria-label="Price per unit" type="number" min="0" step="0.01" value={it.unit_price} onChange={e=>updateLineItem(it.id,"unit_price",e.target.value)} placeholder="$/unit" style={{padding:"8px 8px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"right"}}/>
+                    <div className="sw-li-t" aria-label="Amount" style={{padding:"8px 8px",background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:7,fontSize:12,fontWeight:600,color:"#374151",textAlign:"right",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>${Number(it.total).toFixed(2)}</div>
+                    <button className="sw-li-x" aria-label="Remove line item" onClick={()=>removeLineItem(it.id)} style={{background:"none",border:"none",color:"#CBD5E1",cursor:"pointer",fontSize:16,padding:"0 2px"}} title="Remove">×</button>
                   </div>
                 ))}
               </div>
@@ -1698,7 +1726,17 @@ export default function StackedWork() {
             {vw==="estimates"&&(()=>{
               const EST_STC: Record<string,{bg:string;text:string;label:string}> = { draft:{bg:"#F1F5F9",text:"#64748B",label:"Draft"}, sent:{bg:"#DBEAFE",text:"#1E40AF",label:"Sent"}, accepted:{bg:"#D1FAE5",text:"#065F46",label:"Accepted"}, declined:{bg:"#FEE2E2",text:"#991B1B",label:"Declined"} };
               const EstBadge = ({s}:{s:string}) => { const c=EST_STC[s]||EST_STC.draft; return <span style={{display:"inline-block",padding:"3px 10px",borderRadius:100,fontSize:11,fontWeight:600,background:c.bg,color:c.text}}>{c.label}</span>; };
+              const sectionSwitch = <div role="tablist" aria-label="Estimates or invoices" style={{display:"inline-flex",background:"rgba(255,255,255,0.08)",borderRadius:10,padding:3,marginBottom:14,gap:2}}>
+                {([["estimates","📋 Estimates"],["invoices","🧾 Invoices"]] as const).map(([k,l])=><button key={k} role="tab" aria-selected={estSection===k} data-testid={`sec-${k}`} onClick={()=>setEstSection(k)} style={{padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,fontWeight:700,background:estSection===k?G:"transparent",color:estSection===k?"#132440":"rgba(255,255,255,0.75)"}}>{l}{k==="invoices"&&dbInvoices.length>0?` (${dbInvoices.length})`:""}</button>)}
+              </div>;
+              if (estSection==="invoices") return (<>
+                {sectionSwitch}
+                <InvoicesPanel supabase={supabase} userId={userId} invoices={dbInvoices} setInvoices={setDbInvoices} unavailable={invoicesUnavailable}
+                  fromEstimate={invFromEstimate} onFromEstimateDone={()=>setInvFromEstimate(null)} openInvoiceId={openInvoiceId} onOpenInvoiceDone={()=>setOpenInvoiceId(null)}
+                  showToast={showToast} toastErr={toastErr} authJsonHeaders={authJsonHeaders} needAccount={needAccount}/>
+              </>);
               return (<>
+                {sectionSwitch}
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Estimates</h1>
                   <Btn onClick={()=>userId?setNewEstimateOpen(true):needAccount("create and send estimates")}>+ New Estimate</Btn>
@@ -1776,6 +1814,19 @@ export default function StackedWork() {
                           <BtnO onClick={()=>{ navigator.clipboard?.writeText(`${window.location.origin}/estimate/${estimateDetail.share_token}`); }} style={{fontSize:12,padding:"8px 14px"}}>📋 Copy Link</BtnO>
                           <BtnO onClick={()=>deleteEstimate(estimateDetail)} style={{fontSize:12,padding:"8px 14px",color:"#EF4444"}}>Delete</BtnO>
                         </div>
+                        {/* Invoicing: accepted estimates are the usual starting point */}
+                        {(()=>{
+                          const linked = dbInvoices.filter((iv:any)=>iv.estimate_id===estimateDetail.id);
+                          const accepted = estimateDetail.status==="accepted";
+                          return <div data-testid="est-invoice-box" style={{marginTop:14,padding:"12px 14px",background:accepted?"#F0FDF4":"#F8FAFC",border:`1px solid ${accepted?"#BBF7D0":"#E2E8F0"}`,borderRadius:10}}>
+                            <div style={{fontSize:12,color:"#374151",marginBottom:8}}>{linked.length>0?<>Invoiced: {linked.map((iv:any,i:number)=><button key={iv.id} onClick={()=>{setOpenInvoiceId(iv.id);setEstSection("invoices");setEstimateDetail(null);}} style={{background:"none",border:"none",padding:0,marginRight:8,color:"#1E40AF",fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,textDecoration:"underline"}}>{iv.invoice_number||formatInvoiceNumber(iv.number)}{i<linked.length-1?",":""}</button>)}</>:accepted?"Accepted. Ready to bill?":"Bill this job when the work is done."}</div>
+                            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                              <Btn data-testid="est-create-invoice" disabled={invoicesUnavailable} onClick={()=>{ if(!userId){needAccount("create invoices");return;} setInvFromEstimate(estimateDetail); setEstSection("invoices"); setEstimateDetail(null); }} style={{fontSize:12,padding:"8px 14px"}}>🧾 {linked.length>0?"Create another invoice":"Create Invoice"}</Btn>
+                              {!accepted&&estimateDetail.status!=="declined"&&<BtnO onClick={()=>setEstimateStatus(estimateDetail,"accepted")} style={{fontSize:12,padding:"8px 14px"}}>✓ Mark Accepted</BtnO>}
+                            </div>
+                            {invoicesUnavailable&&<div style={{fontSize:11,color:"#94A3B8",marginTop:6}}>Invoicing will be available after the latest update finishes rolling out.</div>}
+                          </div>;
+                        })()}
                       </> : <>
                         {/* EDIT MODE */}
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
@@ -1788,15 +1839,15 @@ export default function StackedWork() {
                         <div style={{fontSize:12,fontWeight:600,color:"#374151",marginBottom:8}}>Line Items</div>
                         <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:10}}>
                           {editLineItems.map((it)=>(
-                            <div key={it.id} style={{display:"grid",gridTemplateColumns:"2fr 0.7fr 0.7fr 0.8fr 0.8fr auto",gap:5,alignItems:"center"}}>
-                              <input value={it.description} onChange={e=>updateEditLineItem(it.id,"description",e.target.value)} placeholder="Description" style={{padding:"7px 8px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none"}}/>
-                              <input type="number" min="0" value={it.quantity} onChange={e=>updateEditLineItem(it.id,"quantity",e.target.value)} style={{padding:"7px 6px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"center"}}/>
-                              <select value={it.unit} onChange={e=>updateEditLineItem(it.id,"unit",e.target.value)} style={{padding:"7px 4px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:11,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>
-                                {["hours","sq ft","linear ft","each","lbs","bags","gallons","days"].map(u=><option key={u}>{u}</option>)}
+                            <div key={it.id} className="sw-li" style={{gap:5}}>
+                              <input className="sw-li-d" aria-label="Description" value={it.description} onChange={e=>updateEditLineItem(it.id,"description",e.target.value)} placeholder="Description" style={{padding:"7px 8px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none"}}/>
+                              <input className="sw-li-q" aria-label="Quantity" type="number" min="0" value={it.quantity} onChange={e=>updateEditLineItem(it.id,"quantity",e.target.value)} style={{padding:"7px 6px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"center"}}/>
+                              <select className="sw-li-u" aria-label="Unit" value={it.unit} onChange={e=>updateEditLineItem(it.id,"unit",e.target.value)} style={{padding:"7px 4px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:11,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>
+                                {unitOptions(it.unit).map(u=><option key={u.value} value={u.value}>{u.label}</option>)}
                               </select>
-                              <input type="number" min="0" step="0.01" value={it.unit_price} onChange={e=>updateEditLineItem(it.id,"unit_price",e.target.value)} style={{padding:"7px 6px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"right"}}/>
-                              <div style={{padding:"7px 6px",background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:6,fontSize:12,fontWeight:600,color:"#374151",textAlign:"right"}}>${Number(it.total).toFixed(2)}</div>
-                              <button onClick={()=>setEditLineItems(prev=>prev.filter(x=>x.id!==it.id))} style={{background:"none",border:"none",color:"#CBD5E1",cursor:"pointer",fontSize:16,padding:"0 2px"}}>×</button>
+                              <input className="sw-li-p" aria-label="Price per unit" type="number" min="0" step="0.01" value={it.unit_price} onChange={e=>updateEditLineItem(it.id,"unit_price",e.target.value)} style={{padding:"7px 6px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"right"}}/>
+                              <div className="sw-li-t" aria-label="Amount" style={{padding:"7px 6px",background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:6,fontSize:12,fontWeight:600,color:"#374151",textAlign:"right",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>${Number(it.total).toFixed(2)}</div>
+                              <button className="sw-li-x" aria-label="Remove line item" onClick={()=>setEditLineItems(prev=>prev.filter(x=>x.id!==it.id))} style={{background:"none",border:"none",color:"#CBD5E1",cursor:"pointer",fontSize:16,padding:"0 2px"}}>×</button>
                             </div>
                           ))}
                         </div>

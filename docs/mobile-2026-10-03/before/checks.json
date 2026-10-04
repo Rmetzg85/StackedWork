@@ -1,0 +1,119 @@
+[
+ {
+  "w": 320,
+  "view": "new-estimate line items",
+  "docScrollWidth": 351,
+  "innerWidth": 351,
+  "pageOk": true,
+  "boxScrollWidth": 713,
+  "boxClientWidth": 319,
+  "boxOk": false
+ },
+ {
+  "w": 320,
+  "view": "edit-estimate line items",
+  "docScrollWidth": 351,
+  "innerWidth": 351,
+  "pageOk": true,
+  "boxScrollWidth": 684,
+  "boxClientWidth": 319,
+  "boxOk": false
+ },
+ {
+  "w": 320,
+  "view": "voice review card",
+  "when": "2026-10-06T10:00"
+ },
+ {
+  "w": 320,
+  "view": "public estimate",
+  "docScrollWidth": 412,
+  "innerWidth": 412,
+  "pageOk": true,
+  "amountRightEdges": [
+   285,
+   412,
+   412,
+   412
+  ],
+  "allAmountsVisible": false
+ },
+ {
+  "w": 375,
+  "view": "new-estimate line items",
+  "docScrollWidth": 375,
+  "innerWidth": 375,
+  "pageOk": true,
+  "boxScrollWidth": 713,
+  "boxClientWidth": 343,
+  "boxOk": false
+ },
+ {
+  "w": 375,
+  "view": "edit-estimate line items",
+  "docScrollWidth": 375,
+  "innerWidth": 375,
+  "pageOk": true,
+  "boxScrollWidth": 684,
+  "boxClientWidth": 343,
+  "boxOk": false
+ },
+ {
+  "w": 375,
+  "view": "voice review card",
+  "when": "2026-10-06T10:00"
+ },
+ {
+  "w": 375,
+  "view": "public estimate",
+  "docScrollWidth": 412,
+  "innerWidth": 412,
+  "pageOk": true,
+  "amountRightEdges": [
+   285,
+   412,
+   412,
+   412
+  ],
+  "allAmountsVisible": false
+ },
+ {
+  "w": 390,
+  "view": "new-estimate line items",
+  "docScrollWidth": 390,
+  "innerWidth": 390,
+  "pageOk": true,
+  "boxScrollWidth": 713,
+  "boxClientWidth": 358,
+  "boxOk": false
+ },
+ {
+  "w": 390,
+  "view": "edit-estimate line items",
+  "docScrollWidth": 390,
+  "innerWidth": 390,
+  "pageOk": true,
+  "boxScrollWidth": 684,
+  "boxClientWidth": 358,
+  "boxOk": false
+ },
+ {
+  "w": 390,
+  "view": "voice review card",
+  "when": "2026-10-06T10:00"
+ },
+ {
+  "w": 390,
+  "view": "public estimate",
+  "docScrollWidth": 413,
+  "innerWidth": 413,
+  "pageOk": true,
+  "amountRightEdges": [
+   285,
+   412,
+   412,
+   412
+  ],
+  "allAmountsVisible": false
+ }
+]

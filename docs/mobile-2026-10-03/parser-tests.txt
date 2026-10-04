@@ -1,0 +1,140 @@
+
+> stackedwork@0.1.0 test:parser
+> rm -rf .tmp-test && tsc app/lib/parse-job-local.ts app/lib/dates.ts app/lib/ai-json.ts --outDir .tmp-test --rootDir app --module commonjs --target es2020 --skipLibCheck && node --test tests/
+
+TAP version 13
+# Subtest: ```json fenced object (the prod failure)
+ok 1 - ```json fenced object (the prod failure)
+  ---
+  duration_ms: 2.410742
+  ...
+# Subtest: bare fence, prose around it
+ok 2 - bare fence, prose around it
+  ---
+  duration_ms: 0.321144
+  ...
+# Subtest: prose then object then trailing text with braces
+ok 3 - prose then object then trailing text with braces
+  ---
+  duration_ms: 0.389737
+  ...
+# Subtest: plain JSON
+ok 4 - plain JSON
+  ---
+  duration_ms: 0.174136
+  ...
+# Subtest: garbage / empty / truncated -> null, never throws
+ok 5 - garbage / empty / truncated -> null, never throws
+  ---
+  duration_ms: 0.2647
+  ...
+# Subtest: zone-less local date-time shows as NY wall clock
+ok 6 - zone-less local date-time shows as NY wall clock
+  ---
+  duration_ms: 1.632677
+  ...
+# Subtest: date-only shows without a time
+ok 7 - date-only shows without a time
+  ---
+  duration_ms: 0.184975
+  ...
+# Subtest: instants convert to America/New_York (EDT and EST)
+ok 8 - instants convert to America/New_York (EDT and EST)
+  ---
+  duration_ms: 14.320763
+  ...
+# Subtest: empty and junk
+ok 9 - empty and junk
+  ---
+  duration_ms: 0.191481
+  ...
+# QA phrase score: 12/12
+# Subtest: QA \#1: Mike Johnson, 123 Oak St, lawn mow Friday 2pm
+ok 10 - QA \#1: Mike Johnson, 123 Oak St, lawn mow Friday 2pm
+  ---
+  duration_ms: 7.918148
+  ...
+# Subtest: QA \#2: John Smith, plumbing, $850, scheduled
+ok 11 - QA \#2: John Smith, plumbing, $850, scheduled
+  ---
+  duration_ms: 2.09769
+  ...
+# Subtest: QA \#3: Donna Newton kitchen remodel 2500
+ok 12 - QA \#3: Donna Newton kitchen remodel 2500
+  ---
+  duration_ms: 1.283676
+  ...
+# Subtest: QA \#4: Brandon Ford tenant unit leak
+ok 13 - QA \#4: Brandon Ford tenant unit leak
+  ---
+  duration_ms: 0.374588
+  ...
+# Subtest: QA \#5: Bob Decker shower heat pump install
+ok 14 - QA \#5: Bob Decker shower heat pump install
+  ---
+  duration_ms: 0.296008
+  ...
+# Subtest: QA \#6: Phil Forest mother-in-law suite painting $1,200.50
+ok 15 - QA \#6: Phil Forest mother-in-law suite painting $1,200.50
+  ---
+  duration_ms: 0.34769
+  ...
+# Subtest: QA \#7: Sarah Lee, 410 555 0182, replace water heater, fifteen hundred dollars
+ok 16 - QA \#7: Sarah Lee, 410 555 0182, replace water heater, fifteen hundred dollars
+  ---
+  duration_ms: 0.636799
+  ...
+# Subtest: QA \#8: um so this is for Carlos Ruiz on Elm, deck stain, like four hundred bucks, done
+ok 17 - QA \#8: um so this is for Carlos Ruiz on Elm, deck stain, like four hundred bucks, done
+  ---
+  duration_ms: 0.361108
+  ...
+# Subtest: QA \#9: roof repair for the Hendersons 3,200 dollars next Tuesday
+ok 18 - QA \#9: roof repair for the Hendersons 3,200 dollars next Tuesday
+  ---
+  duration_ms: 0.751101
+  ...
+# Subtest: QA \#10: Kevin at 55 Main Street needs drywall patch 300
+ok 19 - QA \#10: Kevin at 55 Main Street needs drywall patch 300
+  ---
+  duration_ms: 0.432845
+  ...
+# Subtest: QA \#11: Maria Gonzalez electrical panel upgrade two thousand five hundred scheduled for Monday
+ok 20 - QA \#11: Maria Gonzalez electrical panel upgrade two thousand five hundred scheduled for Monday
+  ---
+  duration_ms: 0.43612
+  ...
+# Subtest: QA \#12: Tom Bradley AC not cooling started yesterday 175 dollars
+ok 21 - QA \#12: Tom Bradley AC not cooling started yesterday 175 dollars
+  ---
+  duration_ms: 0.347564
+  ...
+# Subtest: service description is kept
+ok 22 - service description is kept
+  ---
+  duration_ms: 1.899651
+  ...
+# Subtest: lowercase transcript still gets a name
+ok 23 - lowercase transcript still gets a name
+  ---
+  duration_ms: 0.522331
+  ...
+# Subtest: quantities are not prices
+ok 24 - quantities are not prices
+  ---
+  duration_ms: 0.691441
+  ...
+# Subtest: job-type keyword mapping (QA: water heater / AC / lawn were General)
+ok 25 - job-type keyword mapping (QA: water heater / AC / lawn were General)
+  ---
+  duration_ms: 0.42254
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 179.234209

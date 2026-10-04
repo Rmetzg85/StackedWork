@@ -1,0 +1,347 @@
+[
+ {
+  "check": "320: created from estimate",
+  "ok": true,
+  "number": "INV-0003"
+ },
+ {
+  "check": "320: copied totals + items",
+  "ok": true
+ },
+ {
+  "check": "320: Net 15 due date",
+  "ok": true,
+  "issue": "2026-10-03",
+  "due": "2026-10-18"
+ },
+ {
+  "check": "320: numbered INV-0003 (no reuse after earlier deletes)",
+  "ok": true,
+  "got": "INV-0003"
+ },
+ {
+  "check": "320: share link uses server token",
+  "ok": true,
+  "url": "/invoice/23b18758ecc649c98828ceab4db25d2f"
+ },
+ {
+  "check": "320: preview renders the invoice",
+  "ok": true
+ },
+ {
+  "w": 320,
+  "view": "invoice detail",
+  "device": 320,
+  "docScrollWidth": 320,
+  "innerWidth": 320,
+  "pageOk": true,
+  "boxScrollWidth": 288,
+  "boxClientWidth": 288,
+  "boxOk": true
+ },
+ {
+  "w": 320,
+  "view": "invoice editor",
+  "device": 320,
+  "docScrollWidth": 320,
+  "innerWidth": 320,
+  "pageOk": true,
+  "boxScrollWidth": 288,
+  "boxClientWidth": 288,
+  "boxOk": true
+ },
+ {
+  "check": "320: due date editable",
+  "ok": true
+ },
+ {
+  "check": "320: mark paid sets paid_at",
+  "ok": true
+ },
+ {
+  "check": "320: badge shows Paid",
+  "ok": true
+ },
+ {
+  "w": 320,
+  "view": "invoices list",
+  "device": 320,
+  "docScrollWidth": 320,
+  "innerWidth": 320,
+  "pageOk": true
+ },
+ {
+  "check": "320: list shows overdue fixture as Overdue",
+  "ok": true
+ },
+ {
+  "check": "320: delete",
+  "ok": true
+ },
+ {
+  "w": 320,
+  "view": "new invoice editor",
+  "device": 320,
+  "docScrollWidth": 320,
+  "innerWidth": 320,
+  "pageOk": true,
+  "boxScrollWidth": 288,
+  "boxClientWidth": 288,
+  "boxOk": true
+ },
+ {
+  "check": "320: editor Net 15 default",
+  "ok": true
+ },
+ {
+  "w": 320,
+  "view": "public invoice",
+  "device": 320,
+  "docScrollWidth": 320,
+  "innerWidth": 320,
+  "pageOk": true,
+  "amountRightEdges": [
+   287,
+   287
+  ],
+  "allAmountsVisible": true
+ },
+ {
+  "check": "320: public page no Pay now",
+  "ok": true
+ },
+ {
+  "check": "390: created from estimate",
+  "ok": true,
+  "number": "INV-0004"
+ },
+ {
+  "check": "390: copied totals + items",
+  "ok": true
+ },
+ {
+  "check": "390: Net 15 due date",
+  "ok": true,
+  "issue": "2026-10-03",
+  "due": "2026-10-18"
+ },
+ {
+  "check": "390: numbered INV-0004 (no reuse after earlier deletes)",
+  "ok": true,
+  "got": "INV-0004"
+ },
+ {
+  "check": "390: share link uses server token",
+  "ok": true,
+  "url": "/invoice/6f025ca69c2144eda10b3b0628299a78"
+ },
+ {
+  "check": "390: preview renders the invoice",
+  "ok": true
+ },
+ {
+  "w": 390,
+  "view": "invoice detail",
+  "device": 390,
+  "docScrollWidth": 390,
+  "innerWidth": 390,
+  "pageOk": true,
+  "boxScrollWidth": 358,
+  "boxClientWidth": 358,
+  "boxOk": true
+ },
+ {
+  "w": 390,
+  "view": "invoice editor",
+  "device": 390,
+  "docScrollWidth": 390,
+  "innerWidth": 390,
+  "pageOk": true,
+  "boxScrollWidth": 358,
+  "boxClientWidth": 358,
+  "boxOk": true
+ },
+ {
+  "check": "390: due date editable",
+  "ok": true
+ },
+ {
+  "check": "390: mark paid sets paid_at",
+  "ok": true
+ },
+ {
+  "check": "390: badge shows Paid",
+  "ok": true
+ },
+ {
+  "w": 390,
+  "view": "invoices list",
+  "device": 390,
+  "docScrollWidth": 390,
+  "innerWidth": 390,
+  "pageOk": true
+ },
+ {
+  "check": "390: list shows overdue fixture as Overdue",
+  "ok": true
+ },
+ {
+  "check": "390: delete",
+  "ok": true
+ },
+ {
+  "w": 390,
+  "view": "new invoice editor",
+  "device": 390,
+  "docScrollWidth": 390,
+  "innerWidth": 390,
+  "pageOk": true,
+  "boxScrollWidth": 358,
+  "boxClientWidth": 358,
+  "boxOk": true
+ },
+ {
+  "check": "390: editor Net 15 default",
+  "ok": true
+ },
+ {
+  "w": 390,
+  "view": "public invoice",
+  "device": 390,
+  "docScrollWidth": 390,
+  "innerWidth": 390,
+  "pageOk": true,
+  "amountRightEdges": [
+   357,
+   357
+  ],
+  "allAmountsVisible": true
+ },
+ {
+  "check": "390: public page no Pay now",
+  "ok": true
+ },
+ {
+  "w": 390,
+  "view": "public invoice (paid)",
+  "device": 390,
+  "docScrollWidth": 390,
+  "innerWidth": 390,
+  "pageOk": true
+ },
+ {
+  "check": "1280: created from estimate",
+  "ok": true,
+  "number": "INV-0005"
+ },
+ {
+  "check": "1280: copied totals + items",
+  "ok": true
+ },
+ {
+  "check": "1280: Net 15 due date",
+  "ok": true,
+  "issue": "2026-10-03",
+  "due": "2026-10-18"
+ },
+ {
+  "check": "1280: numbered INV-0005 (no reuse after earlier deletes)",
+  "ok": true,
+  "got": "INV-0005"
+ },
+ {
+  "check": "1280: share link uses server token",
+  "ok": true,
+  "url": "/invoice/46ef91a90d0a437bbe51088c0d1bfc90"
+ },
+ {
+  "check": "1280: preview renders the invoice",
+  "ok": true
+ },
+ {
+  "w": 1280,
+  "view": "invoice detail",
+  "device": 1280,
+  "docScrollWidth": 1280,
+  "innerWidth": 1280,
+  "pageOk": true,
+  "boxScrollWidth": 560,
+  "boxClientWidth": 560,
+  "boxOk": true
+ },
+ {
+  "w": 1280,
+  "view": "invoice editor",
+  "device": 1280,
+  "docScrollWidth": 1280,
+  "innerWidth": 1280,
+  "pageOk": true,
+  "boxScrollWidth": 560,
+  "boxClientWidth": 560,
+  "boxOk": true
+ },
+ {
+  "check": "1280: due date editable",
+  "ok": true
+ },
+ {
+  "check": "1280: mark paid sets paid_at",
+  "ok": true
+ },
+ {
+  "check": "1280: badge shows Paid",
+  "ok": true
+ },
+ {
+  "w": 1280,
+  "view": "invoices list",
+  "device": 1280,
+  "docScrollWidth": 1280,
+  "innerWidth": 1280,
+  "pageOk": true
+ },
+ {
+  "check": "1280: list shows overdue fixture as Overdue",
+  "ok": true
+ },
+ {
+  "check": "1280: delete",
+  "ok": true
+ },
+ {
+  "w": 1280,
+  "view": "new invoice editor",
+  "device": 1280,
+  "docScrollWidth": 1280,
+  "innerWidth": 1280,
+  "pageOk": true,
+  "boxScrollWidth": 560,
+  "boxClientWidth": 560,
+  "boxOk": true
+ },
+ {
+  "check": "1280: editor Net 15 default",
+  "ok": true
+ },
+ {
+  "w": 1280,
+  "view": "public invoice",
+  "device": 1280,
+  "docScrollWidth": 1280,
+  "innerWidth": 1280,
+  "pageOk": true,
+  "amountRightEdges": [
+   957,
+   957
+  ],
+  "allAmountsVisible": true
+ },
+ {
+  "check": "1280: public page no Pay now",
+  "ok": true
+ },
+ {
+  "check": "pre-migration: shows almost-ready card, no error toast",
+  "ok": true
+ }
+]

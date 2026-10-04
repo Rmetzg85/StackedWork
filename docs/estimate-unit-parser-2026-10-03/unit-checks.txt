@@ -1,0 +1,4 @@
+Edit Estimate (local build + stub, saved line unit 'job'):
+  edit select value: job | options: hours, job (flat rate), each, sq ft, linear ft, days, lbs, bags, gallons
+Public estimate qty cell: 1 job
+estimate-email (mock Resend): {"ok":true,"status":"sent"}; email HTML qty cell: '1 job'
