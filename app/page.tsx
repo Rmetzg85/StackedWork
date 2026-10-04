@@ -2,6 +2,8 @@
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import ChatWidget from "./components/ChatWidget";
+import InvoicesPanel from "./components/InvoicesPanel";
+import { formatInvoiceNumber } from "./lib/invoices";
 import { captureFirstTouch } from "./lib/first-touch";
 import { parseVoiceToJobLocal, JOB_TYPES } from "./lib/parse-job-local";
 import { todayNY, daysAgoNY, toDateKeyNY, fmtDateNY, yearNY, APP_TZ, fmtWhenNY } from "./lib/dates";
@@ -147,6 +149,12 @@ export default function StackedWork() {
   const [rcScanning, setRcScanning] = useState(false);
   const [rcFilter, setRcFilter] = useState("all");
   const [dbEstimates, setDbEstimates] = useState<any[]>([]);
+  // Invoices v1: shown as a section of the Estimates tab.
+  const [dbInvoices, setDbInvoices] = useState<any[]>([]);
+  const [invoicesUnavailable, setInvoicesUnavailable] = useState(false);
+  const [estSection, setEstSection] = useState<"estimates"|"invoices">("estimates");
+  const [invFromEstimate, setInvFromEstimate] = useState<any|null>(null);
+  const [openInvoiceId, setOpenInvoiceId] = useState<string|null>(null);
   const [newEstimateOpen, setNewEstimateOpen] = useState(false);
   const [neStep, setNeStep] = useState<1|2>(1);
   const [neCustomer, setNeCustomer] = useState("");
@@ -828,6 +836,11 @@ export default function StackedWork() {
     supabase.from("portfolio").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load photos", error); else if (data) setDbPhotos(data); });
     supabase.from("receipts").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load receipts", error); else if (data) setDbReceipts(data); });
     supabase.from("estimates").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load estimates", error); else if (data) setDbEstimates(data); });
+    // Until 20261003210000_invoices.sql is applied the table doesn't exist: show "almost ready", no error toast.
+    supabase.from("invoices").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => {
+      if (error) { if (["42P01","PGRST205","PGRST204"].includes((error as any).code) || /does not exist|schema cache/i.test(error.message||"")) setInvoicesUnavailable(true); else toastErr("Couldn't load invoices", error); }
+      else if (data) { setInvoicesUnavailable(false); setDbInvoices(data); }
+    });
     const ch = supabase.channel("leads_" + userId)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads", filter: `contractor_id=eq.${userId}` }, (payload) => {
         setDbLeads(prev => [payload.new as any, ...prev]);
@@ -974,6 +987,14 @@ export default function StackedWork() {
     }
     setNeLoading(false);
     resetNewEstimate();
+  };
+
+  const setEstimateStatus = async (est: any, status: "accepted"|"declined"|"sent"|"draft") => {
+    const { error } = await supabase.from("estimates").update({ status }).eq("id", est.id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't update the estimate", error); return; }
+    setDbEstimates(prev => prev.map(e => e.id === est.id ? { ...e, status } : e));
+    if (estimateDetail?.id === est.id) setEstimateDetail((e: any) => ({ ...e, status }));
+    showToast(status === "accepted" ? "Estimate marked accepted." : "Estimate updated.", "success");
   };
 
   const deleteEstimate = async (est: any) => {
@@ -1704,7 +1725,17 @@ export default function StackedWork() {
             {vw==="estimates"&&(()=>{
               const EST_STC: Record<string,{bg:string;text:string;label:string}> = { draft:{bg:"#F1F5F9",text:"#64748B",label:"Draft"}, sent:{bg:"#DBEAFE",text:"#1E40AF",label:"Sent"}, accepted:{bg:"#D1FAE5",text:"#065F46",label:"Accepted"}, declined:{bg:"#FEE2E2",text:"#991B1B",label:"Declined"} };
               const EstBadge = ({s}:{s:string}) => { const c=EST_STC[s]||EST_STC.draft; return <span style={{display:"inline-block",padding:"3px 10px",borderRadius:100,fontSize:11,fontWeight:600,background:c.bg,color:c.text}}>{c.label}</span>; };
+              const sectionSwitch = <div role="tablist" aria-label="Estimates or invoices" style={{display:"inline-flex",background:"rgba(255,255,255,0.08)",borderRadius:10,padding:3,marginBottom:14,gap:2}}>
+                {([["estimates","📋 Estimates"],["invoices","🧾 Invoices"]] as const).map(([k,l])=><button key={k} role="tab" aria-selected={estSection===k} data-testid={`sec-${k}`} onClick={()=>setEstSection(k)} style={{padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,fontWeight:700,background:estSection===k?G:"transparent",color:estSection===k?"#132440":"rgba(255,255,255,0.75)"}}>{l}{k==="invoices"&&dbInvoices.length>0?` (${dbInvoices.length})`:""}</button>)}
+              </div>;
+              if (estSection==="invoices") return (<>
+                {sectionSwitch}
+                <InvoicesPanel supabase={supabase} userId={userId} invoices={dbInvoices} setInvoices={setDbInvoices} unavailable={invoicesUnavailable}
+                  fromEstimate={invFromEstimate} onFromEstimateDone={()=>setInvFromEstimate(null)} openInvoiceId={openInvoiceId} onOpenInvoiceDone={()=>setOpenInvoiceId(null)}
+                  showToast={showToast} toastErr={toastErr} authJsonHeaders={authJsonHeaders} needAccount={needAccount}/>
+              </>);
               return (<>
+                {sectionSwitch}
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
                   <h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Estimates</h1>
                   <Btn onClick={()=>userId?setNewEstimateOpen(true):needAccount("create and send estimates")}>+ New Estimate</Btn>
@@ -1782,6 +1813,19 @@ export default function StackedWork() {
                           <BtnO onClick={()=>{ navigator.clipboard?.writeText(`${window.location.origin}/estimate/${estimateDetail.share_token}`); }} style={{fontSize:12,padding:"8px 14px"}}>📋 Copy Link</BtnO>
                           <BtnO onClick={()=>deleteEstimate(estimateDetail)} style={{fontSize:12,padding:"8px 14px",color:"#EF4444"}}>Delete</BtnO>
                         </div>
+                        {/* Invoicing: accepted estimates are the usual starting point */}
+                        {(()=>{
+                          const linked = dbInvoices.filter((iv:any)=>iv.estimate_id===estimateDetail.id);
+                          const accepted = estimateDetail.status==="accepted";
+                          return <div data-testid="est-invoice-box" style={{marginTop:14,padding:"12px 14px",background:accepted?"#F0FDF4":"#F8FAFC",border:`1px solid ${accepted?"#BBF7D0":"#E2E8F0"}`,borderRadius:10}}>
+                            <div style={{fontSize:12,color:"#374151",marginBottom:8}}>{linked.length>0?<>Invoiced: {linked.map((iv:any,i:number)=><button key={iv.id} onClick={()=>{setOpenInvoiceId(iv.id);setEstSection("invoices");setEstimateDetail(null);}} style={{background:"none",border:"none",padding:0,marginRight:8,color:"#1E40AF",fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,textDecoration:"underline"}}>{iv.invoice_number||formatInvoiceNumber(iv.number)}{i<linked.length-1?",":""}</button>)}</>:accepted?"Accepted. Ready to bill?":"Bill this job when the work is done."}</div>
+                            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                              <Btn data-testid="est-create-invoice" disabled={invoicesUnavailable} onClick={()=>{ if(!userId){needAccount("create invoices");return;} setInvFromEstimate(estimateDetail); setEstSection("invoices"); setEstimateDetail(null); }} style={{fontSize:12,padding:"8px 14px"}}>🧾 {linked.length>0?"Create another invoice":"Create Invoice"}</Btn>
+                              {!accepted&&estimateDetail.status!=="declined"&&<BtnO onClick={()=>setEstimateStatus(estimateDetail,"accepted")} style={{fontSize:12,padding:"8px 14px"}}>✓ Mark Accepted</BtnO>}
+                            </div>
+                            {invoicesUnavailable&&<div style={{fontSize:11,color:"#94A3B8",marginTop:6}}>Invoicing will be available after the latest update finishes rolling out.</div>}
+                          </div>;
+                        })()}
                       </> : <>
                         {/* EDIT MODE */}
                         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
