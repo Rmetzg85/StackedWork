@@ -5,27 +5,30 @@ const O = require("../.tmp-test/lib/offer.js");
 const F = require("../.tmp-test/lib/founder.js");
 
 test("constants and copy match the acquisition doc", () => {
-  assert.equal(O.STANDARD_TRIAL_DAYS, 14); assert.equal(O.FOUNDER_TRIAL_DAYS, 60); assert.equal(O.FOUNDER_LIMIT, 20);
-  assert.equal(O.FOUNDER_HEADLINE, "Founding contractors: 60 days free, then $29.99/mo locked in.");
-  assert.equal(O.FOUNDER_SUB, "No credit card. If you don't add one, it just ends. Regular price $49.99/mo.");
+  assert.equal(O.TRIAL_DAYS, 30); assert.equal(O.STANDARD_TRIAL_DAYS, O.TRIAL_DAYS); assert.equal(F.FOUNDER_TRIAL_DAYS, 60); assert.equal(O.FOUNDER_LIMIT, 20);
+  // Founder copy is server-only (app/lib/founder.ts), not in the client-safe offer module.
+  assert.equal(O.FOUNDER_HEADLINE, undefined); assert.equal(O.FOUNDER_PRICE, undefined); assert.equal(O.FOUNDER_TRIAL_DAYS, undefined);
+  assert.equal(F.FOUNDER_HEADLINE, "Founding contractors: 60 days free, then $29.99/mo locked in.");
+  assert.equal(F.FOUNDER_SUB, "No credit card. If you don't add one, it just ends. Regular price $49.99/mo.");
 });
 
 test("offer off by default and on any unexpected response", () => {
-  for (const raw of [null, undefined, {}, { active: false }, { active: "true" }, { active: true, spotsLeft: 0 }]) {
+  const copy = { trialDays: 60, headline: "H.", sub: "S." };
+  for (const raw of [null, undefined, {}, { active: false }, { active: "true" }, { active: true, spotsLeft: 0, ...copy }, { active: true, spotsLeft: 5 }, { active: true, spotsLeft: 5, ...copy, trialDays: "60" }, { active: true, spotsLeft: 5, ...copy, headline: "" }]) {
     assert.deepEqual(O.parseFounderStatus(raw), O.FOUNDER_OFF, JSON.stringify(raw));
   }
-  assert.equal(O.trialDays(O.FOUNDER_OFF), 14);
+  assert.equal(O.trialDays(O.FOUNDER_OFF), 30);
   assert.equal(O.founderBadge(O.FOUNDER_OFF), null);
 });
 
 test("badge shows only the live count, never an invented one", () => {
-  const on = O.parseFounderStatus({ active: true, spotsLeft: 7 });
-  assert.deepEqual(on, { active: true, spotsLeft: 7, limit: 20 });
+  const on = O.parseFounderStatus({ active: true, spotsLeft: 7, ...F.founderCopy() });
+  assert.deepEqual(on, { active: true, spotsLeft: 7, limit: 20, trialDays: 60, headline: F.FOUNDER_HEADLINE, sub: F.FOUNDER_SUB });
   assert.equal(O.trialDays(on), 60);
   assert.equal(O.founderBadge(on), "Founder pricing · 7 of 20 spots left");
   // Out-of-range / missing counts don't render a number.
-  assert.equal(O.founderBadge(O.parseFounderStatus({ active: true, spotsLeft: 99 })), "Founder pricing · first 20 contractors");
-  assert.equal(O.founderBadge(O.parseFounderStatus({ active: true })), "Founder pricing · first 20 contractors");
+  assert.equal(O.founderBadge(O.parseFounderStatus({ active: true, spotsLeft: 99, ...F.founderCopy() })), "Founder pricing · first 20 contractors");
+  assert.equal(O.founderBadge(O.parseFounderStatus({ active: true, ...F.founderCopy() })), "Founder pricing · first 20 contractors");
 });
 
 function fakeStripe(subs, coupon) {
@@ -61,7 +64,7 @@ test("coupon cap wins when it's lower; exhausted or invalid coupon -> 0", async 
   assert.equal(await F.founderSpotsLeft(fakeStripe(many, { valid: true, max_redemptions: 20, times_redeemed: 0 }), { fresh: true }), 0, "paginates and caps at 0");
 });
 
-test("Stripe errors propagate (checkout then falls back to the standard 14-day path)", async () => {
+test("Stripe errors propagate (checkout then falls back to the standard 30-day path)", async () => {
   process.env.STRIPE_FOUNDER_COUPON_ID = "FOUNDER2999";
   const bad = { subscriptions: { search: async () => { throw new Error("search unavailable"); } }, coupons: { retrieve: async () => ({ valid: true }) } };
   await assert.rejects(F.founderSpotsLeft(bad, { fresh: true }), /search unavailable/);

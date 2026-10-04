@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripeClient } from "../../lib/stripe-client";
-import { founderCouponId, founderSpotsLeft, FOUNDER_META } from "../../lib/founder";
-import { FOUNDER_TRIAL_DAYS, STANDARD_TRIAL_DAYS } from "../../lib/offer";
+import { founderCouponId, founderSpotsLeft, FOUNDER_META, FOUNDER_TRIAL_DAYS } from "../../lib/founder";
+import { TRIAL_DAYS } from "../../lib/offer";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeTrade } from "../../lib/first-touch";
 
@@ -66,7 +66,7 @@ export async function POST(request) {
       customer_email: customer ? undefined : (email || undefined),
       line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
       subscription_data: {
-        trial_period_days: founder ? FOUNDER_TRIAL_DAYS : STANDARD_TRIAL_DAYS,
+        trial_period_days: founder ? FOUNDER_TRIAL_DAYS : TRIAL_DAYS,
         trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
         metadata: founder ? { ...baseMeta, offer: FOUNDER_META } : baseMeta,
       },
@@ -79,7 +79,7 @@ export async function POST(request) {
     });
 
     // Founder offer (staged): only when STRIPE_FOUNDER_COUPON_ID is set AND live spots remain. Any Stripe problem on
-    // this path (count failed, coupon used up or invalid) falls back to the standard 14-day checkout.
+    // this path (count failed, coupon used up or invalid) falls back to the standard TRIAL_DAYS (30-day) checkout.
     let session: Stripe.Checkout.Session | null = null;
     if (founderCouponId()) {
       try {

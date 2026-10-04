@@ -1,5 +1,7 @@
 "use client";
 
+import { TRIAL_DAYS } from "../lib/offer";
+
 const G = "#C8E64A";
 const GD = "#A8C435";
 
@@ -57,7 +59,7 @@ const SECTIONS = [
     title: "Pricing & Conversion Strategy",
     color: "#10B981",
     items: [
-      { head: "Hook", body: "14-day free trial, full access. No credit card required. Sign up with just an email and password. The trial ends on its own unless a payment method is added, so nobody gets a surprise charge." },
+      { head: "Hook", body: `${TRIAL_DAYS}-day free trial, full access. No credit card required. Sign up with just an email and password. The trial ends on its own unless a payment method is added, so nobody gets a surprise charge.` },
       { head: "Core Offer", body: "$49.99/mo — all-in. Position against the $200+/mo stack they're probably already paying for piecemeal." },
       { head: "Annual Discount", body: "Offer 2 months free on annual ($499/yr). Increases LTV and reduces monthly churn exposure." },
       { head: "Ad Upsell", body: "Featured placement on Find a Contractor page at $49.99–$199.99/mo. Contractors who want leads, not just management tools." },
@@ -133,7 +135,7 @@ export default function MarketingPlanPage() {
             A full marketing plan for growing StackedWork from launch to 200+ paying contractors — covering audience, channels, content, partnerships, pricing, and milestones.
           </p>
           <div style={{ display: "flex", gap: 24, justifyContent: "center", marginTop: 28, flexWrap: "wrap" }}>
-            {[["$49.99/mo", "Core product"], ["14-day trial", "Free to try"], ["$10K MRR", "12-mo target"]].map(([val, label], i) => (
+            {[["$49.99/mo", "Core product"], [`${TRIAL_DAYS}-day trial`, "Free to try"], ["$10K MRR", "12-mo target"]].map(([val, label], i) => (
               <div key={i} style={{ textAlign: "center" }}>
                 <div style={{ fontFamily: "'Space Mono'", fontSize: 18, fontWeight: 700, color: G }}>{val}</div>
                 <div style={{ fontSize: 11, color: "rgba(245,240,235,0.4)", marginTop: 2 }}>{label}</div>

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { FOUNDER_TRIAL_DAYS, STANDARD_TRIAL_DAYS } from "../lib/offer";
+import { TRIAL_DAYS } from "../lib/offer";
 import { Suspense } from "react";
 import { createClient } from "@supabase/supabase-js";
 
@@ -13,7 +13,8 @@ function WelcomeContent() {
   // payment details. session_id is kept in the URL only for reference.
   const searchParams = useSearchParams();
   void searchParams.get("session_id");
-  // Set by /api/checkout only on the (staged) founder path, so the trial length shown matches what Stripe started.
+  // Set by /api/checkout only on the (dormant) founder path. That trial length differs, so it's left unnumbered here
+  // (never shows the founder length on a hand-typed ?offer=founder URL while the offer is off).
   const founderTrial = searchParams.get("offer") === "founder";
   const [checking, setChecking] = useState(true);
   const [signupEmail, setSignupEmail] = useState<string | null>(null);
@@ -114,7 +115,7 @@ function WelcomeContent() {
         >
           {checking
             ? "Opening your dashboard…"
-            : <>We sent a confirmation link to <strong style={{ color: "#F5F0EB" }}>{signupEmail || "the email you signed up with"}</strong>. Tap it to open StackedWork. It works on any device. Your {founderTrial ? FOUNDER_TRIAL_DAYS : STANDARD_TRIAL_DAYS}-day free trial has started (no credit card on file), and the link takes you straight to <strong style={{ color: G }}>log your first job by voice</strong>.</>}
+            : <>We sent a confirmation link to <strong style={{ color: "#F5F0EB" }}>{signupEmail || "the email you signed up with"}</strong>. Tap it to open StackedWork. It works on any device. Your {founderTrial ? "" : `${TRIAL_DAYS}-day `}free trial has started (no credit card on file), and the link takes you straight to <strong style={{ color: G }}>log your first job by voice</strong>.</>}
         </p>
 
         <div

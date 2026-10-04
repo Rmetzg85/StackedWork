@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import LegalPage from "../components/LegalPage";
-import { founderCouponId } from "../lib/founder";
-import { FOUNDER_LIMIT, FOUNDER_PRICE, FOUNDER_TRIAL_DAYS } from "../lib/offer";
+import { founderCouponId, FOUNDER_PRICE, FOUNDER_TRIAL_DAYS } from "../lib/founder";
+import { FOUNDER_LIMIT, TRIAL_DAYS } from "../lib/offer";
 
 export const metadata: Metadata = {
   title: "Terms of Service | StackedWork",
@@ -32,7 +32,7 @@ export default function TermsPage() {
 
       <h2>Free trial, billing, and cancellation</h2>
       <ul>
-        <li>New accounts get a 14-day free trial. No credit card is required to start.</li>
+        <li>New accounts get a {TRIAL_DAYS}-day free trial. No credit card is required to start.</li>
         {/* Staged founder clause: only rendered when STRIPE_FOUNDER_COUPON_ID is set at build time. */}
         {founderCouponId() && <li>Founder offer: while it is available, the first {FOUNDER_LIMIT} contractors who start a subscription under it get a {FOUNDER_TRIAL_DAYS}-day free trial instead, and then pay {FOUNDER_PRICE} per month (plus any applicable taxes) for as long as that subscription stays active. If the subscription ends, the founder price ends with it. The trial and price you get are shown at checkout.</li>}
         <li>After the trial, StackedWork costs $49.99 per month (plus any applicable taxes) to keep using. If you haven&apos;t added a payment method by the end of the trial, your subscription ends and you lose access until you subscribe.</li>
