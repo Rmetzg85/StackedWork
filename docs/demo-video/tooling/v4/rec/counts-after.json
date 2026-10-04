@@ -1,0 +1,26 @@
+{
+ "at": "Sat Oct 03 2026 21:04:23 GMT-0400 (Eastern Daylight Time)",
+ "counts": {
+  "jobs": 0,
+  "estimates": 0,
+  "invoices": 0,
+  "receipts": 0,
+  "portfolio": 0,
+  "leads": 0,
+  "counters_readable_by_user": 403,
+  "storage_files": 3
+ },
+ "files": [
+  "portfolio/1790955526322-543e081a-c48d-4601-83fd-905d679819d9-before.png @2026-10-02T15:38:48.047Z",
+  "portfolio/1790955529846-4a166adb-f9fc-4f75-9f52-927e5b88a241-after.png @2026-10-02T15:38:50.233Z",
+  "receipts/1790955515490-bf411d6b-1271-49c5-833e-7b1308a87bcc-receipt.png @2026-10-02T15:38:35.776Z"
+ ],
+ "detail": {
+  "jobs": [],
+  "estimates": [],
+  "invoices": [],
+  "receipts": [],
+  "portfolio": [],
+  "leads": []
+ }
+}

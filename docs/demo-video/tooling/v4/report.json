@@ -1,0 +1,194 @@
+{
+ "music": {
+  "track_in_s": 21.687,
+  "track_out_s": 66.687,
+  "ends_on_bar": "phrase start + 22 bars",
+  "bpm": 112.35
+ },
+ "mix": {
+  "voice_lufs": -16.0,
+  "music_pre_duck_lufs": -23.0,
+  "music_ducked_lufs": -27.1,
+  "duck_db_under_speech": 4.6,
+  "duck_db_in_gaps": 1.6,
+  "music_rms_db_in_gaps": -26.4,
+  "music_rms_db_under_speech": -29.8,
+  "voice_rms_db_in_speech": -19.2
+ },
+ "final": {
+  "lufs_tp": [
+   -15.9,
+   -2.1
+  ],
+  "size": 1663088,
+  "true_peak_dbtp": -2.1
+ },
+ "beats": [
+  {
+   "beat": "Jobs board, tap + New Job",
+   "out": [
+    0.0,
+    5.1
+   ],
+   "src": [
+    0.6,
+    4.69
+   ],
+   "speed": 1.0,
+   "vo": "Work hard ... It's on you."
+  },
+  {
+   "beat": "Voice entry: heard, then filled in",
+   "out": [
+    5.1,
+    15.0
+   ],
+   "src": [
+    4.69,
+    16.97
+   ],
+   "speed": 1.24,
+   "vo": "But what if ... staying organized."
+  },
+  {
+   "beat": "Confirm & save, job in the list",
+   "out": [
+    15.0,
+    16.75
+   ],
+   "src": [
+    20.24,
+    22.65
+   ],
+   "speed": 1.38,
+   "vo": "Log jobs in seconds."
+  },
+  {
+   "beat": "Profit tab",
+   "out": [
+    16.75,
+    18.0
+   ],
+   "src": [
+    23.46,
+    24.86
+   ],
+   "speed": 1.12,
+   "vo": "Track every dollar."
+  },
+  {
+   "beat": "Estimate detail (accepted)",
+   "out": [
+    18.0,
+    20.45
+   ],
+   "src": [
+    27.26,
+    30.09
+   ],
+   "speed": 1.15,
+   "vo": "Send professional estimates from your phone."
+  },
+  {
+   "beat": "Leads tab: new unread lead, bell badge",
+   "out": [
+    20.45,
+    23.35
+   ],
+   "src": [
+    30.96,
+    33.26
+   ],
+   "speed": 1.0,
+   "vo": "And when a lead comes in, you're the first to know."
+  },
+  {
+   "beat": "Receipts tab",
+   "out": [
+    23.35,
+    26.2
+   ],
+   "src": [
+    33.47,
+    35.87
+   ],
+   "speed": 1.0,
+   "vo": "Already using five different apps just to keep up,"
+  },
+  {
+   "beat": "Accepted estimate -> Create Invoice -> INV-0002 (due Oct 18, 2026)",
+   "out": [
+    26.2,
+    30.65
+   ],
+   "src": [
+    36.93,
+    42.05
+   ],
+   "speed": 1.15,
+   "vo": "StackedWork replaces all of them. Job tracking, invoicing,"
+  },
+  {
+   "beat": "Photos tab (before/after)",
+   "out": [
+    30.65,
+    32.0
+   ],
+   "src": [
+    47.19,
+    48.74
+   ],
+   "speed": 1.15,
+   "vo": "photo portfolios,"
+  },
+  {
+   "beat": "Leads tab (lead card)",
+   "out": [
+    32.0,
+    33.2
+   ],
+   "src": [
+    31.86,
+    33.06
+   ],
+   "speed": 1.0,
+   "vo": "lead management."
+  },
+  {
+   "beat": "Home dashboard",
+   "out": [
+    33.2,
+    35.25
+   ],
+   "src": [
+    49.81,
+    52.01
+   ],
+   "speed": 1.07,
+   "vo": "Everything in one place."
+  },
+  {
+   "beat": "Public invoice page (customer view)",
+   "out": [
+    35.25,
+    38.55
+   ],
+   "src": [
+    53.28,
+    58.22
+   ],
+   "speed": 1.5,
+   "vo": "Stay stacked. Stay organized. Stay ahead."
+  },
+  {
+   "beat": "End card: letstaystacked.com",
+   "out": [
+    38.55,
+    45.0
+   ],
+   "src": null,
+   "speed": null,
+   "vo": "Go to letstaystacked.com today and let's stack work."
+  }
+ ]
+}

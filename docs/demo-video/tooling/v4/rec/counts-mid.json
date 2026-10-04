@@ -1,0 +1,85 @@
+{
+ "at": "Sat Oct 03 2026 21:03:42 GMT-0400 (Eastern Daylight Time)",
+ "counts": {
+  "jobs": 3,
+  "estimates": 1,
+  "invoices": 1,
+  "receipts": 1,
+  "portfolio": 1,
+  "leads": 1,
+  "counters_readable_by_user": 403,
+  "storage_files": 6
+ },
+ "files": [
+  "portfolio/1790955526322-543e081a-c48d-4601-83fd-905d679819d9-before.png @2026-10-02T15:38:48.047Z",
+  "portfolio/1790955529846-4a166adb-f9fc-4f75-9f52-927e5b88a241-after.png @2026-10-02T15:38:50.233Z",
+  "portfolio/1791075371028-ca76a6e0-8dda-4907-9792-1969fcaa21f0-before.jpg @2026-10-04T00:56:11.178Z",
+  "portfolio/1791075371238-23148962-bef9-45b8-b680-d6609d21234b-after.jpg @2026-10-04T00:56:11.347Z",
+  "receipts/1790955515490-bf411d6b-1271-49c5-833e-7b1308a87bcc-receipt.png @2026-10-02T15:38:35.776Z",
+  "receipts/1791075363645-18b4f2c2-e7ec-4fb5-8125-1bb3b896240b-receipt.png @2026-10-04T00:56:03.990Z"
+ ],
+ "detail": {
+  "jobs": [
+   {
+    "id": "828528c8-b98b-4588-aece-45539074b97b",
+    "customer": "Mike Davis",
+    "status": "scheduled",
+    "value": 1850,
+    "created_at": "2026-10-04T00:58:16.502876+00:00"
+   },
+   {
+    "id": "aaa8d142-8fa0-4b56-a671-286839ca1a88",
+    "customer": "Dana Whitfield",
+    "status": "complete",
+    "value": 2400,
+    "created_at": "2026-10-04T00:56:00.62358+00:00"
+   },
+   {
+    "id": "94b5a667-0fe7-48be-94f0-565e437f95c0",
+    "customer": "Luis Ortega",
+    "status": "complete",
+    "value": 380,
+    "created_at": "2026-10-04T00:56:00.62358+00:00"
+   }
+  ],
+  "estimates": [
+   {
+    "id": "392fa2b7-d6f3-4ee8-8fca-70a3c1d4984b",
+    "customer_name": "Mike Davis",
+    "status": "accepted",
+    "total": 2040.5,
+    "created_at": "2026-10-04T00:56:00.674794+00:00"
+   }
+  ],
+  "invoices": [
+   {
+    "id": "34fe627e-1759-42a2-83eb-7be377ef7ff7",
+    "invoice_number": "INV-0002",
+    "customer_name": "Mike Davis",
+    "status": "sent",
+    "created_at": "2026-10-04T00:58:35.338557+00:00"
+   }
+  ],
+  "receipts": [
+   {
+    "id": "0c54d757-40de-4989-94e5-1d4b49b67869",
+    "created_at": "2026-10-04T00:56:04.119807+00:00"
+   }
+  ],
+  "portfolio": [
+   {
+    "id": "957d93bb-65ff-47a2-a018-54951b200ae2",
+    "caption": "Hall bath remodel, Towson MD",
+    "job_type": "bathroom",
+    "created_at": "2026-10-04T00:56:11.418616+00:00"
+   }
+  ],
+  "leads": [
+   {
+    "id": "89365d11-c1a7-42cd-a65c-a7c755b7dca9",
+    "name": "Priya Raman",
+    "created_at": "2026-10-04T00:56:24.124884+00:00"
+   }
+  ]
+ }
+}
