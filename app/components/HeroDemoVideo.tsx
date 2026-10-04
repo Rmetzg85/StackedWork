@@ -79,7 +79,7 @@ export default function HeroDemoVideo() {
       </div>
       <button ref={openerRef} type="button" onClick={() => setModal(true)}
         style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.06)", color: "#F5F0EB", border: "1px solid rgba(255,255,255,0.2)", padding: "11px 20px", fontSize: 14, fontWeight: 600, fontFamily: "'DM Sans'", borderRadius: 100, cursor: "pointer" }}>
-        <span aria-hidden="true">▶</span> Watch with sound (42 s)
+        <span aria-hidden="true">▶</span> Watch with sound (45 s)
       </button>
       {modal && createPortal(
         // Portaled to <body> so it sits above the fixed nav and the chat bubble (the hero is its own stacking context).
