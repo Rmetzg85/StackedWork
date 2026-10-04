@@ -1,0 +1,54 @@
+{
+ "tag": "en",
+ "pages": {
+  "home": {
+   "trialMentions": [
+    "30-day free trial. No credit card required.",
+    "$49.99/MO · 30-DAY FREE TRIAL · NO CREDIT CARD · NO SETUP FEE · CANCEL ANYTIME",
+    "Just your email and a password. No credit card. Then log your first job by voice.",
+    "$49.99/mo · 30-day free trial · no credit card required · no setup fee · cancel anytim"
+   ],
+   "forbidden": []
+  },
+  "signup": {
+   "trialMentions": [
+    "No credit card required · 30-day free trial · cancel anytime"
+   ],
+   "forbidden": []
+  },
+  "terms": {
+   "trialMentions": [
+    "New accounts get a 30-day free trial. No credit card is required to start."
+   ],
+   "forbidden": []
+  },
+  "marketing-plan": {
+   "trialMentions": [
+    "30-day trial",
+    "it for every contractor referred who stays active 90 days. Word-of-mouth is the #1 trust signal",
+    "Hook: 30-day free trial, full access. No credit card required. Sign up with just an email an"
+   ],
+   "forbidden": []
+  },
+  "welcome-founder-param": {
+   "trialMentions": [
+    "ks on any device. Your free trial has started (no credit card on file), and the link takes you straig"
+   ],
+   "forbidden": []
+  }
+ },
+ "checkout": {
+  "status": 200,
+  "trial_period_days": "30",
+  "payment_method_collection": "if_required",
+  "missing_payment_method": "cancel",
+  "allow_promotion_codes": "true",
+  "discount_coupon": null,
+  "payment_method_types": "card"
+ },
+ "founderSpots": {
+  "active": false,
+  "spotsLeft": null,
+  "limit": 20
+ }
+}

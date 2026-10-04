@@ -120,7 +120,7 @@ check "profiles: B cannot overwrite A's" "row-level security|^$" "$r"
 
 # ── Subscriptions: webhook upsert (service_role), app lookup by user_id and by email ──
 r=$(svc "insert into public.subscriptions (stripe_customer_id,stripe_subscription_id,email,status,plan,price_id,current_period_start,current_period_end,trial_end,cancel_at,updated_at)
- values ('cus_test','sub_test1','A.Contractor@example.test','trialing','base','price_x',now(),now()+interval '14 day',now()+interval '14 day',null,now())
+ values ('cus_test','sub_test1','A.Contractor@example.test','trialing','base','price_x',now(),now()+interval '30 day',now()+interval '30 day',null,now())
  on conflict (stripe_subscription_id) do update set status=excluded.status returning status")
 check "webhook upsert onConflict stripe_subscription_id" "trialing" "$r"
 r=$(svc "insert into public.subscriptions (stripe_customer_id,stripe_subscription_id,email,status) values ('cus_test','sub_test1','A.Contractor@example.test','active') on conflict (stripe_subscription_id) do update set status=excluded.status returning status")

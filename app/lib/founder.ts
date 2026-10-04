@@ -2,7 +2,15 @@
 // ($20 off $49.99 = $29.99/mo, duration forever, max_redemptions 20). Staged: OFF unless
 // STRIPE_FOUNDER_COUPON_ID is set, so merging this changes nothing until the env is configured.
 import type Stripe from "stripe";
-import { FOUNDER_LIMIT } from "./offer";
+import { FOUNDER_LIMIT, LIST_PRICE } from "./offer";
+
+// Founder copy: server-only (sent to the browser by /api/founder-spots only while the offer is active).
+// Copy follows ACQUISITION-7DAY-2026-10-04.md §A. Dormant since Charlie dropped the coupon on 2026-10-03.
+export const FOUNDER_TRIAL_DAYS = 60;
+export const FOUNDER_PRICE = "$29.99";
+export const FOUNDER_HEADLINE = `Founding contractors: ${FOUNDER_TRIAL_DAYS} days free, then ${FOUNDER_PRICE}/mo locked in.`;
+export const FOUNDER_SUB = `No credit card. If you don't add one, it just ends. Regular price ${LIST_PRICE}/mo.`;
+export const founderCopy = () => ({ trialDays: FOUNDER_TRIAL_DAYS, headline: FOUNDER_HEADLINE, sub: FOUNDER_SUB });
 
 export const FOUNDER_META = "founder"; // subscription_data.metadata.offer
 
