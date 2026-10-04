@@ -2,7 +2,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { parseVoiceToJobLocal, jobTypeFromText, isGutterCleaning, bumpSameWeekday } = require("../.tmp-test/lib/parse-job-local.js");
-const { isInAppBrowser, isIosChrome, voiceErrorMessage, VOICE_UNAVAILABLE_MSG, IOS_CHROME_VOICE_MSG } = require("../.tmp-test/lib/browser-env.js");
+const { isInAppBrowser, isIosChrome, voiceErrorMessage, VOICE_UNAVAILABLE_MSG, IOS_CHROME_VOICE_MSG, MIC_BLOCKED_MSG } = require("../.tmp-test/lib/browser-env.js");
 
 const SAT = "2026-10-03"; // a Saturday
 
@@ -74,6 +74,11 @@ test("voice error messages", () => {
   assert.equal(voiceErrorMessage("service-not-allowed", UA.iosChrome), IOS_CHROME_VOICE_MSG);
   assert.match(IOS_CHROME_VOICE_MSG, /Safari/);
   assert.doesNotMatch(IOS_CHROME_VOICE_MSG, /Microphone access is blocked/);
-  for (const code of ["service-not-allowed", "not-allowed", "no-speech", "audio-capture", "network", "whatever", null])
+  // Normal browser + denied mic permission keeps the original mic-blocked text.
+  assert.equal(MIC_BLOCKED_MSG, "Microphone access is blocked. Allow microphone access for this site in your browser settings, then tap Voice Entry again. You can also type the job below.");
+  for (const k of ["androidChrome", "iosSafari", "iosChrome"]) assert.equal(voiceErrorMessage("not-allowed", UA[k]), MIC_BLOCKED_MSG, k);
+  // In-app browsers never get the mic-settings text (there are no site settings inside Instagram/Facebook).
+  for (const k of ["igIos", "igAndroid", "fbIos", "fbAndroid"]) assert.equal(voiceErrorMessage("not-allowed", UA[k]), VOICE_UNAVAILABLE_MSG, k);
+  for (const code of ["service-not-allowed", "no-speech", "audio-capture", "network", "whatever", null])
     for (const k of ["igIos", "fbAndroid", "androidChrome", "iosSafari"]) assert.equal(voiceErrorMessage(code, UA[k]), VOICE_UNAVAILABLE_MSG, `${code} ${k}`);
 });

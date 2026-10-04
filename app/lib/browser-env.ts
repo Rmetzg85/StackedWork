@@ -15,10 +15,13 @@ export function isIosChrome(ua: string | null | undefined): boolean {
 }
 
 export const VOICE_UNAVAILABLE_MSG = "Open in your browser to use voice, or type the job below.";
+export const MIC_BLOCKED_MSG = "Microphone access is blocked. Allow microphone access for this site in your browser settings, then tap Voice Entry again. You can also type the job below.";
 export const IOS_CHROME_VOICE_MSG = "Voice doesn't work in Chrome on iPhone. Open this page in Safari to use voice, or type the job below.";
 
 /** Message for a recognition error code (or null for no SpeechRecognition at all). "aborted" is ignored by the caller. */
 export function voiceErrorMessage(code: string | null, ua: string | null | undefined): string {
   if (code === "service-not-allowed" && isIosChrome(ua) && !isInAppBrowser(ua)) return IOS_CHROME_VOICE_MSG;
+  // The user denied mic permission in a normal browser: the site setting is the fix.
+  if (code === "not-allowed" && !isInAppBrowser(ua)) return MIC_BLOCKED_MSG;
   return VOICE_UNAVAILABLE_MSG;
 }

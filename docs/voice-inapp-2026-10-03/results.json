@@ -52,7 +52,7 @@
   "ua": "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 …",
   "speechRecognition": "present",
   "recognitionStarts": 1,
-  "alert": "Open in your browser to use voice, or type the job below.",
+  "alert": "Microphone access is blocked. Allow microphone access for this site in your browser settings, then tap Voice Entry again. You can also type the job below.",
   "focused": "Type the job instead of speaking"
  },
  {
