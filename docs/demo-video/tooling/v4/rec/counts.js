@@ -1,6 +1,7 @@
 // READ-ONLY: counts the smoke account's own rows via its RLS session (app anon key + user token). No writes.
 const { chromium } = require('playwright');
-const SITE = 'https://www.letstaystacked.com', EMAIL = 'sw.smoke+sep10@remventures.tech', PW = process.env.SW_SMOKE_PASSWORD;
+const SITE = 'https://www.letstaystacked.com', EMAIL = process.env.SW_SMOKE_EMAIL, PW = process.env.SW_SMOKE_PASSWORD;
+if (!EMAIL || !PW) { console.error('Set SW_SMOKE_EMAIL and SW_SMOKE_PASSWORD'); process.exit(1); }
 (async () => {
   const b = await chromium.launch(); const ctx = await b.newContext(); const p = await ctx.newPage();
   let hdr = null, base = null;

@@ -70,6 +70,7 @@ def render():
     crf = os.environ.get('CRF', '25')
     subprocess.run(['ffmpeg', '-loglevel', 'error', '-nostdin', '-y', *inputs, '-filter_complex', fc, '-map', '[vout]', '-t', f'{TOTAL:.2f}',
                     '-c:v', 'libx264', '-preset', 'veryslow', '-crf', crf, '-profile:v', 'high', '-pix_fmt', 'yuv420p', '-tune', 'animation', '-an', f'{WORK}/video.mp4'], check=True, timeout=1800)
+    # Reference transcript only; not shipped (captions are burned in, and the site player has no <track>).
     with open(f'{OUT}/demo-full.en.vtt', 'w') as fh:
         fh.write('WEBVTT\n\n' + '\n'.join(f'{i}\n{vtt_time(a)} --> {vtt_time(b)}\n{t}\n' for i, (a, b, t) in enumerate(caps, 1)))
     return beats, caps
