@@ -6,6 +6,7 @@ import HeroDemoVideo from "./components/HeroDemoVideo";
 import InvoicesPanel from "./components/InvoicesPanel";
 import { formatInvoiceNumber } from "./lib/invoices";
 import { captureFirstTouch } from "./lib/first-touch";
+import { isInAppBrowser, voiceErrorMessage, VOICE_UNAVAILABLE_MSG } from "./lib/browser-env";
 import { parseVoiceToJobLocal, JOB_TYPES } from "./lib/parse-job-local";
 import { todayNY, daysAgoNY, toDateKeyNY, fmtDateNY, yearNY, APP_TZ, fmtWhenNY } from "./lib/dates";
 import { unitOptions } from "./lib/units";
@@ -194,6 +195,10 @@ export default function StackedWork() {
   const [njAddress, setNjAddress] = useState("");
   const [njTime, setNjTime] = useState("");
   const voiceBtnRef = useRef<HTMLButtonElement>(null);
+  const typedRef = useRef<HTMLInputElement>(null);
+  const focusTyped = () => setTimeout(() => typedRef.current?.focus(), 0);
+  // Every voice failure shows a message and puts the cursor in the typed box.
+  const voiceFail = (msg: string) => { setVoiceError(msg); focusTyped(); };
   const recRef = useRef<any>(null);
   const [toasts, setToasts] = useState<{id:number;msg:string;kind:"error"|"success"|"info"}[]>([]);
   const showToast = (msg: string, kind: "error"|"success"|"info" = "error") => {
@@ -282,14 +287,9 @@ export default function StackedWork() {
   const startVoiceEntry = () => {
     setVoiceError(null);
     if (recRef.current) { stopVoiceEntry(); return; }
+    // Instagram/Facebook in-app browsers (FBAN, FBAV, FB_IAB, FB4A, Instagram, "; wv)"): don't start recognition.
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) {
-      const isFirefox = typeof navigator !== "undefined" && /firefox|fxios/i.test(navigator.userAgent);
-      setVoiceError(isFirefox
-        ? "Voice entry doesn't work in Firefox, which doesn't support speech recognition. Use Chrome, Edge, or Safari, or type the job below."
-        : "Voice entry isn't supported in this browser. Use Chrome, Edge, or Safari, or type the job below.");
-      return;
-    }
+    if (isInAppBrowser(navigator.userAgent) || !SR) { voiceFail(VOICE_UNAVAILABLE_MSG); return; }
     const rec = new SR();
     rec.continuous = false;
     rec.interimResults = true;
@@ -304,23 +304,14 @@ export default function StackedWork() {
       failed = true;
       const code = e?.error;
       if (code === "aborted") return;
-      setVoiceError(
-        code === "not-allowed" || code === "service-not-allowed"
-          ? "Microphone access is blocked. Allow microphone access for this site in your browser settings, then tap Voice Entry again. You can also type the job below."
-          : code === "no-speech"
-          ? "No speech detected. Tap Voice Entry and start talking right away, or type the job below."
-          : code === "audio-capture"
-          ? "No microphone found. Check that a microphone is connected, or type the job below."
-          : code === "network"
-          ? "Voice recognition needs an internet connection. Check your connection, or type the job below."
-          : "Voice entry stopped unexpectedly. Try again, or type the job below."
-      );
+      // iOS Chrome "service-not-allowed" suggests Safari; every other error points to a real browser or the typed box.
+      voiceFail(voiceErrorMessage(code, navigator.userAgent));
     };
     rec.onend = () => {
       if (recRef.current === rec) recRef.current = null;
       setVoiceListening(false);
       if (heard.trim()) { applyParsedJob(heard); return; }
-      if (!failed) setVoiceError("No speech detected. Tap Voice Entry and start talking right away, or type the job below.");
+      if (!failed) voiceFail(VOICE_UNAVAILABLE_MSG);
     };
     try {
       rec.start();
@@ -329,7 +320,7 @@ export default function StackedWork() {
       setVoiceTranscript("");
       setParsedReview(null);
     } catch {
-      setVoiceError("Couldn't start the microphone. Try again, or type the job below.");
+      voiceFail(VOICE_UNAVAILABLE_MSG);
     }
   };
 
@@ -1231,7 +1222,7 @@ export default function StackedWork() {
               <div style={{marginTop:6,color:"#475569"}}>Edit anything below, then tap <strong>Confirm &amp; Save Job</strong>. Nothing is saved until you do.</div>
             </div>}
             <div style={{display:"flex",gap:8,marginBottom:14}}>
-              <input value={typedJob} onChange={e=>setTypedJob(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&typedJob.trim()&&!voiceParsing){e.preventDefault();applyParsedJob(typedJob);}}} placeholder="Or type it: Jane Doe, plumbing, Friday 10am" aria-label="Type the job instead of speaking" style={{flex:1,padding:"9px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+              <input ref={typedRef} value={typedJob} onChange={e=>setTypedJob(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&typedJob.trim()&&!voiceParsing){e.preventDefault();applyParsedJob(typedJob);}}} placeholder="Or type it: Jane Doe, plumbing, Friday 10am" aria-label="Type the job instead of speaking" style={{flex:1,padding:"9px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
               <button type="button" onClick={()=>typedJob.trim()&&!voiceParsing&&applyParsedJob(typedJob)} disabled={!typedJob.trim()||voiceParsing} style={{padding:"9px 14px",background:"#F1F5F9",color:"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:typedJob.trim()?"pointer":"not-allowed",fontFamily:"'DM Sans'",opacity:typedJob.trim()?1:0.6}}>Fill in</button>
             </div>
             {[

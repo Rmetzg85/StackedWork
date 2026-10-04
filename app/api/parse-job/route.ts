@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { requireUser } from "../../lib/require-user";
 import { parseModelJson } from "../../lib/ai-json";
-import { JOB_TYPES, jobTypeFromText } from "../../lib/parse-job-local";
+import { JOB_TYPES, jobTypeFromText, isGutterCleaning, bumpSameWeekday } from "../../lib/parse-job-local";
 
 // Voice/typed job → structured fields. Same SDK, env var (ANTHROPIC_API_KEY)
 // and model as /api/chat. Requires a signed-in Supabase user (Bearer JWT).
@@ -34,7 +34,7 @@ const str = (v: unknown, max = 200): string | null => {
   return s ? s.slice(0, max) : null;
 };
 
-function sanitize(raw: any): ParsedJob {
+function sanitize(raw: any, transcript = "", today?: string): ParsedJob {
   let price: number | null = null;
   if (typeof raw?.price === "number" && isFinite(raw.price) && raw.price >= 0) price = Math.round(raw.price * 100) / 100;
   else if (typeof raw?.price === "string") {
@@ -43,6 +43,11 @@ function sanitize(raw: any): ParsedJob {
   }
   let scheduled_at = str(raw?.scheduled_at, 16);
   if (scheduled_at && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(scheduled_at)) scheduled_at = null;
+  // "Saturday" said on a Saturday means next Saturday, not today.
+  scheduled_at = bumpSameWeekday(scheduled_at, transcript, today);
+  let job_type: string = JOB_TYPES.includes(raw?.job_type) && raw.job_type !== "General" ? raw.job_type : jobTypeFromText(`${raw?.service || ""} ${raw?.job_type || ""}`);
+  // Gutter cleaning is maintenance, not Roofing (unless the roof itself is part of the job).
+  if (job_type === "Roofing" && isGutterCleaning(`${raw?.service || ""} ${transcript}`) && !/\b(?:roof|roofing|shingles?)\b/i.test(`${raw?.service || ""} ${transcript}`)) job_type = "General";
   const status = STATUSES.includes(raw?.status) ? raw.status : scheduled_at ? "scheduled" : "quoted";
   return {
     customer_name: str(raw?.customer_name, 80),
@@ -50,7 +55,7 @@ function sanitize(raw: any): ParsedJob {
     phone: str(raw?.phone, 30),
     service: str(raw?.service, 120),
     // Model's pick if it's a valid type, else keyword mapping on the service text (water heater → Plumbing, AC → HVAC, lawn → Landscaping).
-    job_type: JOB_TYPES.includes(raw?.job_type) && raw.job_type !== "General" ? raw.job_type : jobTypeFromText(`${raw?.service || ""} ${raw?.job_type || ""}`),
+    job_type,
     scheduled_at,
     price,
     status,
@@ -80,13 +85,13 @@ export async function POST(request: Request) {
   // 3) Extract
   const { date, weekday } = todayNY();
   const system = `You extract job details for a contractor's CRM from a short spoken or typed note.
-Today is ${weekday}, ${date} (America/New_York). Resolve relative dates ("tomorrow", "next Tuesday") against today.
+Today is ${weekday}, ${date} (America/New_York). Resolve relative dates ("tomorrow", "next Tuesday") against today. A weekday name means its next occurrence after today: if today is ${weekday} and the note says "${weekday}", that is 7 days from today, not today.
 Return ONLY a JSON object, no prose, with exactly these keys:
 {"customer_name": string|null, "address": string|null, "phone": string|null, "service": string|null, "job_type": ${JOB_TYPES.map((t) => `"${t}"`).join("|")}, "scheduled_at": string|null, "price": number|null, "status": "quoted"|"scheduled"|"in-progress"|"complete"}
 Rules:
 - customer_name: the customer's name only (not the contractor, not the service).
 - service: short description of the work, e.g. "water heater replacement", "kitchen repaint".
-- job_type: the trade. Water heaters, leaks, pipes, drains, toilets, faucets = "Plumbing". AC, heat pump, furnace, ducts, thermostat, "not cooling"/"no heat" = "HVAC". Panels, outlets, wiring, breakers, fixtures = "Electrical". Lawn, mowing, landscaping, yard, mulch, hedges = "Landscaping". Roof, shingles, gutters = "Roofing". Paint/repaint = "Painting". Drywall/sheetrock/plaster = "Drywall". Deck/porch = "Deck". Floors/tile/carpet/hardwood = "Flooring". "General" only for remodels or mixed work; "Other" if none fit.
+- job_type: the trade. Water heaters, leaks, pipes, drains, toilets, faucets = "Plumbing". AC, heat pump, furnace, ducts, thermostat, "not cooling"/"no heat" = "HVAC". Panels, outlets, wiring, breakers, fixtures = "Electrical". Lawn, mowing, landscaping, yard, mulch, hedges = "Landscaping". Roof, shingles, gutter install/repair = "Roofing"; gutter cleaning = "General". Paint/repaint = "Painting". Drywall/sheetrock/plaster = "Drywall". Deck/porch = "Deck". Floors/tile/carpet/hardwood = "Flooring". "General" only for remodels or mixed work; "Other" if none fit.
 - scheduled_at: "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM" (24h, local time) if a date/time is mentioned, else null.
 - price: a number in US dollars only if a price/amount is clearly stated; otherwise null. Never guess a price.
 - phone: digits as spoken, formatted like (410) 555-0100 when 10 digits; else null.
@@ -104,7 +109,7 @@ Rules:
     const text = response.content[0]?.type === "text" ? response.content[0].text : "";
     const raw = parseModelJson<any>(text);
     if (!raw) return NextResponse.json({ error: "Couldn't understand that. Please fill in the fields." }, { status: 422 });
-    return NextResponse.json({ job: sanitize(raw) });
+    return NextResponse.json({ job: sanitize(raw, transcript, date) });
   } catch (err: any) {
     console.error("parse-job error:", err?.message || err);
     return NextResponse.json({ error: "AI parsing failed. Please try again or fill in the fields." }, { status: 502 });

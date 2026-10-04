@@ -6,7 +6,8 @@ const { parseVoiceToJobLocal, jobTypeFromText } = require("../.tmp-test/lib/pars
 
 const TODAY = "2026-10-02"; // a Friday
 const cases = [
-  ["Mike Johnson, 123 Oak St, lawn mow Friday 2pm", { name: "Mike Johnson", value: "", status: "scheduled", address: "123 Oak St", date: "2026-10-02", time: "14:00" }],
+  // TODAY is a Friday, so a bare "Friday" means next Friday (2026-10-09), not today.
+  ["Mike Johnson, 123 Oak St, lawn mow Friday 2pm", { name: "Mike Johnson", value: "", status: "scheduled", address: "123 Oak St", date: "2026-10-09", time: "14:00" }],
   ["John Smith, plumbing, $850, scheduled", { name: "John Smith", jobType: "Plumbing", value: "850", status: "scheduled" }],
   ["Donna Newton kitchen remodel 2500", { name: "Donna Newton", value: "2500" }],
   ["Brandon Ford tenant unit leak", { name: "Brandon Ford", jobType: "Plumbing" }],
@@ -57,7 +58,7 @@ const forCases = [
   ["Water heater replacement for Mike Davis at 42 Oak Street, Tuesday at 10, $1,850", { name: "Mike Davis", jobType: "Plumbing", address: "42 Oak Street", date: "2026-10-06", time: "10:00", value: "1850", status: "scheduled" }],
   ["Water Heater replacement for Mike Davis at 42 Oak Street Tuesday at 10:00 a.m. 1850", { name: "Mike Davis", jobType: "Plumbing", address: "42 Oak Street", date: "2026-10-06", time: "10:00", value: "1850" }],
   ["AC tune-up for Sarah Lee tomorrow at 3", { name: "Sarah Lee", jobType: "HVAC", date: "2026-10-03", time: "15:00", status: "scheduled" }],
-  ["Lawn mowing for the Johnsons Friday", { name: "Johnsons", jobType: "Landscaping", date: "2026-10-02" }],
+  ["Lawn mowing for the Johnsons Friday", { name: "Johnsons", jobType: "Landscaping", date: "2026-10-09" }], // "Friday" on a Friday = next Friday
   ["Deck stain for Mrs. Patel next Monday, 600", { name: "Mrs. Patel", jobType: "Deck", date: "2026-10-05", value: "600" }],
   ["Roof inspection for Tom Reed on Thursday", { name: "Tom Reed", jobType: "Roofing", date: "2026-10-08" }],
   ["Painting for Friday", { name: "" }],
