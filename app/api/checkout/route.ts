@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+import { stripeClient } from "../../lib/stripe-client";
+import { founderCouponId, founderSpotsLeft, FOUNDER_META } from "../../lib/founder";
+import { FOUNDER_TRIAL_DAYS, STANDARD_TRIAL_DAYS } from "../../lib/offer";
 import { createClient } from "@supabase/supabase-js";
 import { normalizeTrade } from "../../lib/first-touch";
 
@@ -23,9 +26,7 @@ async function verifiedUser(request: Request): Promise<{ id: string; email: stri
 
 export async function POST(request) {
   try {
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: "2025-02-24.acacia",
-    });
+    const stripe = stripeClient(process.env.STRIPE_SECRET_KEY!);
     const body = await request.json();
     const { name, utm } = body;
     const user = await verifiedUser(request);
@@ -57,23 +58,39 @@ export async function POST(request) {
       }
     }
 
-    const session = await stripe.checkout.sessions.create({
+    const baseMeta = { product: "stackedwork", tier: "base", ...utmMeta, ...(userId ? { user_id: userId } : {}) };
+    const params = (founder: boolean): Stripe.Checkout.SessionCreateParams => ({
       mode: "subscription",
       payment_method_types: ["card"],
       customer: customer?.id || undefined,
       customer_email: customer ? undefined : (email || undefined),
       line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
       subscription_data: {
-        trial_period_days: 14,
+        trial_period_days: founder ? FOUNDER_TRIAL_DAYS : STANDARD_TRIAL_DAYS,
         trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
-        metadata: { product: "stackedwork", tier: "base", ...utmMeta, ...(userId ? { user_id: userId } : {}) },
+        metadata: founder ? { ...baseMeta, offer: FOUNDER_META } : baseMeta,
       },
       payment_method_collection: "if_required",
-      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/welcome?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/welcome?session_id={CHECKOUT_SESSION_ID}${founder ? "&offer=founder" : ""}`,
       cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/?cancelled=true`,
-      allow_promotion_codes: true,
+      // Stripe rejects `discounts` together with `allow_promotion_codes`, so the founder path omits promo codes.
+      ...(founder ? { discounts: [{ coupon: founderCouponId()! }] } : { allow_promotion_codes: true }),
       ...(userId ? { client_reference_id: userId } : {}),
     });
+
+    // Founder offer (staged): only when STRIPE_FOUNDER_COUPON_ID is set AND live spots remain. Any Stripe problem on
+    // this path (count failed, coupon used up or invalid) falls back to the standard 14-day checkout.
+    let session: Stripe.Checkout.Session | null = null;
+    if (founderCouponId()) {
+      try {
+        const left = await founderSpotsLeft(stripe, { fresh: true });
+        if (left && left > 0) session = await stripe.checkout.sessions.create(params(true));
+      } catch (err: any) {
+        console.error("Founder checkout fell back to standard:", err?.message || err);
+        session = null;
+      }
+    }
+    if (!session) session = await stripe.checkout.sessions.create(params(false));
 
     return NextResponse.json({ url: session.url });
   } catch (error) {

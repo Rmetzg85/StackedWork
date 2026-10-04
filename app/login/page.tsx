@@ -3,6 +3,8 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { captureFirstTouch, getFirstTouch } from "../lib/first-touch";
+import { useFounderOffer } from "../lib/use-founder-offer";
+import { trialDays } from "../lib/offer";
 import Honeypot from "../components/Honeypot";
 import { HONEYPOT_FIELD } from "../lib/honeypot-field";
 
@@ -20,6 +22,7 @@ const CONFIRM_REDIRECT = `${SITE_URL}/?firstrun=1`;
 
 function LoginForm() {
   const searchParams = useSearchParams();
+  const founder = useFounderOffer();
   const initialMode = searchParams.get("mode") === "signin" ? "signin" : "signup";
   const [mode, setMode] = useState<"signin" | "signup" | "forgot">(initialMode);
   const [email, setEmail] = useState(searchParams.get("email") || "");
@@ -149,7 +152,7 @@ function LoginForm() {
         </h1>
         <p style={{ fontSize: 13, color: "rgba(245,240,235,0.45)", marginBottom: 24 }}>
           {mode === "signup"
-            ? "No credit card required · 14-day free trial · cancel anytime"
+            ? `No credit card required · ${trialDays(founder)}-day free trial · cancel anytime`
             : mode === "signin"
             ? "Sign in to access your StackedWork dashboard."
             : "Enter your email and we'll send you a reset link."}

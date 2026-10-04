@@ -1,5 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import { FOUNDER_TRIAL_DAYS, STANDARD_TRIAL_DAYS, FOUNDER_HEADLINE, FOUNDER_SUB } from "../lib/offer";
+import { useFounderOffer } from "../lib/use-founder-offer";
 
 interface Message {
   role: "user" | "assistant";
@@ -13,10 +15,13 @@ interface ChatWidgetProps {
   getAccessToken?: () => Promise<string | null>;
 }
 
-const SIGNUP_NOTE = "The full AI assistant is available once you sign in. Start the free 14-day trial at letstaystacked.com/login?mode=signup.";
+const signupNote = (days: number) => `The full AI assistant is available once you sign in. Start the free ${days}-day trial at letstaystacked.com/login?mode=signup.`;
 
 // Logged-out (landing / demo) answers. No AI call, no API cost.
-export function localReply(text: string): string {
+/** `founderActive`: the staged founder offer is live (see app/lib/offer.ts). Default = standard 14-day copy. */
+export function localReply(text: string, founderActive = false): string {
+  const days = founderActive ? FOUNDER_TRIAL_DAYS : STANDARD_TRIAL_DAYS;
+  const SIGNUP_NOTE = signupNote(days);
   const t = text.toLowerCase();
   if (/follow[- ]?up|cold lead|text/.test(t)) {
     return "Here's a simple follow-up text you can adapt:\n\n\"Hi [Name], it's [You] from [Company]. Just checking in on the [job] estimate I sent. Happy to answer any questions or adjust the scope. Want to grab a time this week?\"\n\n" + SIGNUP_NOTE;
@@ -28,12 +33,13 @@ export function localReply(text: string): string {
     return "Pricing depends on your market, materials and scope. A common approach: materials + (labor hours × your rate) + overhead + profit margin. StackedWork's estimate builder can suggest line items with AI once you're signed in.\n\n" + SIGNUP_NOTE;
   }
   if (/voice|job|lead|receipt|photo|portfolio|crm|feature|stackedwork/.test(t)) {
-    return "StackedWork lets you log jobs by voice, track leads from your personal form link, build estimates, scan receipts and keep before/after photos, all in one place for $49.99/mo after a 14-day free trial. Explore the demo to see each screen.";
+    return (founderActive ? "StackedWork lets you log jobs by voice, track leads from your personal form link, build estimates, scan receipts and keep before/after photos, all in one place. " + FOUNDER_HEADLINE + " " + FOUNDER_SUB + " Explore the demo to see each screen." : "StackedWork lets you log jobs by voice, track leads from your personal form link, build estimates, scan receipts and keep before/after photos, all in one place for $49.99/mo after a 14-day free trial. Explore the demo to see each screen.");
   }
   return "I'm the demo assistant, so I can only answer basic questions here. " + SIGNUP_NOTE;
 }
 
 export default function ChatWidget({ mode, accentColor = "#C8E64A", getAccessToken }: ChatWidgetProps) {
+  const founder = useFounderOffer();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -75,7 +81,7 @@ export default function ChatWidget({ mode, accentColor = "#C8E64A", getAccessTok
     try {
       const token = getAccessToken ? await getAccessToken() : null;
       if (!token) {
-        setMessages((prev) => [...prev, { role: "assistant", content: localReply(text) }]);
+        setMessages((prev) => [...prev, { role: "assistant", content: localReply(text, founder.active) }]);
         return;
       }
       const res = await fetch("/api/chat", {
@@ -85,7 +91,7 @@ export default function ChatWidget({ mode, accentColor = "#C8E64A", getAccessTok
       });
       const data = await res.json().catch(() => ({}));
       if (res.status === 401) {
-        setMessages((prev) => [...prev, { role: "assistant", content: (data.error || "Please sign in again.") + "\n\n" + localReply(text) }]);
+        setMessages((prev) => [...prev, { role: "assistant", content: (data.error || "Please sign in again.") + "\n\n" + localReply(text, founder.active) }]);
       } else if (data.reply) {
         setMessages((prev) => [...prev, { role: "assistant", content: data.reply }]);
       } else {
