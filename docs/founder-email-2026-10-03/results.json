@@ -1,0 +1,56 @@
+[
+ {
+  "case": "desktop-autoplay-allowed",
+  "modalOpen": true,
+  "url": "/?utm_source=email&trade=HVAC&utm_campaign=founder#top",
+  "videoPaused": false,
+  "videoMuted": false,
+  "currentTime": 0.22,
+  "tapButton": false,
+  "firstTouch": "{\"first_touch_utm_source\":\"email\",\"first_touch_utm_campaign\":\"founder\",\"first_touch_trade\":\"hvac\"}",
+  "afterRefresh_modalOpen": false
+ },
+ {
+  "case": "desktop-autoplay-blocked",
+  "modalOpen": true,
+  "url": "/?utm_source=email&trade=HVAC&utm_campaign=founder#top",
+  "videoPaused": true,
+  "videoMuted": false,
+  "currentTime": 0,
+  "tapButton": true,
+  "firstTouch": "{\"first_touch_utm_source\":\"email\",\"first_touch_utm_campaign\":\"founder\",\"first_touch_trade\":\"hvac\"}",
+  "afterTap_paused": false,
+  "afterTap_muted": false,
+  "afterTap_time": 1.13,
+  "afterTap_button": false,
+  "afterRefresh_modalOpen": false
+ },
+ {
+  "case": "iphone-webkit",
+  "modalOpen": true,
+  "url": "/?utm_source=email&trade=HVAC&utm_campaign=founder#top",
+  "videoPaused": true,
+  "videoMuted": false,
+  "currentTime": 0,
+  "tapButton": true,
+  "firstTouch": "{\"first_touch_utm_source\":\"email\",\"first_touch_utm_campaign\":\"founder\",\"first_touch_trade\":\"hvac\"}",
+  "afterTap_paused": false,
+  "afterTap_muted": false,
+  "afterTap_time": 1.22,
+  "afterTap_button": false,
+  "afterRefresh_modalOpen": false
+ },
+ {
+  "case": "mocked signup after ?trade=hvac",
+  "storedAfterClick": "{\"first_touch_trade\":\"hvac\"}",
+  "signup_user_metadata": {
+   "username": "new.contractor",
+   "first_touch_trade": "hvac"
+  },
+  "notify_body_trade": "hvac",
+  "checkout_body_utm": {
+   "first_touch_trade": "hvac"
+  },
+  "finalUrl": "/welcome?mock=1"
+ }
+]

@@ -23,7 +23,7 @@ export default function PrivacyPage() {
         <li><strong>Leads sent to you:</strong> when someone fills out your lead form, we store the name, phone, email, and message they submit so you can see them.</li>
         <li><strong>Voice entry:</strong> when you use Voice Entry, your browser turns speech into text (in Chrome, for example, the browser&apos;s own speech service does this). We receive only the text, not audio, and send it to our AI provider to fill in the job form.</li>
         <li><strong>Billing:</strong> Stripe handles subscriptions and payments. We get your Stripe customer ID, subscription status, plan, and trial or billing dates. We never receive or store card numbers.</li>
-        <li><strong>Where you came from:</strong> if you arrive from a link with campaign tags (utm_source, utm_medium, utm_campaign), we save those tags with your account and subscription so we know which marketing works.</li>
+        <li><strong>Where you came from:</strong> if you arrive from a link with campaign tags (utm_source, utm_medium, utm_campaign, trade), we save those tags with your account and subscription so we know which marketing works.</li>
         <li><strong>Usage and device data:</strong> pages visited, referrer, browser and device type, and approximate location from your IP address, collected by Vercel Web Analytics and Google Analytics.</li>
         <li><strong>Chat:</strong> messages you type into the AI assistant on our site.</li>
       </ul>

@@ -18,6 +18,32 @@ export default function HeroDemoVideo() {
   const [mountLoop, setMountLoop] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [modal, setModal] = useState(false);
+  const fullRef = useRef<HTMLVideoElement>(null);
+  const [needsTap, setNeedsTap] = useState(false); // autoplay with sound was blocked: show a big play button
+
+  // ?play=1 (founder outreach email link): open the "Watch with sound" modal straight away, then drop `play`
+  // from the URL (other params such as utm_* and trade stay) so a refresh or a shared link doesn't reopen it.
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("play") !== "1") return;
+      url.searchParams.delete("play");
+      window.history.replaceState(window.history.state, "", url.pathname + (url.search || "") + url.hash);
+      setModal(true);
+    } catch { /* ignore */ }
+  }, []);
+
+  // When the modal opens, try to play with sound. Browsers (most phones) may block unmuted autoplay without a tap;
+  // then the modal stays open with a large play button ready, and one tap starts it with sound.
+  useEffect(() => {
+    if (!modal) { setNeedsTap(false); return; }
+    const v = fullRef.current;
+    if (!v) return;
+    v.muted = false;
+    const p = v.play();
+    if (p && typeof p.catch === "function") p.then(() => setNeedsTap(false)).catch(() => setNeedsTap(true));
+  }, [modal]);
+  const tapToPlay = () => { const v = fullRef.current; if (!v) return; v.muted = false; v.play().then(() => setNeedsTap(false)).catch(() => {}); };
 
   useEffect(() => {
     if (document.readyState === "complete") { setLoaded(true); return; }
@@ -86,9 +112,15 @@ export default function HeroDemoVideo() {
         <div role="dialog" aria-modal="true" aria-label="StackedWork demo with sound" onClick={() => setModal(false)}
           style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(5,10,20,0.85)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ position: "relative", width: "min(92vw, calc(min(88vh, 900px) * 720 / 1448))", aspectRatio: "720 / 1448" }}>
-            <video src="/demo/demo-full.mp4" controls autoPlay playsInline preload="metadata" poster="/demo/hero-poster.webp"
+            <video ref={fullRef} src="/demo/demo-full.mp4" controls playsInline preload="auto" poster="/demo/hero-poster.webp" onPlay={() => setNeedsTap(false)}
               style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 16, background: "#000" }} />
             {/* Captions are burned into demo-full.mp4, so there's no <track> (a CC track would show the words twice). */}
+            {needsTap && (
+              <button type="button" onClick={tapToPlay} aria-label="Play the demo with sound"
+                style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%, -50%)", width: 88, height: 88, borderRadius: "50%", border: "none", background: "#C8E64A", color: "#132440", fontSize: 34, cursor: "pointer", boxShadow: "0 10px 30px rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", paddingLeft: 6 }}>
+                <svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l13-7.5z" fill="#132440" /></svg>
+              </button>
+            )}
             <button ref={closeRef} type="button" onClick={() => setModal(false)} aria-label="Close video"
               style={{ position: "absolute", top: 10, right: 10, width: 40, height: 40, borderRadius: "50%", border: "none", background: "#C8E64A", color: "#132440", fontSize: 22, fontWeight: 800, cursor: "pointer", lineHeight: 1 }}>×</button>
           </div>
