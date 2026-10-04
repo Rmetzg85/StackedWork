@@ -69,6 +69,12 @@ function weekdayOf(key: string): number {
 }
 const pad = (n: number) => String(n).padStart(2, "0");
 
+const GUTTER_CLEANING = /\b(?:gutters?\s+(?:clean\w*|clear\w*|flush\w*|unclog\w*)|(?:clean\w*|clear\w*|flush\w*|unclog\w*)\s+(?:out\s+)?(?:the\s+|their\s+|his\s+|her\s+)?gutters?)\b/;
+/** "gutter cleaning", "clean out the gutters". */
+export function isGutterCleaning(text: string | null | undefined): boolean {
+  return GUTTER_CLEANING.test(String(text || "").toLowerCase());
+}
+
 // Order matters: later rules win (more specific trades override generic words).
 const TYPE_RULES: [string, RegExp][] = [
   ["Landscaping", /\b(lawn|lawns|mow|mowing|landscap\w*|yard work|yard cleanup|mulch|hedges?|sod|leaf|leaves|tree trimming|trim(?:ming)? trees|weeding|sprinklers?|irrigation)\b/],
@@ -76,6 +82,8 @@ const TYPE_RULES: [string, RegExp][] = [
   ["Flooring", /\b(floor|floors|flooring|tile|tiling|carpet|hardwood|laminate|lvp)\b/],
   ["Drywall", /\b(drywall|sheetrock|plaster|patch(?:ing)? (?:the )?wall)\b/],
   ["Roofing", /\b(roof|roofing|shingles?|gutters?)\b/],
+  // Cleaning gutters is maintenance, not roofing work (gutter install/repair stays Roofing).
+  ["General", new RegExp(`^(?![\\s\\S]*\\b(?:roof|roofing|shingles?)\\b)[\\s\\S]*${GUTTER_CLEANING.source}`)], // ...unless the roof itself is in the job
   ["Deck", /\b(deck|decking|porch)\b/],
   ["Electrical", /\b(electric|electrical|electrician|panel|outlets?|wiring|rewire|breaker|light fixtures?|ceiling fan)\b/],
   ["Plumbing", /\b(plumb|plumbing|plumber|leak|leaking|leaky|pipes?|drain|clog(?:ged)?|toilet|faucet|sink|shower valve|water heater|sewer|sump pump)\b/],
@@ -133,7 +141,9 @@ export function parseVoiceToJobLocal(text: string, today: string = todayNY()): L
   else if ((dm = take(new RegExp(`\\b(?:(next|this|on|for)\\s+)?(${WEEKDAYS.join("|")})\\b`, "i")))) {
     const target = WEEKDAYS.indexOf(dm[2].toLowerCase());
     let diff = (target - weekdayOf(today) + 7) % 7;
-    if (dm[1] && dm[1].toLowerCase() === "next" && diff === 0) diff = 7;
+    // A weekday said on that same weekday means next week ("Saturday" on a Saturday = 7 days out).
+    // Only "this Saturday" keeps today; "today"/"tonight" are handled above.
+    if (diff === 0 && !(dm[1] && dm[1].toLowerCase() === "this")) diff = 7;
     date = addDays(today, diff);
   } else if ((dm = take(new RegExp(`\\b(${MONTH_RE})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?\\b`, "i")))) {
     const mi = MONTHS.findIndex((m) => m.startsWith(dm![1].toLowerCase().slice(0, 3)));
@@ -269,4 +279,19 @@ export function parseVoiceToJobLocal(text: string, today: string = todayNY()): L
     .slice(0, 120);
 
   return { name, jobType, value, status, phone, address, date, time, service };
+}
+
+/**
+ * Guard for the AI parser: if the note names today's weekday ("gutter cleaning Saturday" on a Saturday)
+ * and the model scheduled it for today, move it to the same weekday next week. "today", "tonight" and
+ * "this <weekday>" keep today. `scheduledAt` is "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM"; `today` is America/New_York.
+ */
+export function bumpSameWeekday(scheduledAt: string | null, transcript: string, today: string = todayNY()): string | null {
+  if (!scheduledAt || scheduledAt.slice(0, 10) !== today) return scheduledAt;
+  const t = String(transcript || "").toLowerCase();
+  if (/\b(?:today|tonight|this (?:morning|afternoon|evening))\b/.test(t)) return scheduledAt;
+  const wd = WEEKDAYS[weekdayOf(today)];
+  const m = t.match(new RegExp(`\\b(?:(this|next)\\s+)?${wd}\\b`));
+  if (!m || m[1] === "this") return scheduledAt;
+  return addDays(today, 7) + scheduledAt.slice(10);
 }

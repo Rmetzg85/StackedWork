@@ -1,0 +1,80 @@
+[
+ {
+  "target": "ig-ios",
+  "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) Apple…",
+  "speechRecognition": "present",
+  "recognitionStarts": 0,
+  "alert": "Open in your browser to use voice, or type the job below.",
+  "focused": "Type the job instead of speaking"
+ },
+ {
+  "target": "ig-android",
+  "ua": "Mozilla/5.0 (Linux; Android 14; Pixel 7 Build/UQ1A; wv) Appl…",
+  "speechRecognition": "absent",
+  "recognitionStarts": 0,
+  "alert": "Open in your browser to use voice, or type the job below.",
+  "focused": "Type the job instead of speaking"
+ },
+ {
+  "target": "fb-ios",
+  "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) Apple…",
+  "speechRecognition": "present",
+  "recognitionStarts": 0,
+  "alert": "Open in your browser to use voice, or type the job below.",
+  "focused": "Type the job instead of speaking"
+ },
+ {
+  "target": "fb-android",
+  "ua": "Mozilla/5.0 (Linux; Android 14; Pixel 7; wv) AppleWebKit/537…",
+  "speechRecognition": "absent",
+  "recognitionStarts": 0,
+  "alert": "Open in your browser to use voice, or type the job below.",
+  "focused": "Type the job instead of speaking"
+ },
+ {
+  "target": "ios-chrome",
+  "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) Apple…",
+  "speechRecognition": "present",
+  "recognitionStarts": 1,
+  "alert": "Voice doesn't work in Chrome on iPhone. Open this page in Safari to use voice, or type the job below.",
+  "focused": "Type the job instead of speaking"
+ },
+ {
+  "target": "android-chrome-no-speech",
+  "ua": "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 …",
+  "speechRecognition": "present",
+  "recognitionStarts": 1,
+  "alert": "Open in your browser to use voice, or type the job below.",
+  "focused": "Type the job instead of speaking"
+ },
+ {
+  "target": "android-chrome-mic-blocked",
+  "ua": "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 …",
+  "speechRecognition": "present",
+  "recognitionStarts": 1,
+  "alert": "Open in your browser to use voice, or type the job below.",
+  "focused": "Type the job instead of speaking"
+ },
+ {
+  "target": "api/parse-job (mock returns Roofing + today)",
+  "status": 200,
+  "body": {
+   "job": {
+    "customer_name": "Dana Price",
+    "address": "44 Elm St",
+    "phone": null,
+    "service": "gutter cleaning",
+    "job_type": "General",
+    "scheduled_at": "2026-10-10T10:00",
+    "price": 250,
+    "status": "scheduled"
+   }
+  }
+ },
+ {
+  "target": "typed review card",
+  "review": "Check these details before saving | Customer | Dana Price | Address | 44 Elm St | Phone | — | Service | gutter cleaning | When | Sat, Oct 10 · 10:00 AM | Price | $250 | Status | Scheduled | Edit anything below, then tap Confirm & Save Job. Nothing is saved until you do.",
+  "jobTypeSelect": "General",
+  "date": "2026-10-10"
+ }
+]
