@@ -79,7 +79,17 @@ chk "B cannot read A's invoice" "$(q $B authenticated "select count(*) from publ
 chk "B sees only own invoices" "$(q $B authenticated "select count(*) from public.invoices")" "1"
 chk "B cannot update A's invoice" "$(q $B authenticated "with u as (update public.invoices set total=0 where id='$IA' returning 1) select count(*) from u")" "0"
 chk "B cannot delete A's invoice" "$(q $B authenticated "with d as (delete from public.invoices where id='$IA' returning 1) select count(*) from d")" "0"
-deny "B cannot insert an invoice as A" "$(q $B authenticated "$ins values ('$A',null,'spoof','2026-10-03',1)")" "row-level security"
+C=33333333-3333-4333-8333-333333333333
+r=$($P -v VERBOSITY=verbose -d sw_repro -t -A -c "begin; set local \"request.jwt.claim.sub\"='$B'; set local role authenticated; $ins values ('$C',null,'spoof','2026-10-03',1); commit;" 2>&1)
+deny "B inserting as another contractor (C) gets 42501 'not your invoice'" "$r" "42501.*not your invoice"
+chk "C's counter not created" "$($P -d sw_repro -t -A -c "select count(*) from public.contractor_invoice_counters where contractor_id='$C'")" "0"
+cA=$($P -d sw_repro -t -A -c "select last_number from public.contractor_invoice_counters where contractor_id='$A'")
+r=$($P -v VERBOSITY=verbose -d sw_repro -t -A -c "begin; set local \"request.jwt.claim.sub\"='$B'; set local role authenticated; $ins values ('$A',null,'spoof','2026-10-03',1); commit;" 2>&1)
+deny "B inserting as A gets 42501 'not your invoice'" "$r" "42501.*not your invoice"
+chk "A's counter not bumped by B's attempt" "$($P -d sw_repro -t -A -c "select last_number from public.contractor_invoice_counters where contractor_id='$A'")" "$cA"
+D=44444444-4444-4444-8444-444444444444
+chk "service_role insert (auth.uid() null) works" "$($P -d sw_repro -t -A -c "begin; set local role service_role; insert into public.invoices (contractor_id,customer_name) values ('$D','Server row') returning invoice_number; commit;" 2>&1 | grep INV)" "INV-0001"
+$P -d sw_repro -q -c "delete from public.invoices where contractor_id='$D'; delete from public.contractor_invoice_counters where contractor_id='$D'" >/dev/null
 chk "A can't renumber, reassign or change token" "$(q $A authenticated "update public.invoices set number=50, contractor_id='$B', share_token='x', created_at='2001-01-01' where id='$IA' returning number||' '||(contractor_id='$A')||' '||(share_token<>'x')||' '||(created_at>'2002-01-01')")" "1 true true true"
 chk "mark paid sets paid_at" "$(q $A authenticated "update public.invoices set status='paid' where id='$IA' returning (paid_at is not null)")" "t"
 chk "back to sent clears paid_at, sets sent_at" "$(q $A authenticated "update public.invoices set status='sent' where id='$IA' returning (paid_at is null)::text||(sent_at is not null)::text")" "truetrue"

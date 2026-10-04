@@ -84,6 +84,11 @@ set search_path = public, pg_temp
 as $$
 begin
   if tg_op = 'INSERT' then
+    -- Before anything else (counter bump included): a signed-in user can only create their own invoices.
+    -- service_role / SQL editor inserts have auth.uid() = null and are allowed.
+    if auth.uid() is not null and new.contractor_id is distinct from auth.uid() then
+      raise exception 'not your invoice' using errcode = '42501';
+    end if;
     if new.contractor_id is null then
       raise exception 'invoices.contractor_id is required';
     end if;
