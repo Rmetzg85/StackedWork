@@ -12,7 +12,6 @@ receipt, photos, lead) was deleted right afterwards with the account's own permi
 | `hero-loop.webm` | VP9 version of the same loop (fallback). |
 | `hero-poster.webp` | One frame from the loop (job filled in from speech). |
 | `demo-full.mp4` | H.264 + AAC 96 kb/s, 720×1448, 45.0 s, 1.66 MB, faststart. Tap-to-play version with voiceover and music (v4, recorded 2026-10-03, 8:55 PM ET). |
-| `demo-full.en.vtt` | Captions for the voiceover in `demo-full.mp4`, in the voiceover's exact words. |
 
 ## Voiceover
 - Voiceover: Charlie's ElevenLabs recording (commercial rights per Charlie's ElevenLabs plan)

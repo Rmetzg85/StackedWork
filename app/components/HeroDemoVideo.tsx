@@ -87,9 +87,8 @@ export default function HeroDemoVideo() {
           style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(5,10,20,0.85)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ position: "relative", width: "min(92vw, calc(min(88vh, 900px) * 720 / 1448))", aspectRatio: "720 / 1448" }}>
             <video src="/demo/demo-full.mp4" controls autoPlay playsInline preload="metadata" poster="/demo/hero-poster.webp"
-              style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 16, background: "#000" }}>
-              <track kind="captions" src="/demo/demo-full.en.vtt" srcLang="en" label="English" />
-            </video>
+              style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 16, background: "#000" }} />
+            {/* Captions are burned into demo-full.mp4, so there's no <track> (a CC track would show the words twice). */}
             <button ref={closeRef} type="button" onClick={() => setModal(false)} aria-label="Close video"
               style={{ position: "absolute", top: 10, right: 10, width: 40, height: 40, borderRadius: "50%", border: "none", background: "#C8E64A", color: "#132440", fontSize: 22, fontWeight: 800, cursor: "pointer", lineHeight: 1 }}>×</button>
           </div>

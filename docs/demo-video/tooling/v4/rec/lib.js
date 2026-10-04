@@ -1,8 +1,8 @@
 // Shared helpers: sign in as the smoke account (password from env only, never printed) and capture its RLS REST headers.
-const SITE = 'https://www.letstaystacked.com', EMAIL = 'sw.smoke+sep10@remventures.tech', PW = process.env.SW_SMOKE_PASSWORD;
+const SITE = 'https://www.letstaystacked.com', EMAIL = process.env.SW_SMOKE_EMAIL, PW = process.env.SW_SMOKE_PASSWORD;
 const red = (s) => String(s).split(PW || '\u0000').join('[REDACTED]').replace(/eyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}/g, '[JWT]');
 async function signIn(p) {
-  if (!PW) throw new Error('SW_SMOKE_PASSWORD missing');
+  if (!EMAIL || !PW) throw new Error('SW_SMOKE_EMAIL / SW_SMOKE_PASSWORD missing');
   const cap = { hdr: null, base: null };
   p.on('request', (r) => { const u = r.url(); if (/\/rest\/v1\//.test(u) && !cap.hdr) { const h = r.headers(); if (h.authorization && h.apikey && !h.authorization.includes(h.apikey)) { cap.hdr = { apikey: h.apikey, authorization: h.authorization }; cap.base = u.split('/rest/v1/')[0]; } } });
   await p.goto(`${SITE}/login?mode=signin`, { waitUntil: 'networkidle' });
