@@ -19,7 +19,6 @@ export default function HeroDemoVideo() {
   const [mountLoop, setMountLoop] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [modal, setModal] = useState(false);
-  const [ended, setEnded] = useState(false);
   const fullRef = useRef<HTMLVideoElement>(null);
   const [needsTap, setNeedsTap] = useState(false); // autoplay with sound was blocked: show a big play button
 
@@ -38,7 +37,7 @@ export default function HeroDemoVideo() {
   // When the modal opens, try to play with sound. Browsers (most phones) may block unmuted autoplay without a tap;
   // then the modal stays open with a large play button ready, and one tap starts it with sound.
   useEffect(() => {
-    if (!modal) { setNeedsTap(false); setEnded(false); return; }
+    if (!modal) { setNeedsTap(false); return; }
     const v = fullRef.current;
     if (!v) return;
     v.muted = false;
@@ -117,7 +116,7 @@ export default function HeroDemoVideo() {
           style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(5,10,20,0.85)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
           <div style={{ position: "relative", width: "min(92vw, calc(min(80vh, 840px) * 720 / 1448))", aspectRatio: "720 / 1448" }}>
-            <video ref={fullRef} src="/demo/demo-full.mp4" controls playsInline preload="auto" poster="/demo/hero-poster.webp" onPlay={() => { setNeedsTap(false); setEnded(false); }} onEnded={() => setEnded(true)}
+            <video ref={fullRef} src="/demo/demo-full.mp4" controls playsInline preload="auto" poster="/demo/hero-poster.webp" onPlay={() => setNeedsTap(false)}
               style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 16, background: "#000" }} />
             {/* Captions are burned into demo-full.mp4, so there's no <track> (a CC track would show the words twice). */}
             {needsTap && (
@@ -128,14 +127,9 @@ export default function HeroDemoVideo() {
             )}
             <button ref={closeRef} type="button" onClick={() => setModal(false)} aria-label="Close video"
               style={{ position: "absolute", top: 10, right: 10, width: 40, height: 40, borderRadius: "50%", border: "none", background: "#C8E64A", color: "#132440", fontSize: 22, fontWeight: 800, cursor: "pointer", lineHeight: 1 }}>×</button>
-            {ended && (
-              <a href="/login?mode=signup" data-testid="demo-end-cta"
-                style={{ position: "absolute", left: "50%", top: "45%", transform: "translate(-50%, -50%)", background: "#C8E64A", color: "#132440", textDecoration: "none", padding: "14px 22px", borderRadius: 10, fontWeight: 700, fontSize: 16, fontFamily: "'DM Sans'", whiteSpace: "nowrap", boxShadow: "0 10px 30px rgba(0,0,0,0.45)" }}>
-                Start my free trial →
-              </a>
-            )}
           </div>
-          {/* Founder emails land here (?play=1): give them the next step right under the video. */}
+          {/* Founder emails land here (?play=1): the next step right under the video. No overlay on the video itself:
+              demo-full.mp4 ends on its own end card. */}
           <a href="/login?mode=signup" data-testid="demo-modal-cta"
             style={{ display: "inline-block", background: "#C8E64A", color: "#132440", textDecoration: "none", padding: "12px 22px", borderRadius: 10, fontWeight: 700, fontSize: 15, fontFamily: "'DM Sans'", textAlign: "center" }}>
             Try it free: {TRIAL_DAYS} days, no card →
