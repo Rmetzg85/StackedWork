@@ -8,7 +8,8 @@ export default function Honeypot({ value, onChange }: { value: string; onChange:
     <div aria-hidden="true" style={{ position: "absolute", left: "-10000px", top: "auto", width: 1, height: 1, overflow: "hidden" }}>
       <label>
         Leave this field empty
-        <input type="text" name={HONEYPOT_FIELD} tabIndex={-1} autoComplete="off" value={value} onChange={(e) => onChange(e.target.value)} />
+        {/* Password managers ignore it (1Password, LastPass, Bitwarden, Dashlane hints); the signup form also ignores it when a person typed. */}
+        <input type="text" name={HONEYPOT_FIELD} tabIndex={-1} autoComplete="off" data-1p-ignore="true" data-lpignore="true" data-bwignore="true" data-form-type="other" value={value} onChange={(e) => onChange(e.target.value)} />
       </label>
     </div>
   );

@@ -1,0 +1,137 @@
+[
+ {
+  "name": "success",
+  "h1": "Start your free trial",
+  "message": "Check your email to confirm your account. We sent a confirmation link to new@example.test. Starting your free trial…",
+  "afterResend": null,
+  "finalUrl": "/terms?fake-stripe-checkout=1",
+  "signup": 1,
+  "notify": [
+   ""
+  ],
+  "checkout": 1,
+  "resend": 0,
+  "events": [
+   "signup_view",
+   "signup_submit",
+   "signup_created",
+   "signup_checkout_redirect"
+  ]
+ },
+ {
+  "name": "success-resend",
+  "h1": "Start your free trial",
+  "message": "Your account is created. Check your email (new@example.test) and tap the confirmation link. You'll start your free trial from the app right after. Still no card.\nNot there in a minute? Check spam or Promotions, or resend it.",
+  "afterResend": "Sent again to new@example.test. It can take a minute. Check spam or Promotions too.",
+  "finalUrl": "/login?mode=signup",
+  "signup": 1,
+  "notify": [
+   ""
+  ],
+  "checkout": 1,
+  "resend": 1,
+  "events": [
+   "signup_view",
+   "signup_submit",
+   "signup_created",
+   "signup_checkout_error",
+   "signup_resend"
+  ]
+ },
+ {
+  "name": "existing-account",
+  "h1": "Welcome back",
+  "message": "You already have an account with this email. Sign in below, or tap “Forgot password?”.",
+  "afterResend": null,
+  "finalUrl": "/login?mode=signup",
+  "signup": 1,
+  "notify": [],
+  "checkout": 0,
+  "resend": 0,
+  "events": [
+   "signup_view",
+   "signup_submit",
+   "signup_existing_account"
+  ]
+ },
+ {
+  "name": "email-rate-limit",
+  "h1": "Start your free trial",
+  "message": "We're sending a lot of emails right now and hit our limit. Please try again in a few minutes. Your spot isn't lost.",
+  "afterResend": null,
+  "finalUrl": "/login?mode=signup",
+  "signup": 1,
+  "notify": [],
+  "checkout": 0,
+  "resend": 0,
+  "events": [
+   "signup_view",
+   "signup_submit",
+   "signup_error:email_rate_limit"
+  ]
+ },
+ {
+  "name": "already-registered",
+  "h1": "Start your free trial",
+  "message": "You already have an account with this email. Sign in instead, or reset your password if you forgot it.\nSign in instead",
+  "afterResend": null,
+  "finalUrl": "/login?mode=signup",
+  "signup": 1,
+  "notify": [],
+  "checkout": 0,
+  "resend": 0,
+  "events": [
+   "signup_view",
+   "signup_submit",
+   "signup_error:already_registered"
+  ]
+ },
+ {
+  "name": "bot-honeypot",
+  "h1": "Start your free trial",
+  "message": "Check your email to confirm your account. We sent a confirmation link to bot@example.test.",
+  "afterResend": null,
+  "finalUrl": "/login?mode=signup",
+  "signup": 0,
+  "notify": [],
+  "checkout": 0,
+  "resend": 0,
+  "events": [
+   "signup_view",
+   "signup_submit",
+   "signup_honeypot"
+  ]
+ },
+ {
+  "name": "autofilled-honeypot-human",
+  "h1": "Start your free trial",
+  "message": "Check your email to confirm your account. We sent a confirmation link to new@example.test. Starting your free trial…",
+  "afterResend": null,
+  "finalUrl": "/terms?fake-stripe-checkout=1",
+  "signup": 1,
+  "notify": [
+   ""
+  ],
+  "checkout": 1,
+  "resend": 0,
+  "events": [
+   "signup_view",
+   "signup_submit",
+   "signup_created",
+   "signup_checkout_redirect"
+  ]
+ },
+ {
+  "name": "demo-modal",
+  "modalCta": "Try it free: 30 days, no card →",
+  "scrollYAfterClose": 0,
+  "heroStartFreeTrial": {
+   "top": 658,
+   "visible": false
+  }
+ },
+ {
+  "name": "signin-param",
+  "h1": "Welcome back"
+ }
+]

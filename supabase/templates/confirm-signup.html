@@ -1,0 +1,20 @@
+<!--
+  StackedWork "Confirm signup" email. NOT APPLIED: paste into Supabase Dashboard -> Authentication -> Email Templates
+  -> "Confirm signup" (and set the subject below).
+  Subject: Confirm your StackedWork account (your free trial is ready)
+  Keep {{ .ConfirmationURL }} exactly as is: it carries the redirect to /?firstrun=1.
+-->
+<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#132440">
+  <div style="display:inline-block;background:#4A82C4;color:#fff;font-weight:800;border-radius:8px;padding:8px 10px;font-size:14px">SW</div>
+  <h1 style="font-size:22px;margin:18px 0 8px">One tap and you're in</h1>
+  <p style="font-size:15px;line-height:1.6;margin:0 0 20px">
+    Confirm your email to open StackedWork. Your 30-day free trial is ready. No credit card needed,
+    and if you never add one, it just ends.
+  </p>
+  <p style="margin:0 0 24px">
+    <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#C8E64A;color:#132440;text-decoration:none;font-weight:700;padding:14px 26px;border-radius:8px;font-size:16px">Confirm and log my first job</a>
+  </p>
+  <p style="font-size:13px;line-height:1.6;color:#555;margin:0">
+    Didn't sign up for StackedWork? Ignore this email and nothing happens.
+  </p>
+</div>

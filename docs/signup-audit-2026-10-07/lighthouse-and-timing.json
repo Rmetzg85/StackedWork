@@ -1,0 +1,41 @@
+{
+ "prod /": {
+  "scores": {
+   "performance": 76,
+   "accessibility": 92,
+   "best-practices": 96
+  },
+  "first-contentful-paint": "2.8\u00a0s",
+  "largest-contentful-paint": "4.9\u00a0s",
+  "total-blocking-time": "130\u00a0ms",
+  "cumulative-layout-shift": "0.002"
+ },
+ "prod /login?mode=signup": {
+  "scores": {
+   "performance": 71,
+   "accessibility": 86,
+   "best-practices": 96
+  },
+  "first-contentful-paint": "3.0\u00a0s",
+  "largest-contentful-paint": "4.2\u00a0s",
+  "total-blocking-time": "170\u00a0ms",
+  "cumulative-layout-shift": "0.17"
+ },
+ "local PR /login?mode=signup": {
+  "scores": {
+   "performance": 81,
+   "accessibility": 96
+  },
+  "first-contentful-paint": "2.4\u00a0s",
+  "largest-contentful-paint": "2.7\u00a0s",
+  "total-blocking-time": "460\u00a0ms",
+  "cumulative-layout-shift": "0.001"
+ },
+ "prod real signup timing (UTC)": {
+  "start": "2026-10-07T04:13:35.214Z",
+  "loginLoaded": "2026-10-07T04:13:39.242Z",
+  "submit": "2026-10-07T04:13:40.964Z",
+  "messageShown": "2026-10-07T04:13:41.803Z",
+  "afterRedirect": "2026-10-07T04:13:44.802Z"
+ }
+}

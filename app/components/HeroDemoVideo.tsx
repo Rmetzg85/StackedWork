@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { TRIAL_DAYS } from "../lib/offer";
 
 // Homepage hero demo: a real screen recording of the production app (see public/demo/CREDITS.md).
 // Performance: nothing is fetched before the window `load` event (the frame is below the fold and shows a
@@ -81,7 +82,9 @@ export default function HeroDemoVideo() {
     const prev = document.body.style.overflow; document.body.style.overflow = "hidden";
     return () => {
       window.removeEventListener("keydown", onKey); document.body.style.overflow = prev;
-      loopRef.current?.play().catch(() => {}); openerRef.current?.focus();
+      // preventScroll: closing the modal (incl. the ?play=1 auto-open) must not jump the page down to this button
+      // and push the hero's "Start Free Trial" off-screen.
+      loopRef.current?.play().catch(() => {}); openerRef.current?.focus({ preventScroll: true });
     };
   }, [modal]);
 
@@ -111,7 +114,8 @@ export default function HeroDemoVideo() {
         // Portaled to <body> so it sits above the fixed nav and the chat bubble (the hero is its own stacking context).
         <div role="dialog" aria-modal="true" aria-label="StackedWork demo with sound" onClick={() => setModal(false)}
           style={{ position: "fixed", inset: 0, zIndex: 10000, background: "rgba(5,10,20,0.85)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ position: "relative", width: "min(92vw, calc(min(88vh, 900px) * 720 / 1448))", aspectRatio: "720 / 1448" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+          <div style={{ position: "relative", width: "min(92vw, calc(min(80vh, 840px) * 720 / 1448))", aspectRatio: "720 / 1448" }}>
             <video ref={fullRef} src="/demo/demo-full.mp4" controls playsInline preload="auto" poster="/demo/hero-poster.webp" onPlay={() => setNeedsTap(false)}
               style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 16, background: "#000" }} />
             {/* Captions are burned into demo-full.mp4, so there's no <track> (a CC track would show the words twice). */}
@@ -123,6 +127,13 @@ export default function HeroDemoVideo() {
             )}
             <button ref={closeRef} type="button" onClick={() => setModal(false)} aria-label="Close video"
               style={{ position: "absolute", top: 10, right: 10, width: 40, height: 40, borderRadius: "50%", border: "none", background: "#C8E64A", color: "#132440", fontSize: 22, fontWeight: 800, cursor: "pointer", lineHeight: 1 }}>×</button>
+          </div>
+          {/* Founder emails land here (?play=1): the next step right under the video. No overlay on the video itself:
+              demo-full.mp4 ends on its own end card. */}
+          <a href="/login?mode=signup" data-testid="demo-modal-cta"
+            style={{ display: "inline-block", background: "#C8E64A", color: "#132440", textDecoration: "none", padding: "12px 22px", borderRadius: 10, fontWeight: 700, fontSize: 15, fontFamily: "'DM Sans'", textAlign: "center" }}>
+            Try it free: {TRIAL_DAYS} days, no card →
+          </a>
           </div>
         </div>,
         document.body

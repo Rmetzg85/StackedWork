@@ -1,0 +1,520 @@
+{
+ "iphone": {
+  "console": [
+   "error: Failed to load resource: the server responded with a status of 404 ()"
+  ],
+  "pageErrors": [],
+  "failed": [
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za208zd9253529449xf1&_p=179134633 net::ERR_ABORTED",
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za208zd9253529449xf1&_p=179134633 net::ERR_ABORTED",
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za208zd9253529449xf1&_p=179134634 net::ERR_ABORTED"
+  ],
+  "loginFormVisibleMs": 654,
+  "login": {
+   "h1": "Start your free trial",
+   "sub": "No credit card required · 30-day free trial · cancel anytime",
+   "submit": "Create Account & Start Trial",
+   "submitBottom": 513,
+   "viewportH": 664,
+   "submitAboveFold": true,
+   "tabs": [
+    {
+     "t": "Sign Up",
+     "color": "rgb(200, 230, 74)"
+    },
+    {
+     "t": "Sign In",
+     "color": "rgba(245, 240, 235, 0.4)"
+    }
+   ],
+   "inputs": [
+    {
+     "name": "contact_me_by_fax_only",
+     "type": "text",
+     "ac": "off",
+     "ph": "",
+     "visible": false
+    },
+    {
+     "name": "",
+     "type": "email",
+     "ac": "email",
+     "ph": "you@example.com",
+     "visible": true
+    },
+    {
+     "name": "",
+     "type": "password",
+     "ac": "new-password",
+     "ph": "Create a password (min 6 chars)",
+     "visible": true
+    }
+   ],
+   "bodyTextHasOffer": true
+  },
+  "bareLoginH1": "Start your free trial",
+  "homeLoadMs": 3664,
+  "modal": {
+   "text": "×",
+   "url": "?utm_campaign=founder&utm_source=email"
+  },
+  "modalClosed": true,
+  "homeAfterModal": {
+   "ctas": [
+    {
+     "t": "Get Started",
+     "top": 18,
+     "visibleAboveFold": true
+    },
+    {
+     "t": "Start Free Trial",
+     "top": -480,
+     "visibleAboveFold": false
+    },
+    {
+     "t": "Get Started →",
+     "top": 707,
+     "visibleAboveFold": false
+    },
+    {
+     "t": "Start Your Free Trial",
+     "top": 7424,
+     "visibleAboveFold": false
+    }
+   ],
+   "offerAboveFold": "30-day free trial. No credit card required."
+  },
+  "ctaLandedOn": "/login?mode=signup",
+  "ctaLandedH1": "Start your free trial"
+ },
+ "android": {
+  "console": [],
+  "pageErrors": [],
+  "failed": [
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za200zd9253529449xf1&_p=179134634 net::ERR_ABORTED",
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za200zd9253529449xf1&_p=179134634 net::ERR_ABORTED",
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za200zd9253529449xf1&_p=179134635 net::ERR_ABORTED"
+  ],
+  "loginFormVisibleMs": 659,
+  "login": {
+   "h1": "Start your free trial",
+   "sub": "No credit card required · 30-day free trial · cancel anytime",
+   "submit": "Create Account & Start Trial",
+   "submitBottom": 571,
+   "viewportH": 780,
+   "submitAboveFold": true,
+   "tabs": [
+    {
+     "t": "Sign Up",
+     "color": "rgb(200, 230, 74)"
+    },
+    {
+     "t": "Sign In",
+     "color": "rgba(245, 240, 235, 0.4)"
+    }
+   ],
+   "inputs": [
+    {
+     "name": "contact_me_by_fax_only",
+     "type": "text",
+     "ac": "off",
+     "ph": "",
+     "visible": false
+    },
+    {
+     "name": "",
+     "type": "email",
+     "ac": "email",
+     "ph": "you@example.com",
+     "visible": true
+    },
+    {
+     "name": "",
+     "type": "password",
+     "ac": "new-password",
+     "ph": "Create a password (min 6 chars)",
+     "visible": true
+    }
+   ],
+   "bodyTextHasOffer": true
+  },
+  "bareLoginH1": "Start your free trial",
+  "homeLoadMs": 3593,
+  "modal": {
+   "text": "×",
+   "url": "?utm_campaign=founder&utm_source=email"
+  },
+  "modalClosed": true,
+  "homeAfterModal": {
+   "ctas": [
+    {
+     "t": "Get Started",
+     "top": 18,
+     "visibleAboveFold": true
+    },
+    {
+     "t": "Start Free Trial",
+     "top": -454,
+     "visibleAboveFold": false
+    },
+    {
+     "t": "Get Started →",
+     "top": 764,
+     "visibleAboveFold": false
+    },
+    {
+     "t": "Start Your Free Trial",
+     "top": 7392,
+     "visibleAboveFold": false
+    }
+   ],
+   "offerAboveFold": "30-day free trial. No credit card required."
+  },
+  "ctaLandedOn": "/login?mode=signup",
+  "ctaLandedH1": "Start your free trial"
+ },
+ "desktop": {
+  "console": [],
+  "pageErrors": [],
+  "failed": [
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za200zd9253529449xf1&_p=179134635 net::ERR_ABORTED",
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za200zd9253529449xf1&_p=179134635 net::ERR_ABORTED",
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za208zd9253529449xf1&_p=179134635 net::ERR_ABORTED"
+  ],
+  "loginFormVisibleMs": 612,
+  "login": {
+   "h1": "Start your free trial",
+   "sub": "No credit card required · 30-day free trial · cancel anytime",
+   "submit": "Create Account & Start Trial",
+   "submitBottom": 563,
+   "viewportH": 768,
+   "submitAboveFold": true,
+   "tabs": [
+    {
+     "t": "Sign Up",
+     "color": "rgb(200, 230, 74)"
+    },
+    {
+     "t": "Sign In",
+     "color": "rgba(245, 240, 235, 0.4)"
+    }
+   ],
+   "inputs": [
+    {
+     "name": "contact_me_by_fax_only",
+     "type": "text",
+     "ac": "off",
+     "ph": "",
+     "visible": false
+    },
+    {
+     "name": "",
+     "type": "email",
+     "ac": "email",
+     "ph": "you@example.com",
+     "visible": true
+    },
+    {
+     "name": "",
+     "type": "password",
+     "ac": "new-password",
+     "ph": "Create a password (min 6 chars)",
+     "visible": true
+    }
+   ],
+   "bodyTextHasOffer": true
+  },
+  "bareLoginH1": "Start your free trial",
+  "homeLoadMs": 3599,
+  "modal": {
+   "text": "×",
+   "url": "?utm_campaign=founder&utm_source=email"
+  },
+  "modalClosed": true,
+  "homeAfterModal": {
+   "ctas": [
+    {
+     "t": "Get Started",
+     "top": 18,
+     "visibleAboveFold": true
+    },
+    {
+     "t": "Start Free Trial",
+     "top": -389,
+     "visibleAboveFold": false
+    },
+    {
+     "t": "Get Started →",
+     "top": 712,
+     "visibleAboveFold": true
+    },
+    {
+     "t": "Start Your Free Trial",
+     "top": 5992,
+     "visibleAboveFold": false
+    }
+   ],
+   "offerAboveFold": "30-day free trial. No credit card required."
+  },
+  "ctaLandedOn": "/login?mode=signup",
+  "ctaLandedH1": "Start your free trial"
+ },
+ "ig_ios": {
+  "console": [],
+  "pageErrors": [],
+  "failed": [
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za200zd9253529449xf1&_p=179134636 net::ERR_ABORTED",
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za200zd9253529449xf1&_p=179134636 net::ERR_ABORTED",
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za200zd9253529449xf1&_p=179134636 net::ERR_ABORTED"
+  ],
+  "loginFormVisibleMs": 721,
+  "login": {
+   "h1": "Start your free trial",
+   "sub": "No credit card required · 30-day free trial · cancel anytime",
+   "submit": "Create Account & Start Trial",
+   "submitBottom": 513,
+   "viewportH": 664,
+   "submitAboveFold": true,
+   "tabs": [
+    {
+     "t": "Sign Up",
+     "color": "rgb(200, 230, 74)"
+    },
+    {
+     "t": "Sign In",
+     "color": "rgba(245, 240, 235, 0.4)"
+    }
+   ],
+   "inputs": [
+    {
+     "name": "contact_me_by_fax_only",
+     "type": "text",
+     "ac": "off",
+     "ph": "",
+     "visible": false
+    },
+    {
+     "name": "",
+     "type": "email",
+     "ac": "email",
+     "ph": "you@example.com",
+     "visible": true
+    },
+    {
+     "name": "",
+     "type": "password",
+     "ac": "new-password",
+     "ph": "Create a password (min 6 chars)",
+     "visible": true
+    }
+   ],
+   "bodyTextHasOffer": true
+  },
+  "bareLoginH1": "Start your free trial",
+  "homeLoadMs": 3613,
+  "modal": {
+   "text": "×",
+   "url": "?utm_campaign=founder&utm_source=email"
+  },
+  "modalClosed": true,
+  "homeAfterModal": {
+   "ctas": [
+    {
+     "t": "Get Started",
+     "top": 18,
+     "visibleAboveFold": true
+    },
+    {
+     "t": "Start Free Trial",
+     "top": -480,
+     "visibleAboveFold": false
+    },
+    {
+     "t": "Get Started →",
+     "top": 707,
+     "visibleAboveFold": false
+    },
+    {
+     "t": "Start Your Free Trial",
+     "top": 7424,
+     "visibleAboveFold": false
+    }
+   ],
+   "offerAboveFold": "30-day free trial. No credit card required."
+  },
+  "ctaLandedOn": "/login?mode=signup",
+  "ctaLandedH1": "Start your free trial"
+ },
+ "fb_android": {
+  "console": [],
+  "pageErrors": [],
+  "failed": [
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51h1v9253529449za200zd9253529449xf1&_p=1791346 net::ERR_ABORTED",
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51h1v9253529449za200zd9253529449xf1&_p=1791346 net::ERR_ABORTED",
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51h1v9253529449za200zd9253529449xf1&_p=1791346 net::ERR_ABORTED"
+  ],
+  "loginFormVisibleMs": 648,
+  "login": {
+   "h1": "Start your free trial",
+   "sub": "No credit card required · 30-day free trial · cancel anytime",
+   "submit": "Create Account & Start Trial",
+   "submitBottom": 571,
+   "viewportH": 780,
+   "submitAboveFold": true,
+   "tabs": [
+    {
+     "t": "Sign Up",
+     "color": "rgb(200, 230, 74)"
+    },
+    {
+     "t": "Sign In",
+     "color": "rgba(245, 240, 235, 0.4)"
+    }
+   ],
+   "inputs": [
+    {
+     "name": "contact_me_by_fax_only",
+     "type": "text",
+     "ac": "off",
+     "ph": "",
+     "visible": false
+    },
+    {
+     "name": "",
+     "type": "email",
+     "ac": "email",
+     "ph": "you@example.com",
+     "visible": true
+    },
+    {
+     "name": "",
+     "type": "password",
+     "ac": "new-password",
+     "ph": "Create a password (min 6 chars)",
+     "visible": true
+    }
+   ],
+   "bodyTextHasOffer": true
+  },
+  "bareLoginH1": "Start your free trial",
+  "homeLoadMs": 3606,
+  "modal": {
+   "text": "×",
+   "url": "?utm_campaign=founder&utm_source=email"
+  },
+  "modalClosed": true,
+  "homeAfterModal": {
+   "ctas": [
+    {
+     "t": "Get Started",
+     "top": 18,
+     "visibleAboveFold": true
+    },
+    {
+     "t": "Start Free Trial",
+     "top": -454,
+     "visibleAboveFold": false
+    },
+    {
+     "t": "Get Started →",
+     "top": 764,
+     "visibleAboveFold": false
+    },
+    {
+     "t": "Start Your Free Trial",
+     "top": 7392,
+     "visibleAboveFold": false
+    }
+   ],
+   "offerAboveFold": "30-day free trial. No credit card required."
+  },
+  "ctaLandedOn": "/login?mode=signup",
+  "ctaLandedH1": "Start your free trial"
+ },
+ "gmail_ios": {
+  "console": [],
+  "pageErrors": [],
+  "failed": [
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za200zd9253529449xf1&_p=179134637 net::ERR_ABORTED",
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za208zd9253529449xf1&_p=179134637 net::ERR_ABORTED",
+   "https://www.google-analytics.com/g/collect?v=2&tid=G-MF35DJK57X&gtm=45je6a51v9253529449za200zd9253529449xf1&_p=179134638 net::ERR_ABORTED"
+  ],
+  "loginFormVisibleMs": 727,
+  "login": {
+   "h1": "Start your free trial",
+   "sub": "No credit card required · 30-day free trial · cancel anytime",
+   "submit": "Create Account & Start Trial",
+   "submitBottom": 513,
+   "viewportH": 664,
+   "submitAboveFold": true,
+   "tabs": [
+    {
+     "t": "Sign Up",
+     "color": "rgb(200, 230, 74)"
+    },
+    {
+     "t": "Sign In",
+     "color": "rgba(245, 240, 235, 0.4)"
+    }
+   ],
+   "inputs": [
+    {
+     "name": "contact_me_by_fax_only",
+     "type": "text",
+     "ac": "off",
+     "ph": "",
+     "visible": false
+    },
+    {
+     "name": "",
+     "type": "email",
+     "ac": "email",
+     "ph": "you@example.com",
+     "visible": true
+    },
+    {
+     "name": "",
+     "type": "password",
+     "ac": "new-password",
+     "ph": "Create a password (min 6 chars)",
+     "visible": true
+    }
+   ],
+   "bodyTextHasOffer": true
+  },
+  "bareLoginH1": "Start your free trial",
+  "homeLoadMs": 3607,
+  "modal": {
+   "text": "×",
+   "url": "?utm_campaign=founder&utm_source=email"
+  },
+  "modalClosed": true,
+  "homeAfterModal": {
+   "ctas": [
+    {
+     "t": "Get Started",
+     "top": 18,
+     "visibleAboveFold": true
+    },
+    {
+     "t": "Start Free Trial",
+     "top": -480,
+     "visibleAboveFold": false
+    },
+    {
+     "t": "Get Started →",
+     "top": 707,
+     "visibleAboveFold": false
+    },
+    {
+     "t": "Start Your Free Trial",
+     "top": 7424,
+     "visibleAboveFold": false
+    }
+   ],
+   "offerAboveFold": "30-day free trial. No credit card required."
+  },
+  "ctaLandedOn": "/login?mode=signup",
+  "ctaLandedH1": "Start your free trial"
+ }
+}
