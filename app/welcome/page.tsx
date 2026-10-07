@@ -4,6 +4,8 @@ import { useSearchParams } from "next/navigation";
 import { TRIAL_DAYS } from "../lib/offer";
 import { Suspense } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { friendlyAuthError } from "../lib/auth-errors";
+import { funnel } from "../lib/funnel";
 
 const G = "#C8E64A";
 const GD = "#A8C435";
@@ -18,6 +20,25 @@ function WelcomeContent() {
   const founderTrial = searchParams.get("offer") === "founder";
   const [checking, setChecking] = useState(true);
   const [signupEmail, setSignupEmail] = useState<string | null>(null);
+  const [resendMsg, setResendMsg] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
+
+  // Same redirect as the signup form: the link opens the first-run screen on any device.
+  const resend = async () => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL, key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key || !signupEmail) return;
+    setResending(true);
+    try {
+      const site = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.letstaystacked.com").replace(/\/+$/, "");
+      const sb = createClient(url, key, { auth: { flowType: "implicit", persistSession: false } });
+      const { error } = await sb.auth.resend({ type: "signup", email: signupEmail, options: { emailRedirectTo: `${site}/?firstrun=1` } });
+      if (error) throw error;
+      funnel("signup_resend", { from: "welcome" });
+      setResendMsg(`Sent again to ${signupEmail}. It can take a minute.`);
+    } catch (err) {
+      setResendMsg(friendlyAuthError(err, "signup").message);
+    } finally { setResending(false); }
+  };
 
   useEffect(() => {
     // Signed in already (email confirmation off) → go straight to the first-run
@@ -179,6 +200,19 @@ function WelcomeContent() {
         >
           I&apos;ve confirmed — sign in
         </a>
+
+        {!checking && (
+          <p style={{ marginTop: 18, fontSize: 13, color: "rgba(245,240,235,0.7)", lineHeight: 1.6 }}>
+            No email after a minute? Check spam or Promotions.
+            {signupEmail && !resendMsg && (
+              <>{" "}<button type="button" onClick={resend} disabled={resending}
+                style={{ background: "none", border: "none", padding: 0, color: G, font: "inherit", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>
+                {resending ? "Sending…" : "Resend it"}
+              </button></>
+            )}
+            {resendMsg && <><br />{resendMsg}</>}
+          </p>
+        )}
 
       </div>
     </div>

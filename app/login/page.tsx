@@ -1,10 +1,11 @@
 "use client";
-import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { captureFirstTouch, getFirstTouch } from "../lib/first-touch";
 import { useFounderOffer } from "../lib/use-founder-offer";
-import { trialDays } from "../lib/offer";
+import { trialDays, LIST_PRICE } from "../lib/offer";
+import { friendlyAuthError, isExistingAccountSignup, type AuthErrorAction } from "../lib/auth-errors";
+import { funnel } from "../lib/funnel";
 import Honeypot from "../components/Honeypot";
 import { HONEYPOT_FIELD } from "../lib/honeypot-field";
 
@@ -21,31 +22,64 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.letstaystacke
 const CONFIRM_REDIRECT = `${SITE_URL}/?firstrun=1`;
 
 function LoginForm() {
-  const searchParams = useSearchParams();
   const founder = useFounderOffer();
-  const initialMode = searchParams.get("mode") === "signin" ? "signin" : "signup";
-  const [mode, setMode] = useState<"signin" | "signup" | "forgot">(initialMode);
-  const [email, setEmail] = useState(searchParams.get("email") || "");
+  // Signup is the default and is what the server pre-renders, so the form is visible at first paint (no empty
+  // card / layout shift). ?mode=signin and ?email= are applied right after hydration.
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signup");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [hp, setHp] = useState("");
+  const [errorAction, setErrorAction] = useState<AuthErrorAction>(null);
+  const [resent, setResent] = useState(false);
+  // Set by a real keypress/tap in the form. A filled honeypot only counts as a bot when nobody typed:
+  // some password managers/autofill fill every text field, and a real person must never get a fake success.
+  const human = useRef(false);
+  const markHuman = (e: { isTrusted: boolean }) => { if (e.isTrusted) human.current = true; };
 
-  // Ads may link straight to /login — capture first-touch UTM here too (no-op if already stored).
-  useEffect(() => { captureFirstTouch(); }, []);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const m = q.get("mode") === "signin" ? "signin" : "signup";
+    if (m !== "signup") setMode(m);
+    const em = q.get("email"); if (em) setEmail(em.slice(0, 254));
+    funnel(m === "signup" ? "signup_view" : "signin_view");
+    // Ads may link straight to /login — capture first-touch UTM here too (no-op if already stored).
+    captureFirstTouch();
+  }, []);
+
+  const clearMsgs = () => { setError(null); setErrorAction(null); setSuccess(null); setResent(false); };
+  const switchMode = (m: "signin" | "signup" | "forgot") => { setMode(m); clearMsgs(); };
+
+  const resendConfirmation = async () => {
+    const addr = email.trim();
+    if (!addr) { setError("Enter your email above, then tap resend."); return; }
+    setLoading(true);
+    try {
+      const { error: rErr } = await supabase.auth.resend({ type: "signup", email: addr, options: { emailRedirectTo: CONFIRM_REDIRECT } });
+      if (rErr) throw rErr;
+      funnel("signup_resend");
+      setError(null); setErrorAction(null); setResent(true);
+      setSuccess(`Sent again to ${addr}. It can take a minute. Check spam or Promotions too.`);
+    } catch (err) {
+      const f = friendlyAuthError(err, "signup"); setError(f.message); setErrorAction(f.action === "resend" ? null : f.action);
+    } finally { setLoading(false); }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
+    clearMsgs();
     setLoading(true);
 
     try {
       if (mode === "signup") {
-        // Honeypot filled = bot. Show the normal confirmation message and create nothing (no auth user, no email).
-        if (hp.trim()) {
+        funnel("signup_submit");
+        // Honeypot filled and nobody typed = bot: show the normal message and create nothing (no auth user, no email).
+        if (hp.trim() && !human.current) {
+          funnel("signup_honeypot");
+          setResent(true); // no "resend" offer on the fake success
           setSuccess(`Check your email to confirm your account. We sent a confirmation link to ${email.trim()}.`);
           return;
         }
@@ -65,6 +99,14 @@ function LoginForm() {
         });
         if (signUpError) throw signUpError;
 
+        // Already registered (Supabase hides this behind a "success" with no identities): send them to sign in.
+        if (isExistingAccountSignup(signUpData)) {
+          funnel("signup_existing_account");
+          setMode("signin");
+          setError("You already have an account with this email. Sign in below, or tap \u201cForgot password?\u201d.");
+          return;
+        }
+
         // First-run flag (same-device fallback; the confirm link's ?firstrun=1 covers other devices).
         try { window.localStorage.setItem("sw_firstrun", "1"); window.localStorage.setItem("sw_signup_email", cleanEmail); } catch { /* ignore */ }
 
@@ -74,15 +116,20 @@ function LoginForm() {
           setSuccess(`Check your email to confirm your account. We sent a confirmation link to ${cleanEmail}. Starting your free trial…`);
         }
         const shownAt = Date.now();
+        funnel("signup_created", { needs_confirm: needsConfirm });
 
         // Notify Ryan of new signup
         await fetch("/api/notify-signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, email: cleanEmail, ...firstTouch, [HONEYPOT_FIELD]: hp }),
+          // A person typed here, so an autofilled honeypot must not suppress the owner notification.
+          body: JSON.stringify({ username, email: cleanEmail, ...firstTouch, [HONEYPOT_FIELD]: human.current ? "" : hp }),
         }).catch(() => {});
 
-        // After signup, send them to Stripe checkout
+        // After signup, send them to Stripe checkout (no card needed for the trial).
+        // The account already exists at this point, so a checkout problem must not look like a failed signup.
+        let checkoutUrl: string | null = null;
+        try {
         const res = await fetch("/api/checkout", {
           method: "POST",
           // With a session (email confirmation off) the server can link the subscription to this user id.
@@ -92,13 +139,19 @@ function LoginForm() {
           },
           body: JSON.stringify({ email: cleanEmail, utm: firstTouch }),
         });
-        const data = await res.json();
-        if (data.url) {
+        const data = await res.json().catch(() => ({}));
+        checkoutUrl = typeof data?.url === "string" ? data.url : null;
+        } catch { checkoutUrl = null; }
+        if (checkoutUrl) {
+          funnel("signup_checkout_redirect");
           // Keep the "check your email" message on screen long enough to read.
           if (needsConfirm) await new Promise(r => setTimeout(r, Math.max(0, 2500 - (Date.now() - shownAt))));
-          window.location.href = data.url;
+          window.location.href = checkoutUrl;
         } else {
-          throw new Error(data.error || "Checkout failed");
+          funnel("signup_checkout_error");
+          setSuccess(needsConfirm
+            ? `Your account is created. Check your email (${cleanEmail}) and tap the confirmation link. You'll start your free trial from the app right after. Still no card.`
+            : "Your account is created. Open the app to start your free trial. Still no card.");
         }
       } else if (mode === "forgot") {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
@@ -112,7 +165,10 @@ function LoginForm() {
         window.location.href = "/";
       }
     } catch (err: any) {
-      setError(err.message || "Something went wrong. Please try again.");
+      const f = friendlyAuthError(err, mode);
+      funnel(mode === "signup" ? "signup_error" : mode === "signin" ? "signin_error" : "reset_error", { code: f.code });
+      setError(f.message);
+      setErrorAction(f.action);
     } finally {
       setLoading(false);
     }
@@ -125,9 +181,9 @@ function LoginForm() {
         <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
           <button
             className="tab"
-            onClick={() => { setMode("signup"); setError(null); setSuccess(null); }}
+            onClick={() => switchMode("signup")}
             style={{
-              color: mode === "signup" ? G : "rgba(245,240,235,0.4)",
+              color: mode === "signup" ? G : "rgba(245,240,235,0.7)",
               borderBottomColor: mode === "signup" ? G : "transparent",
             }}
           >
@@ -135,9 +191,9 @@ function LoginForm() {
           </button>
           <button
             className="tab"
-            onClick={() => { setMode("signin"); setError(null); setSuccess(null); }}
+            onClick={() => switchMode("signin")}
             style={{
-              color: mode === "signin" ? G : "rgba(245,240,235,0.4)",
+              color: mode === "signin" ? G : "rgba(245,240,235,0.7)",
               borderBottomColor: mode === "signin" ? G : "transparent",
             }}
           >
@@ -150,15 +206,22 @@ function LoginForm() {
         <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>
           {mode === "signup" ? "Start your free trial" : mode === "signin" ? "Welcome back" : "Reset your password"}
         </h1>
-        <p style={{ fontSize: 13, color: "rgba(245,240,235,0.45)", marginBottom: 24 }}>
-          {mode === "signup"
-            ? `No credit card required · ${trialDays(founder)}-day free trial · cancel anytime`
-            : mode === "signin"
-            ? "Sign in to access your StackedWork dashboard."
-            : "Enter your email and we'll send you a reset link."}
-        </p>
+        {mode === "signup" ? (
+          <div data-testid="signup-offer" style={{ margin: "10px 0 22px", padding: "12px 14px", background: "rgba(200,230,74,0.10)", border: "1px solid rgba(200,230,74,0.4)", borderRadius: 10 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: G, lineHeight: 1.3 }}>
+              {founder.active && founder.headline ? founder.headline : `${trialDays(founder)} days free \u00b7 No credit card`}
+            </div>
+            <div style={{ fontSize: 13, color: "rgba(245,240,235,0.85)", marginTop: 4, lineHeight: 1.5 }}>
+              {founder.active && founder.sub ? founder.sub : `Then ${LIST_PRICE}/mo only if you add a card. If you don't, the trial just ends. Nothing to cancel.`}
+            </div>
+          </div>
+        ) : (
+          <p style={{ fontSize: 13, color: "rgba(245,240,235,0.7)", marginBottom: 24 }}>
+            {mode === "signin" ? "Sign in to access your StackedWork dashboard." : "Enter your email and we'll send you a reset link."}
+          </p>
+        )}
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14, position: "relative" }}>
+        <form onSubmit={handleSubmit} onKeyDownCapture={markHuman} onPointerDownCapture={markHuman} style={{ display: "flex", flexDirection: "column", gap: 14, position: "relative" }}>
           {mode === "signup" && <Honeypot value={hp} onChange={setHp} />}
           <div>
             <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
@@ -184,7 +247,7 @@ function LoginForm() {
                 <input
                   className="auth-input"
                   type={showPassword ? "text" : "password"}
-                  placeholder={mode === "signup" ? "Create a password (min 6 chars)" : "Your password"}
+                  placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -197,13 +260,15 @@ function LoginForm() {
                   onClick={() => setShowPassword((v) => !v)}
                   style={{
                     position: "absolute",
-                    right: 12,
+                    right: 2,
                     top: "50%",
                     transform: "translateY(-50%)",
+                    width: 44,
+                    height: 44,
                     background: "none",
                     border: "none",
                     cursor: "pointer",
-                    color: "rgba(245,240,235,0.45)",
+                    color: "rgba(245,240,235,0.6)",
                     fontSize: 15,
                     padding: 0,
                     lineHeight: 1,
@@ -219,7 +284,7 @@ function LoginForm() {
           {mode === "signin" && (
             <div style={{ textAlign: "right", marginTop: -6 }}>
               <span
-                onClick={() => { setMode("forgot"); setError(null); setSuccess(null); }}
+                onClick={() => switchMode("forgot")}
                 style={{ fontSize: 12, color: G, cursor: "pointer", fontWeight: 500 }}
               >
                 Forgot password?
@@ -230,12 +295,26 @@ function LoginForm() {
           {error && (
             <div style={{ padding: "10px 14px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, fontSize: 13, color: "#FCA5A5" }}>
               {error}
+              {errorAction && (
+                <div style={{ marginTop: 8 }}>
+                  <button type="button" className="msg-action"
+                    onClick={() => errorAction === "resend" ? resendConfirmation() : switchMode(errorAction === "signin" ? "signin" : "forgot")}>
+                    {errorAction === "signin" ? "Sign in instead" : errorAction === "forgot" ? "Reset my password" : "Resend confirmation email"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
           {success && (
             <div style={{ padding: "10px 14px", background: "rgba(200,230,74,0.1)", border: "1px solid rgba(200,230,74,0.3)", borderRadius: 8, fontSize: 13, color: G }}>
               {success}
+              {mode === "signup" && !resent && !loading && /Check your email/.test(success) && (
+                <div style={{ marginTop: 8, color: "rgba(245,240,235,0.75)" }}>
+                  Not there in a minute? Check spam or Promotions, or{" "}
+                  <button type="button" className="msg-action" onClick={resendConfirmation}>resend it</button>.
+                </div>
+              )}
             </div>
           )}
 
@@ -244,12 +323,17 @@ function LoginForm() {
               ? (mode === "signup" ? "Creating account..." : mode === "signin" ? "Signing in..." : "Sending...")
               : (mode === "signup" ? "Create Account & Start Trial" : mode === "signin" ? "Sign In" : "Send Reset Link")}
           </button>
+          {mode === "signup" && !success && (
+            <p style={{ fontSize: 12, color: "rgba(245,240,235,0.65)", textAlign: "center", lineHeight: 1.5, marginTop: -2 }}>
+              Next: tap &ldquo;Start trial&rdquo; on a secure Stripe page (no card), then confirm your email.
+            </p>
+          )}
         </form>
 
         {mode === "forgot" && (
           <p style={{ marginTop: 18, fontSize: 13, color: "rgba(245,240,235,0.35)", textAlign: "center" }}>
             <span
-              onClick={() => { setMode("signin"); setError(null); setSuccess(null); }}
+              onClick={() => switchMode("signin")}
               style={{ color: G, cursor: "pointer", fontWeight: 500 }}
             >
               ← Back to sign in
@@ -258,8 +342,8 @@ function LoginForm() {
         )}
 
         {mode === "signup" && (
-          <p style={{ marginTop: 18, fontSize: 11, color: "rgba(245,240,235,0.25)", textAlign: "center", lineHeight: 1.5 }}>
-            By signing up you agree to our <a href="/terms" style={{ color: "rgba(245,240,235,0.45)" }}>Terms of Service</a> and <a href="/privacy" style={{ color: "rgba(245,240,235,0.45)" }}>Privacy Policy</a>.
+          <p style={{ marginTop: 18, fontSize: 11, color: "rgba(245,240,235,0.6)", textAlign: "center", lineHeight: 1.5 }}>
+            By signing up you agree to our <a href="/terms" style={{ color: "rgba(245,240,235,0.8)", textDecoration: "underline" }}>Terms of Service</a> and <a href="/privacy" style={{ color: "rgba(245,240,235,0.8)", textDecoration: "underline" }}>Privacy Policy</a>.
           </p>
         )}
       </div>
@@ -269,7 +353,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div
+    <main
       style={{
         fontFamily: "'DM Sans', sans-serif",
         background: "#132440",
@@ -316,6 +400,7 @@ export default function LoginPage() {
         }
         .auth-btn:hover { opacity: 0.9; }
         .auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .msg-action { background: none; border: none; padding: 0; color: ${G}; font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
         .tab {
           flex: 1;
           padding: 10px;
@@ -352,9 +437,9 @@ export default function LoginPage() {
         </Suspense>
       </div>
 
-      <a href="/" style={{ marginTop: 24, fontSize: 13, color: "rgba(245,240,235,0.35)", textDecoration: "none" }}>
+      <a href="/" style={{ marginTop: 24, fontSize: 13, color: "rgba(245,240,235,0.6)", textDecoration: "none" }}>
         ← Back to home
       </a>
-    </div>
+    </main>
   );
 }
