@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { saveLangChoice } from "../lib/es-lang";
 import { createClient } from "@supabase/supabase-js";
 import { captureFirstTouch, getFirstTouch } from "../lib/first-touch";
 import { useFounderOffer } from "../lib/use-founder-offer";
@@ -22,8 +23,13 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.letstaystacke
 const CONFIRM_REDIRECT = `${SITE_URL}/?firstrun=1`;
 
 type Mode = "signin" | "signup" | "forgot";
+type Lang = "en" | "es";
 
-function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "signup"; initialEmail: string }) {
+function LoginForm({ initialMode, initialEmail, lang, onEnglish }: { initialMode: "signin" | "signup"; initialEmail: string; lang: Lang; onEnglish: () => void }) {
+  // Spanish (yard-sign / Spanish browser, chosen on the homepage) covers the offer, labels, buttons and hints.
+  // Auth error messages stay in English (app/lib/auth-errors.ts).
+  const es = lang === "es";
+  const x = (en: string, sp: string) => (es ? sp : en);
   const founder = useFounderOffer();
   // The server (app/login/page.tsx) reads ?mode= and ?email=, so the right variant is in the first paint:
   // no empty card, no signup→signin flash.
@@ -57,14 +63,14 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
 
   const resendConfirmation = async () => {
     const addr = email.trim();
-    if (!addr) { setError("Enter your email above, then tap resend."); return; }
+    if (!addr) { setError(x("Enter your email above, then tap resend.", "Escriba su correo arriba y luego toque reenviar.")); return; }
     setLoading(true);
     try {
       const { error: rErr } = await supabase.auth.resend({ type: "signup", email: addr, options: { emailRedirectTo: CONFIRM_REDIRECT } });
       if (rErr) throw rErr;
       funnel("signup_resend");
       setError(null); setErrorAction(null); setResent(true);
-      setSuccess(`Sent again to ${addr}. It can take a minute. Check spam or Promotions too.`);
+      setSuccess(x(`Sent again to ${addr}. It can take a minute. Check spam or Promotions too.`, `Se envió de nuevo a ${addr}. Puede tardar un minuto. Revise también spam o Promociones.`));
     } catch (err) {
       const f = friendlyAuthError(err, "signup"); setError(f.message); setErrorAction(f.action === "resend" ? null : f.action);
     } finally { setLoading(false); }
@@ -82,7 +88,7 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
         if (hp.trim() && !human.current) {
           funnel("signup_honeypot");
           setResent(true); // no "resend" offer on the fake success
-          setSuccess(`Check your email to confirm your account. We sent a confirmation link to ${email.trim()}.`);
+          setSuccess(x(`Check your email to confirm your account. We sent a confirmation link to ${email.trim()}.`, `Revise su correo para confirmar su cuenta. Enviamos un enlace de confirmación a ${email.trim()}.`));
           return;
         }
         // Short signup: email + password only. Username is derived from the email
@@ -105,7 +111,7 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
         if (isExistingAccountSignup(signUpData)) {
           funnel("signup_existing_account");
           setMode("signin");
-          setError("You already have an account with this email. Sign in below, or tap \u201cForgot password?\u201d.");
+          setError(x("You already have an account with this email. Sign in below, or tap \u201cForgot password?\u201d.", "Ya tiene una cuenta con este correo. Inicie sesión abajo o toque \u201c¿Olvidó su contraseña?\u201d."));
           return;
         }
 
@@ -115,7 +121,7 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
         // No session = email confirmation required. Say so clearly before moving on to start the trial.
         const needsConfirm = !signUpData?.session;
         if (needsConfirm) {
-          setSuccess(`Check your email to confirm your account. We sent a confirmation link to ${cleanEmail}. Starting your free trial…`);
+          setSuccess(x(`Check your email to confirm your account. We sent a confirmation link to ${cleanEmail}. Starting your free trial…`, `Revise su correo para confirmar su cuenta. Enviamos un enlace de confirmación a ${cleanEmail}. Iniciando su prueba gratis…`));
         }
         const shownAt = Date.now();
         funnel("signup_created", { needs_confirm: needsConfirm });
@@ -152,15 +158,15 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
         } else {
           funnel("signup_checkout_error");
           setSuccess(needsConfirm
-            ? `Your account is created. Check your email (${cleanEmail}) and tap the confirmation link. You'll start your free trial from the app right after. Still no card.`
-            : "Your account is created. Open the app to start your free trial. Still no card.");
+            ? x(`Your account is created. Check your email (${cleanEmail}) and tap the confirmation link. You'll start your free trial from the app right after. Still no card.`, `Su cuenta está creada. Revise su correo (${cleanEmail}) y toque el enlace de confirmación. Después podrá empezar su prueba gratis desde la aplicación. Sigue sin tarjeta.`)
+            : x("Your account is created. Open the app to start your free trial. Still no card.", "Su cuenta está creada. Abra la aplicación para empezar su prueba gratis. Sigue sin tarjeta."));
         }
       } else if (mode === "forgot") {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin + "/reset-password",
         });
         if (resetError) throw resetError;
-        setSuccess("Password reset email sent! Check your inbox.");
+        setSuccess(x("Password reset email sent! Check your inbox.", "¡Listo! Le enviamos un correo para restablecer su contraseña. Revise su bandeja de entrada."));
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) throw signInError;
@@ -189,7 +195,7 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
               borderBottomColor: mode === "signup" ? G : "transparent",
             }}
           >
-            Sign Up
+            {x("Sign Up", "Crear cuenta")}
           </button>
           <button
             className="tab"
@@ -199,27 +205,28 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
               borderBottomColor: mode === "signin" ? G : "transparent",
             }}
           >
-            Sign In
+            {x("Sign In", "Iniciar sesión")}
           </button>
         </div>
       )}
 
       <div style={{ padding: "28px 28px 32px" }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>
-          {mode === "signup" ? "Start your free trial" : mode === "signin" ? "Welcome back" : "Reset your password"}
+          {mode === "signup" ? x("Start your free trial", "Empiece su prueba gratis") : mode === "signin" ? x("Welcome back", "Bienvenido de nuevo") : x("Reset your password", "Restablecer su contraseña")}
         </h1>
         {mode === "signup" ? (
           <div data-testid="signup-offer" style={{ margin: "10px 0 22px", padding: "12px 14px", background: "rgba(200,230,74,0.10)", border: "1px solid rgba(200,230,74,0.4)", borderRadius: 10 }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: G, lineHeight: 1.3 }}>
-              {founder.active && founder.headline ? founder.headline : `${trialDays(founder)} days free \u00b7 No credit card`}
+              {!es && founder.active && founder.headline ? founder.headline : x(`${trialDays(founder)} days free \u00b7 No credit card`, `${trialDays(founder)} días gratis \u00b7 Sin tarjeta de crédito`)}
             </div>
             <div style={{ fontSize: 13, color: "rgba(245,240,235,0.85)", marginTop: 4, lineHeight: 1.5 }}>
-              {founder.active && founder.sub ? founder.sub : `Then ${LIST_PRICE}/mo only if you add a card. If you don't, the trial just ends. Nothing to cancel.`}
+              {!es && founder.active && founder.sub ? founder.sub : x(`Then ${LIST_PRICE}/mo only if you add a card. If you don't, the trial just ends. Nothing to cancel.`, `Después ${LIST_PRICE}/mes solo si agrega una tarjeta. Si no, la prueba simplemente termina. No hay nada que cancelar.`)}
             </div>
+            {es && <div style={{ fontSize: 12, color: "rgba(245,240,235,0.7)", marginTop: 6 }}>La aplicación está en inglés por ahora.</div>}
           </div>
         ) : (
           <p style={{ fontSize: 13, color: "rgba(245,240,235,0.7)", marginBottom: 24 }}>
-            {mode === "signin" ? "Sign in to access your StackedWork dashboard." : "Enter your email and we'll send you a reset link."}
+            {mode === "signin" ? x("Sign in to access your StackedWork dashboard.", "Inicie sesión para entrar a su panel de StackedWork.") : x("Enter your email and we'll send you a reset link.", "Escriba su correo y le enviaremos un enlace para restablecer su contraseña.")}
           </p>
         )}
 
@@ -229,12 +236,12 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
           {mode === "signup" && <Honeypot value={hp} onChange={setHp} />}
           <div>
             <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
-              Email
+              {x("Email", "Correo electrónico")}
             </label>
             <input
               className="auth-input"
               type="email"
-              placeholder="you@example.com"
+              placeholder={x("you@example.com", "usted@ejemplo.com")}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -245,13 +252,13 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
           {mode !== "forgot" && (
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "rgba(245,240,235,0.7)", marginBottom: 6 }}>
-                Password
+                {x("Password", "Contraseña")}
               </label>
               <div style={{ position: "relative" }}>
                 <input
                   className="auth-input"
                   type={showPassword ? "text" : "password"}
-                  placeholder={mode === "signup" ? "At least 6 characters" : "Your password"}
+                  placeholder={mode === "signup" ? x("At least 6 characters", "Mínimo 6 caracteres") : x("Your password", "Su contraseña")}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -277,7 +284,7 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
                     padding: 0,
                     lineHeight: 1,
                   }}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  aria-label={showPassword ? x("Hide password", "Ocultar contraseña") : x("Show password", "Mostrar contraseña")}
                 >
                   {showPassword ? "🙈" : "👁"}
                 </button>
@@ -291,7 +298,7 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
                 onClick={() => switchMode("forgot")}
                 style={{ fontSize: 12, color: G, cursor: "pointer", fontWeight: 500 }}
               >
-                Forgot password?
+                {x("Forgot password?", "¿Olvidó su contraseña?")}
               </span>
             </div>
           )}
@@ -303,7 +310,7 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
                 <div style={{ marginTop: 8 }}>
                   <button type="button" className="msg-action"
                     onClick={() => errorAction === "resend" ? resendConfirmation() : switchMode(errorAction === "signin" ? "signin" : "forgot")}>
-                    {errorAction === "signin" ? "Sign in instead" : errorAction === "forgot" ? "Reset my password" : "Resend confirmation email"}
+                    {errorAction === "signin" ? x("Sign in instead", "Iniciar sesión") : errorAction === "forgot" ? x("Reset my password", "Restablecer mi contraseña") : x("Resend confirmation email", "Reenviar correo de confirmación")}
                   </button>
                 </div>
               )}
@@ -313,10 +320,10 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
           {success && (
             <div style={{ padding: "10px 14px", background: "rgba(200,230,74,0.1)", border: "1px solid rgba(200,230,74,0.3)", borderRadius: 8, fontSize: 13, color: G }}>
               {success}
-              {mode === "signup" && !resent && !loading && /Check your email/.test(success) && (
+              {mode === "signup" && !resent && !loading && /Check your email|Revise su correo/.test(success) && (
                 <div style={{ marginTop: 8, color: "rgba(245,240,235,0.75)" }}>
-                  Not there in a minute? Check spam or Promotions, or{" "}
-                  <button type="button" className="msg-action" onClick={resendConfirmation}>resend it</button>.
+                  {x("Not there in a minute? Check spam or Promotions, or", "¿No llega en un minuto? Revise spam o Promociones, o")}{" "}
+                  <button type="button" className="msg-action" onClick={resendConfirmation}>{x("resend it", "reenvíelo")}</button>.
                 </div>
               )}
             </div>
@@ -324,12 +331,14 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
 
           <button className="auth-btn" type="submit" disabled={loading || !ready} style={{ marginTop: 4 }}>
             {loading
-              ? (mode === "signup" ? "Creating account..." : mode === "signin" ? "Signing in..." : "Sending...")
-              : (mode === "signup" ? "Create Account & Start Trial" : mode === "signin" ? "Sign In" : "Send Reset Link")}
+              ? (mode === "signup" ? x("Creating account...", "Creando cuenta...") : mode === "signin" ? x("Signing in...", "Iniciando sesión...") : x("Sending...", "Enviando..."))
+              : (mode === "signup" ? x("Create Account & Start Trial", "Crear cuenta y empezar prueba") : mode === "signin" ? x("Sign In", "Iniciar sesión") : x("Send Reset Link", "Enviar enlace"))}
           </button>
           {mode === "signup" && !success && (
             <p style={{ fontSize: 12, color: "rgba(245,240,235,0.65)", textAlign: "center", lineHeight: 1.5, marginTop: -2 }}>
-              Next: tap &ldquo;Start trial&rdquo; on a secure Stripe page (no card), then confirm your email.
+              {es
+                ? <>Siguiente: en una página segura de Stripe, toque &ldquo;Start trial&rdquo; (sin tarjeta) y luego confirme su correo.</>
+                : <>Next: tap &ldquo;Start trial&rdquo; on a secure Stripe page (no card), then confirm your email.</>}
             </p>
           )}
         </form>
@@ -340,14 +349,22 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
               onClick={() => switchMode("signin")}
               style={{ color: G, cursor: "pointer", fontWeight: 500 }}
             >
-              ← Back to sign in
+              {x("← Back to sign in", "← Volver a iniciar sesión")}
             </span>
           </p>
         )}
 
         {mode === "signup" && (
           <p style={{ marginTop: 18, fontSize: 11, color: "rgba(245,240,235,0.6)", textAlign: "center", lineHeight: 1.5 }}>
-            By signing up you agree to our <a href="/terms" style={{ color: "rgba(245,240,235,0.8)", textDecoration: "underline" }}>Terms of Service</a> and <a href="/privacy" style={{ color: "rgba(245,240,235,0.8)", textDecoration: "underline" }}>Privacy Policy</a>.
+            {x("By signing up you agree to our", "Al registrarse acepta nuestros")} <a href="/terms" style={{ color: "rgba(245,240,235,0.8)", textDecoration: "underline" }}>{x("Terms of Service", "Términos del servicio")}</a> {x("and", "y")} <a href="/privacy" style={{ color: "rgba(245,240,235,0.8)", textDecoration: "underline" }}>{x("Privacy Policy", "Política de privacidad")}</a>.
+          </p>
+        )}
+
+        {es && (
+          <p style={{ marginTop: 10, textAlign: "center" }}>
+            <button type="button" lang="en" data-testid="es-dismiss" onClick={onEnglish} className="msg-action" style={{ fontSize: 12, color: "rgba(245,240,235,0.75)", fontWeight: 500, padding: "8px 10px" }}>
+              View in English
+            </button>
           </p>
         )}
       </div>
@@ -355,9 +372,12 @@ function LoginForm({ initialMode, initialEmail }: { initialMode: "signin" | "sig
   );
 }
 
-export default function LoginView({ initialMode, initialEmail }: { initialMode: "signin" | "signup"; initialEmail: string }) {
+export default function LoginView({ initialMode, initialEmail, initialLang = "en" }: { initialMode: "signin" | "signup"; initialEmail: string; initialLang?: Lang }) {
+  // initialLang comes from the sw_lang session cookie (set on the homepage), read on the server: no flash.
+  const [lang, setLang] = useState<Lang>(initialLang);
   return (
     <main
+      lang={lang}
       style={{
         fontFamily: "'DM Sans', sans-serif",
         background: "#132440",
@@ -436,11 +456,11 @@ export default function LoginView({ initialMode, initialEmail }: { initialMode: 
           overflow: "hidden",
         }}
       >
-        <LoginForm initialMode={initialMode} initialEmail={initialEmail} />
+        <LoginForm initialMode={initialMode} initialEmail={initialEmail} lang={lang} onEnglish={() => { saveLangChoice("en"); setLang("en"); }} />
       </div>
 
       <a href="/" style={{ marginTop: 24, fontSize: 13, color: "rgba(245,240,235,0.6)", textDecoration: "none" }}>
-        ← Back to home
+        {lang === "es" ? "← Volver al inicio" : "← Back to home"}
       </a>
     </main>
   );
