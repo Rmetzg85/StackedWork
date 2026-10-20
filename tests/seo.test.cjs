@@ -88,3 +88,10 @@ test("sitemap, robots and footer lists", () => {
   assert.match(t, /^# StackedWork/); assert.ok(t.includes(LIST_PRICE) && t.includes(`${TRIAL_DAYS}-day`)); assert.match(t, /Does NOT collect payments/);
   for (const r of RESOURCE_PAGES) assert.ok(t.includes(SITE_URL + r.path));
 });
+
+test("homepage copy is region-neutral (no Maryland/MD/Baltimore/Nottingham/Owings Mills)", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "app", "HomeClient.tsx"), "utf8");
+  // String literals and JSX text only (identifiers like setProfileArea don't matter).
+  const copy = (src.match(/"(?:[^"\\\n]|\\.)*"|`[^`]*`|>[^<>{}\n]+</g) || []).join("\n");
+  assert.doesNotMatch(copy, /maryland|\bMD\b|baltimore|nottingham|owings mills/i);
+});

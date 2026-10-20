@@ -1472,7 +1472,7 @@ export default function StackedWork() {
                   </div>
                 </div>
                 <div style={{marginBottom:14}}><div style={{fontWeight:600,fontSize:12,color:"#374151",marginBottom:8}}>Job Type</div><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>{[["🚿 Bath","bathroom"],["🍳 Kitchen","kitchen"],["🎨 Paint","paint"],["🏡 Exterior","exterior"],["🪵 Deck","deck"],["🔧 Other","other"]].map(([lb,k],i)=><div key={i} onClick={()=>setPhJobType(k)} style={{padding:"8px 4px",textAlign:"center",border:phJobType===k?`2px solid ${G}`:"1px solid #E2E8F0",borderRadius:8,fontSize:11,fontWeight:500,color:phJobType===k?"#132440":"#475569",background:phJobType===k?"rgba(200,230,74,0.1)":"#fff",cursor:"pointer"}}>{lb}</div>)}</div></div>
-                <div style={{marginBottom:16}}><div style={{fontWeight:600,fontSize:12,color:"#374151",marginBottom:6}}>Caption (optional)</div><input value={phCaption} onChange={e=>setPhCaption(e.target.value)} placeholder="Bathroom gut remodel — Owings Mills, MD" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+                <div style={{marginBottom:16}}><div style={{fontWeight:600,fontSize:12,color:"#374151",marginBottom:6}}>Caption (optional)</div><input value={phCaption} onChange={e=>setPhCaption(e.target.value)} placeholder="Bathroom gut remodel — before & after" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
                 {phErr&&<div style={{marginBottom:12,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:12,color:"#991B1B"}}>{phErr}</div>}
                 <div style={{display:"flex",gap:10}}>
                   <Btn onClick={handlePhotoUpload} style={{flex:1,padding:13,fontSize:14,opacity:(phBeforeFile&&phAfterFile&&!phUploading)?1:0.5,cursor:(phBeforeFile&&phAfterFile&&!phUploading)?"pointer":"not-allowed"}}>{phUploading?"Uploading...":"Save Photos"}</Btn>
@@ -1975,7 +1975,7 @@ export default function StackedWork() {
                     </div>
                     <div>
                       <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Service area / zip</label>
-                      <input value={profileArea} onChange={e=>setProfileArea(e.target.value)} placeholder="e.g. Baltimore · 21201" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                      <input value={profileArea} onChange={e=>setProfileArea(e.target.value)} placeholder="e.g. your city · ZIP code" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
                     </div>
                     <div>
                       <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Phone</label>
@@ -2187,12 +2187,12 @@ export default function StackedWork() {
       {s:"03",t:"Start closing jobs",d:"CRM. Photo portfolio. Revenue tracking. Follow-up reminders. All live."},
     ],
     aiFeatures: es ? [
-      {icon:"💰",title:"Ayuda con Precios",desc:"\"¿Cuánto cobrar por un baño completo en Maryland?\" — solo pregunta."},
+      {icon:"💰",title:"Ayuda con Precios",desc:"\"¿Cuánto cobrar por remodelar dos baños completos?\" — solo pregunta."},
       {icon:"📞",title:"Guiones de Seguimiento",desc:"Guiones palabra por palabra para volver a conectar con leads que se enfriaron."},
       {icon:"📈",title:"Consejos de Negocios",desc:"Tips de rentabilidad, cuándo contratar, cómo crecer — a pedido."},
       {icon:"🏡",title:"Asistente para Propietarios",desc:"Respuestas claras sobre alcance, tiempos y siguientes pasos — incluido en tu plan."},
     ] : [
-      {icon:"💰",title:"Job Pricing Help",desc:"\"What should I charge for a 2-bathroom gut job in Maryland?\" — just ask."},
+      {icon:"💰",title:"Job Pricing Help",desc:"\"What should I charge for a 2-bathroom gut job?\" — just ask."},
       {icon:"📞",title:"Follow-Up Scripts",desc:"Get word-for-word scripts to re-engage leads that went cold."},
       {icon:"📈",title:"Business Advice",desc:"Profitability tips, when to hire, how to grow — on demand."},
       {icon:"🏡",title:"Homeowner Assistant",desc:"Give homeowners clear answers on scope, timing, and next steps — built into your plan."},
