@@ -1,0 +1,2462 @@
+"use client";
+import { useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
+import ChatWidget from "./components/ChatWidget";
+import HeroDemoVideo from "./components/HeroDemoVideo";
+import EsWelcome from "./components/EsWelcome";
+import { RESOURCE_PAGES } from "./lib/site";
+import InvoicesPanel from "./components/InvoicesPanel";
+import { formatInvoiceNumber } from "./lib/invoices";
+import { captureFirstTouch } from "./lib/first-touch";
+import { useFounderOffer } from "./lib/use-founder-offer";
+import { trialDays, founderBadge, LIST_PRICE } from "./lib/offer";
+import { isInAppBrowser, voiceMessage } from "./lib/browser-env";
+import { parseVoiceToJobLocal, JOB_TYPES } from "./lib/parse-job-local";
+import { todayNY, daysAgoNY, toDateKeyNY, fmtDateNY, yearNY, APP_TZ, fmtWhenNY } from "./lib/dates";
+import { unitOptions } from "./lib/units";
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Read the landing URL BEFORE the Supabase client initialises (it strips the #access_token hash).
+// /?firstrun=1 is the email-confirmation redirect target, so this works on any device, not just the
+// one that signed up (localStorage sw_firstrun is only a same-device fallback).
+const LANDING = typeof window !== "undefined" ? { search: window.location.search, hash: window.location.hash } : { search: "", hash: "" };
+const LANDING_FIRSTRUN = new URLSearchParams(LANDING.search).get("firstrun") === "1" || /(^|[#&])type=signup(&|$)/.test(LANDING.hash);
+const LANDING_AUTH_ERROR = (() => {
+  const h = new URLSearchParams(LANDING.hash.replace(/^#/, ""));
+  const q = new URLSearchParams(LANDING.search);
+  return h.get("error_description") || q.get("error_description") || null;
+})();
+// Implicit flow (supabase-js default, made explicit): the confirmation link carries the session in the URL hash,
+// so it signs the user in even on a different device/browser than the one used to sign up (PKCE would not).
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { flowType: "implicit", detectSessionInUrl: true, persistSession: true, autoRefreshToken: true },
+});
+let landingFirstRunConsumed = false;
+// AI routes (/api/chat, /api/scan-receipt, /api/estimate-ai-price, /api/parse-job) require the Supabase access token.
+async function authJsonHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) };
+}
+async function getAccessToken(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
+}
+const G = "#C8E64A";
+const GD = "#A8C435";
+// Paste your Replicate-generated ad video URL here:
+const AD_VIDEO_URL = "";
+const AD_IMAGE_URL = "";
+const FEATURES = [
+  { icon: "🏗️", title: "AI-Powered CRM", desc: "Track every job, client, and dollar. Voice-to-job entry means you log work from the truck, not a desk.", link: "dashboard" },
+  { icon: "🤖", title: "AI Business Assistant", desc: "Ask your AI anything — pricing guidance, follow-up tips, business advice. Built right into your dashboard.", link: "dashboard" },
+  { icon: "🌐", title: "AI Website Service", desc: "Need a website built or updated? We offer AI-powered website services for contractors — inquire for pricing.", link: "https://REMVentures.Tech" },
+  { icon: "📸", title: "Before & After Portfolio", desc: "Upload job photos, build your portfolio, and push before & after shots straight to Facebook, Instagram, and TikTok.", link: "photos" },
+  { icon: "📊", title: "Revenue Dashboard", desc: "See what you've earned this week, this month, this year. Know which jobs are profitable and which aren't.", link: "dashboard" },
+  { icon: "📲", title: "Lead Management", desc: "Track every lead, follow up on time, and never let a job slip through the cracks.", link: "leads" },
+  { icon: "💬", title: "Text Us To Update Anything", desc: "Need your phone number changed on your site? New photo? Just text us. We handle it.", link: "sms:+14105306456" },
+];
+const COMPARISONS = [
+  { item: "Monthly base price", them: "$398–$600+/mo", us: "$49.99/mo" },
+  { item: "Setup & onboarding fee", them: "$1,000–$5,000", us: "Free" },
+  { item: "AI business assistant", them: "Not included", us: "Included" },
+  { item: "Before & after photo portfolio", them: "Not included", us: "Included" },
+  { item: "Social media sharing", them: "Not included", us: "Included" },
+  { item: "Ready to use", them: "Weeks of training", us: "5 minutes" },
+  { item: "Total first year cost", them: "$6,000–$12,000+", us: "$599/yr" },
+];
+const JOBS = [ { id:1, customer:"John Smith", phone:"(410) 555-0122", type:"Plumbing", value:450, status:"quoted", date:"2026-02-20", completed:null }, { id:2, customer:"Sarah Johnson", phone:"(410) 555-0188", type:"Drywall", value:1200, status:"scheduled", date:"2026-02-25", completed:null }, { id:3, customer:"Mike Davis", phone:"(443) 555-0301", type:"Electrical", value:650, status:"in-progress", date:"2026-02-18", completed:null }, { id:4, customer:"Lisa Brown", phone:"(410) 555-0445", type:"General", value:300, status:"complete", date:"2026-02-10", completed:"2026-02-14" }, { id:5, customer:"Tom Wilson", phone:"(443) 555-0567", type:"Plumbing", value:890, status:"complete", date:"2026-02-08", completed:"2026-02-12" }, { id:6, customer:"Emma Davis", phone:"(410) 555-0678", type:"Painting", value:1250, status:"complete", date:"2026-02-05", completed:"2026-02-09" }, { id:7, customer:"Robert Garcia", phone:"(443) 555-0789", type:"HVAC", value:2100, status:"complete", date:"2026-01-28", completed:"2026-02-02" }, { id:8, customer:"Angela White", phone:"(410) 555-0890", type:"Roofing", value:3500, status:"complete", date:"2026-01-20", completed:"2026-01-26" }, ];
+const LEADS = [ { id:1, name:"Chris Mitchell", phone:"(410) 555-2211", email:"chris.m@gmail.com", msg:"Need a quote for bathroom remodel - 2 bath, gut job. Available weekends.", time:"2 hours ago", ts:"2h", urgent:false }, { id:2, name:"Tanya Washington", phone:"(443) 555-3344", email:"tanya.w@yahoo.com", msg:"Do you do commercial HVAC? We have a 3-unit strip mall that needs service.", time:"1 day ago", ts:"1d", urgent:false }, { id:3, name:"Derek Johnson", phone:"(410) 555-9087", email:"djohnson88@gmail.com", msg:"Emergency pipe burst in basement - need help ASAP. Water everywhere.", time:"3 days ago", ts:"3d", urgent:true }, { id:4, name:"Maria Santos", phone:"(443) 555-6712", email:"maria.santos@outlook.com", msg:"Looking for someone to finish my deck before summer. About 400 sq ft.", time:"5 days ago", ts:"5d", urgent:false }, ];
+const FOLLOW_UPS = [ { customer:"Diana Ross", lastJob:"Kitchen remodel - $4,200", months:4 }, { customer:"James Carter", lastJob:"Bathroom plumbing - $1,100", months:5 }, { customer:"Patricia Neal", lastJob:"Deck repair - $2,800", months:6 }, ];
+const STC: Record<string, {bg:string;text:string;label:string}> = { quoted:{ bg:"#FEF3C7", text:"#92400E", label:"Quoted" }, scheduled:{ bg:"#DBEAFE", text:"#1E40AF", label:"Scheduled" }, "in-progress":{ bg:"#E0E7FF", text:"#3730A3", label:"In Progress" }, complete:{ bg:"#D1FAE5", text:"#065F46", label:"Complete" }, };
+const Badge = ({ s }: {s:string}) => <span style={{ display:"inline-block", padding:"4px 10px", borderRadius:100, fontSize:11, fontWeight:600, background:STC[s].bg, color:STC[s].text }}>{STC[s].label}</span>;
+const Btn = ({ children, onClick, style, ...rest }: any) => <button onClick={onClick} style={{ padding:"8px 18px", background:G, color:"#132440", border:"none", borderRadius:8, fontSize:13, fontWeight:700, cursor:rest.disabled?"not-allowed":"pointer", fontFamily:"'DM Sans'", opacity:rest.disabled?0.7:1, ...style }} {...rest}>{children}</button>;
+const BtnO = ({ children, onClick, style, ...rest }: any) => <button onClick={onClick} style={{ padding:"8px 18px", background:"#fff", color:"#64748B", border:"1px solid #E2E8F0", borderRadius:8, fontSize:13, fontWeight:500, cursor:rest.disabled?"not-allowed":"pointer", fontFamily:"'DM Sans'", opacity:rest.disabled?0.7:1, ...style }} {...rest}>{children}</button>;
+const Card = ({ children, style }: any) => <div style={{ background:"#fff", border:"1px solid #E2E8F0", borderRadius:12, ...style }}>{children}</div>;
+const Divider = () => <div style={{ height:1, background:"linear-gradient(90deg,transparent,rgba(200,230,74,0.25),transparent)", margin:"0 auto", maxWidth:600 }} />;
+export default function StackedWork() {
+  // Founder offer (staged): off until the server has STRIPE_FOUNDER_COUPON_ID and live spots remain; then the founder trial, else TRIAL_DAYS (30).
+  const founder = useFounderOffer();
+  const TD = trialDays(founder);
+  const [page, setPage] = useState("landing");
+  const [authMode, setAuthMode] = useState<"login"|"signup"|"forgot"|null>(null);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authError, setAuthError] = useState<string|null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authSuccess, setAuthSuccess] = useState<string|null>(null);
+  const [scrollY, setScrollY] = useState(0);
+  const [af, setAf] = useState(0);
+  const lang = "en" as const; // homepage lock: English only
+  const [vw, setVw] = useState("dashboard");
+  const [jf, setJf] = useState("all");
+  const [ntf, setNtf] = useState(false);
+  const [sms, setSms] = useState(false);
+  const [spv, setSpv] = useState(false);
+  const [tst, setTst] = useState<any>(null);
+  const [td, setTd] = useState(false);
+  const [userId, setUserId] = useState<string|null>(null);
+  const [userEmail, setUserEmail] = useState<string|null>(null);
+  const [subStatus, setSubStatus] = useState<string|null>(null);
+  const [stripeCustomerId, setStripeCustomerId] = useState<string|null>(null);
+  const [subDetail, setSubDetail] = useState<{plan?:string|null;current_period_end?:string|null;trial_end?:string|null;cancel_at?:string|null;cancelled_at?:string|null}|null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileTrade, setProfileTrade] = useState("");
+  const [profileArea, setProfileArea] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMsg, setProfileMsg] = useState<string|null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwError, setPwError] = useState<string|null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [dbLeads, setDbLeads] = useState<any[]>([]);
+  const [dbJobs, setDbJobs] = useState<any[]>([]);
+  const [dbHomeownerLeads, setDbHomeownerLeads] = useState<any[]>([]);
+  const [newJobOpen, setNewJobOpen] = useState(false);
+  const [deletingJobId, setDeletingJobId] = useState<string|null>(null);
+  // Demo (logged-out) actions that need an account open this prompt instead of doing nothing.
+  const [demoGate, setDemoGate] = useState<string|null>(null);
+  const needAccount = (what: string) => setDemoGate(what);
+  const [njCustomer, setNjCustomer] = useState("");
+  const [njPhone, setNjPhone] = useState("");
+  const [njType, setNjType] = useState("General");
+  const [njValue, setNjValue] = useState("");
+  const [njStatus, setNjStatus] = useState("quoted");
+  const [njDate, setNjDate] = useState(todayNY());
+  const [njNotes, setNjNotes] = useState("");
+  const [njHours, setNjHours] = useState("");
+  const [njMaterialCost, setNjMaterialCost] = useState("");
+  const [njLoading, setNjLoading] = useState(false);
+  const [njError, setNjError] = useState<string|null>(null);
+  const [dbPhotos, setDbPhotos] = useState<any[]>([]);
+  const [photoView, setPhotoView] = useState<"gallery"|"upload">("gallery");
+  const [phBefore, setPhBefore] = useState<string|null>(null);
+  const [phAfter, setPhAfter] = useState<string|null>(null);
+  const [phBeforeFile, setPhBeforeFile] = useState<File|null>(null);
+  const [phAfterFile, setPhAfterFile] = useState<File|null>(null);
+  const [phCaption, setPhCaption] = useState("");
+  const [phJobType, setPhJobType] = useState("other");
+  const [phUploading, setPhUploading] = useState(false);
+  const [phErr, setPhErr] = useState<string|null>(null);
+  const [sharePhoto, setSharePhoto] = useState<any|null>(null);
+  const beforeRef = useRef<HTMLInputElement>(null);
+  const afterRef = useRef<HTMLInputElement>(null);
+  const rcFileRef = useRef<HTMLInputElement>(null);
+  const [dbReceipts, setDbReceipts] = useState<any[]>([]);
+  const [rcView, setRcView] = useState<"list"|"upload">("list");
+  const [rcFile, setRcFile] = useState<File|null>(null);
+  const [rcPreview, setRcPreview] = useState<string|null>(null);
+  const [rcAmount, setRcAmount] = useState("");
+  const [rcCategory, setRcCategory] = useState("Materials");
+  const [rcDate, setRcDate] = useState(todayNY());
+  const [rcDesc, setRcDesc] = useState("");
+  const [rcUploading, setRcUploading] = useState(false);
+  const [rcErr, setRcErr] = useState<string|null>(null);
+  const [rcScanning, setRcScanning] = useState(false);
+  const [rcFilter, setRcFilter] = useState("all");
+  const [dbEstimates, setDbEstimates] = useState<any[]>([]);
+  // Invoices v1: shown as a section of the Estimates tab.
+  const [dbInvoices, setDbInvoices] = useState<any[]>([]);
+  const [invoicesUnavailable, setInvoicesUnavailable] = useState(false);
+  const [estSection, setEstSection] = useState<"estimates"|"invoices">("estimates");
+  const [invFromEstimate, setInvFromEstimate] = useState<any|null>(null);
+  const [openInvoiceId, setOpenInvoiceId] = useState<string|null>(null);
+  const [newEstimateOpen, setNewEstimateOpen] = useState(false);
+  const [neStep, setNeStep] = useState<1|2>(1);
+  const [neCustomer, setNeCustomer] = useState("");
+  const [neEmail, setNeEmail] = useState("");
+  const [nePhone, setNePhone] = useState("");
+  const [neJobType, setNeJobType] = useState("General");
+  const [neDesc, setNeDesc] = useState("");
+  const [neValidUntil, setNeValidUntil] = useState("");
+  const [neNotes, setNeNotes] = useState("");
+  const [neTaxRate, setNeTaxRate] = useState("0");
+  const [neLineItems, setNeLineItems] = useState<any[]>([{ id: 1, description: "", quantity: 1, unit: "hours", unit_price: 0, total: 0 }]);
+  const [neLoading, setNeLoading] = useState(false);
+  const [neError, setNeError] = useState<string|null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [estimateDetail, setEstimateDetail] = useState<any|null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [editingEstimate, setEditingEstimate] = useState(false);
+  const [editLineItems, setEditLineItems] = useState<any[]>([]);
+  const [editNotes, setEditNotes] = useState("");
+  const [editTaxRate, setEditTaxRate] = useState("0");
+  const [editCustomer, setEditCustomer] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editJobType, setEditJobType] = useState("General");
+  const [editValidUntil, setEditValidUntil] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string|null>(null);
+  const [voiceListening, setVoiceListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [firstRun, setFirstRun] = useState(false);
+  const [typedJob, setTypedJob] = useState("");
+  const [voiceError, setVoiceError] = useState<string|null>(null);
+  const [voiceParsing, setVoiceParsing] = useState(false);
+  const [parsedReview, setParsedReview] = useState<null|{customer_name:string|null;address:string|null;phone:string|null;service:string|null;scheduled_at:string|null;price:number|null;status:string;source:"ai"|"basic"}>(null);
+  const [njAddress, setNjAddress] = useState("");
+  const [njTime, setNjTime] = useState("");
+  const voiceBtnRef = useRef<HTMLButtonElement>(null);
+  const typedRef = useRef<HTMLInputElement>(null);
+  const focusTyped = () => setTimeout(() => typedRef.current?.focus(), 0);
+  // Every voice failure shows a message and puts the cursor in the typed box.
+  const voiceFail = (msg: string) => { setVoiceError(msg); focusTyped(); };
+  const recRef = useRef<any>(null);
+  const [toasts, setToasts] = useState<{id:number;msg:string;kind:"error"|"success"|"info"}[]>([]);
+  const showToast = (msg: string, kind: "error"|"success"|"info" = "error") => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev.slice(-3), { id, msg, kind }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), kind === "error" ? 8000 : 4000);
+  };
+  const toastErr = (what: string, err: any) => showToast(`${what}: ${err?.message || "please try again."}`, "error");
+  const endFirstRun = () => {
+    setFirstRun(false);
+    try { window.localStorage.removeItem("sw_firstrun"); } catch { /* ignore */ }
+    // Remember across devices so the first-run screen doesn't reappear elsewhere.
+    supabase.auth.updateUser({ data: { first_run_done: true } }).catch(() => {});
+  };
+  // Map a free-text service ("water heater swap") onto one of the Job Type options.
+  const serviceToJobType = (service: string|null|undefined): string|null => {
+    if (!service) return null;
+    const jt = parseVoiceToJobLocal(service).jobType;
+    return JOB_TYPES.includes(jt) ? jt : null;
+  };
+
+  const applyParsedJob = async (text: string) => {
+    const transcript = text.trim();
+    if (!transcript) return;
+    setVoiceError(null);
+    setVoiceParsing(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw Object.assign(new Error("Please sign in again to use voice entry."), { fallback: true });
+      const res = await fetch("/api/parse-job", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ transcript }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.job) throw Object.assign(new Error(data?.error || "AI parsing failed."), { fallback: true });
+      const j = data.job;
+      if (j.customer_name) setNjCustomer(j.customer_name);
+      if (j.phone) setNjPhone(j.phone);
+      if (j.address) setNjAddress(j.address);
+      const jt = JOB_TYPES.includes(j.job_type) && j.job_type !== "General" ? j.job_type : serviceToJobType(j.service);
+      if (jt) setNjType(jt);
+      if (j.service) setNjNotes(prev => prev.trim() ? prev : j.service);
+      if (typeof j.price === "number") setNjValue(String(j.price));
+      if (j.status) setNjStatus(j.status);
+      if (j.scheduled_at) {
+        const [d, tm] = String(j.scheduled_at).split("T");
+        if (d) setNjDate(d);
+        setNjTime(tm || "");
+      }
+      setParsedReview({ ...j, source: "ai" });
+    } catch (err: any) {
+      // Typed fallback: basic on-device parsing so the user is never stuck.
+      const p = parseVoiceToJobLocal(transcript);
+      if (p.name) setNjCustomer(p.name);
+      if (p.phone) setNjPhone(p.phone);
+      if (p.address) setNjAddress(p.address);
+      if (p.value) setNjValue(p.value);
+      if (p.jobType) setNjType(p.jobType);
+      if (p.status) setNjStatus(p.status);
+      if (p.date) setNjDate(p.date);
+      setNjTime(p.time || "");
+      if (p.service) setNjNotes(prev => prev.trim() ? prev : p.service);
+      setParsedReview({ customer_name: p.name || null, address: p.address || null, phone: p.phone || null, service: p.service || p.jobType, scheduled_at: p.date ? (p.time ? `${p.date}T${p.time}` : p.date) : null, price: p.value ? Number(p.value) : null, status: p.status, source: "basic" });
+      setVoiceError(`${err?.message || "AI parsing failed."} We filled in what we could. Please check every field.`);
+    } finally {
+      setVoiceParsing(false);
+    }
+  };
+
+  // Stop listening but keep whatever was heard (onend will parse it).
+  const stopVoiceEntry = () => {
+    try { recRef.current?.stop(); } catch { /* ignore */ }
+  };
+  // Hard stop with no parsing (modal closed / component unmounted).
+  const abortVoiceEntry = () => {
+    const rec = recRef.current;
+    recRef.current = null;
+    if (rec) {
+      rec.onresult = null; rec.onerror = null; rec.onend = null;
+      try { rec.abort(); } catch { /* ignore */ }
+    }
+    setVoiceListening(false);
+  };
+
+  const startVoiceEntry = () => {
+    setVoiceError(null);
+    if (recRef.current) { stopVoiceEntry(); return; }
+    // Instagram/Facebook in-app browsers (FBAN, FBAV, FB_IAB, FB4A, Instagram, "; wv)"): don't start recognition.
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (isInAppBrowser(navigator.userAgent)) { voiceFail(voiceMessage(null, navigator.userAgent)); return; }
+    if (!SR) { voiceFail(voiceMessage("no-sr", navigator.userAgent)); return; }
+    const rec = new SR();
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.lang = "en-US";
+    let heard = "";
+    let failed = false;
+    rec.onresult = (e: any) => {
+      heard = Array.from(e.results).map((r: any) => r[0].transcript).join("");
+      setVoiceTranscript(heard);
+    };
+    rec.onerror = (e: any) => {
+      failed = true;
+      const code = e?.error;
+      if (code === "aborted") return;
+      // Specific text per error in real browsers (iOS Chrome service-not-allowed -> Safari); in-app browsers get the open-in-browser hint.
+      voiceFail(voiceMessage(code, navigator.userAgent));
+    };
+    rec.onend = () => {
+      if (recRef.current === rec) recRef.current = null;
+      setVoiceListening(false);
+      if (heard.trim()) { applyParsedJob(heard); return; }
+      if (!failed) voiceFail(voiceMessage("empty", navigator.userAgent));
+    };
+    try {
+      rec.start();
+      recRef.current = rec;
+      setVoiceListening(true);
+      setVoiceTranscript("");
+      setParsedReview(null);
+    } catch {
+      voiceFail(voiceMessage("start-failed", navigator.userAgent));
+    }
+  };
+
+  // Subscription lookup: prefer subscriptions.user_id (added by migration 20261002060100, not yet applied),
+  // fall back to case-insensitive email (how the Stripe webhook keys rows today).
+  // Status "none" = no subscription row at all, which is NOT active (see ACTIVE_SUB below).
+  const SUB_COLS = "status, stripe_customer_id, plan, current_period_end, trial_end, cancel_at, cancelled_at, updated_at";
+  const pickSub = (rows: any[] | null | undefined) => {
+    if (!rows || rows.length === 0) return null;
+    return rows.find(r => r.status === "active" || r.status === "trialing") || rows[0];
+  };
+  const fetchSub = async (uid: string | null, email: string | null): Promise<{ row: any | null; error: any | null }> => {
+    if (uid) {
+      const { data, error } = await supabase.from("subscriptions").select(SUB_COLS).eq("user_id", uid).order("updated_at", { ascending: false }).limit(5);
+      // 42703 = column user_id doesn't exist yet → fall through to email
+      if (!error && data && data.length) return { row: pickSub(data), error: null };
+      if (error && error.code !== "42703") console.warn("subscriptions by user_id:", error.message);
+    }
+    if (email) {
+      const pattern = email.trim().replace(/[\\%_]/g, (c) => "\\" + c);
+      const { data, error } = await supabase.from("subscriptions").select(SUB_COLS).ilike("email", pattern).order("updated_at", { ascending: false }).limit(5);
+      if (error) return { row: null, error };
+      return { row: pickSub(data), error: null };
+    }
+    return { row: null, error: null };
+  };
+  const applySub = (data: any | null) => {
+    setSubStatus(data?.status ?? "none");
+    setStripeCustomerId(data?.stripe_customer_id ?? null);
+    setSubDetail(data ? { plan: data.plan, current_period_end: data.current_period_end, trial_end: data.trial_end, cancel_at: data.cancel_at, cancelled_at: data.cancelled_at } : null);
+  };
+  // Stripe is the source of truth when the DB has no row / a non-active row (webhook lag or failed upsert).
+  const fetchSubFromStripe = async (): Promise<{ row: any | null; error: any | null }> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) return { row: null, error: new Error("not signed in") };
+      const res = await fetch("/api/subscription-status", { method: "POST", headers: { Authorization: `Bearer ${session.access_token}` } });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) return { row: null, error: new Error(data?.error || `HTTP ${res.status}`) };
+      return { row: data.status === "none" ? null : data, error: null };
+    } catch (err: any) {
+      return { row: null, error: err };
+    }
+  };
+  const checkSub = async (email: string | null, uid: string | null = null) => {
+    const db = await fetchSub(uid, email);
+    if (db.row && (db.row.status === "active" || db.row.status === "trialing")) { applySub(db.row); return; }
+    const st = await fetchSubFromStripe();
+    if (st.row && (st.row.status === "active" || st.row.status === "trialing")) { applySub(st.row); return; }
+    if (!st.error) { applySub(db.row || st.row); return; }           // Stripe answered: trust DB row if any, else Stripe/none
+    if (db.row) { applySub(db.row); return; }                        // Stripe unreachable: use the DB row we have
+    if (db.error) console.warn("subscriptions lookup:", db.error.message);
+    // Neither source could answer: don't lock people out for our own outage; say so loudly.
+    showToast("Couldn't check your subscription right now. Some features may be limited; please refresh.", "error");
+    setSubStatus("unknown");
+  };
+
+  const [trialStarting, setTrialStarting] = useState(false);
+  const startTrialCheckout = async () => {
+    if (trialStarting) return;
+    setTrialStarting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+        body: JSON.stringify({ email: userEmail }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.url) { window.location.href = data.url; return; }
+      throw new Error(data.error || "Checkout failed");
+    } catch (err: any) {
+      alert(`Couldn't start your trial: ${err?.message || "please try again."}`);
+    } finally {
+      setTrialStarting(false);
+    }
+  };
+
+  const handleManageBilling = async () => {
+    if (billingLoading) return;
+    setBillingLoading(true);
+    try {
+      // The server finds the billing account from the signed-in user; no customer id is sent.
+      const res = await fetch("/api/manage-billing", {
+        method: "POST",
+        headers: await authJsonHeaders(),
+        body: "{}",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error || "Couldn't open billing portal. Please try again.");
+      }
+    } catch {
+      alert("Couldn't open billing portal. Please try again.");
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  const loadProfile = async (uid: string, meta?: Record<string, any>) => {
+    const m = meta || {};
+    setProfileName(m.full_name || m.name || "");
+    setProfileTrade(m.trade || "");
+    setProfileArea(m.service_area || m.zip || "");
+    setProfilePhone(m.phone || "");
+    try {
+      const { data } = await supabase.from("profiles").select("name, trade, service_area, phone").eq("id", uid).maybeSingle();
+      if (data) {
+        if (data.name) setProfileName(data.name);
+        if (data.trade) setProfileTrade(data.trade);
+        if (data.service_area) setProfileArea(data.service_area);
+        if (data.phone) setProfilePhone(data.phone);
+      }
+    } catch { /* profiles table optional */ }
+  };
+
+  const saveProfile = async () => {
+    if (!userId) return;
+    setProfileSaving(true); setProfileMsg(null);
+    try {
+      const payload = {
+        full_name: profileName.trim(),
+        name: profileName.trim(),
+        trade: profileTrade.trim(),
+        service_area: profileArea.trim(),
+        phone: profilePhone.trim(),
+      };
+      const { error: authErr } = await supabase.auth.updateUser({ data: payload });
+      if (authErr) throw authErr;
+      const { error: profErr } = await supabase.from("profiles").upsert({
+        id: userId,
+        name: payload.name || null,
+        trade: payload.trade || null,
+        service_area: payload.service_area || null,
+        phone: payload.phone || null,
+        updated_at: new Date().toISOString(),
+      });
+      // Ignore missing-table errors; user_metadata already saved
+      if (profErr && !/relation|does not exist|schema cache/i.test(profErr.message)) {
+        console.warn("profiles upsert:", profErr.message);
+      }
+      setProfileMsg("Profile saved.");
+      setTimeout(() => setProfileMsg(null), 2500);
+    } catch (err: any) {
+      setProfileMsg(err.message || "Could not save profile.");
+      toastErr("Couldn't save profile", err);
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPwError(null);
+    if (newPassword.length < 6) { setPwError("Password must be at least 6 characters."); return; }
+    if (newPassword !== confirmPassword) { setPwError("Passwords do not match."); return; }
+    setPwLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      await supabase.auth.signOut();
+      setPage("landing"); setUserId(null); setUserEmail(null); setSubStatus(null); setStripeCustomerId(null); setSubDetail(null);
+      setNewPassword(""); setConfirmPassword("");
+      alert("Password updated. Please sign in with your new password.");
+    } catch (err: any) {
+      setPwError(err.message || "Could not update password.");
+    } finally {
+      setPwLoading(false);
+    }
+  };
+
+  const leadFormUrl = () => (typeof window !== "undefined" && userId ? `${window.location.origin}/l/${userId}` : "");
+  const copyLeadLink = async () => {
+    const url = leadFormUrl();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      prompt("Copy your lead form link:", url);
+    }
+  };
+  const shareLeadLink = async () => {
+    const url = leadFormUrl();
+    if (!url) return;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try { await navigator.share({ title: "Request a quote", text: "Send me a project request:", url }); return; } catch {}
+    }
+    await copyLeadLink();
+  };
+
+  const handlePhotoFile = (file: File, side: "before"|"after") => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (side === "before") { setPhBefore(ev.target?.result as string); setPhBeforeFile(file); }
+      else { setPhAfter(ev.target?.result as string); setPhAfterFile(file); }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const uniqueName = (file: File, label: string) => {
+    const fromName = (file.name.split(".").pop() || "").toLowerCase();
+    const ext = /^[a-z0-9]{2,5}$/.test(fromName) ? fromName : (file.type.split("/")[1] || "jpg").replace(/[^a-z0-9]/g, "") || "jpg";
+    const rand = (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+    return `${Date.now()}-${rand}-${label}.${ext}`;
+  };
+
+  const handlePhotoUpload = async () => {
+    if (!userId || !phBeforeFile || !phAfterFile) return;
+    setPhUploading(true); setPhErr(null);
+    try {
+      // Per-user folder + unique name, never overwrite (upsert:false): one user can't clobber another's files.
+      const up = async (file: File, side: "before"|"after") => {
+        const path = `${userId}/portfolio/${uniqueName(file, side)}`;
+        const bytes = await file.arrayBuffer();
+        const { error } = await supabase.storage.from("stackedwork-images").upload(path, bytes, { contentType: file.type || "image/jpeg", upsert: false });
+        if (error) throw error;
+        return supabase.storage.from("stackedwork-images").getPublicUrl(path).data.publicUrl;
+      };
+      const beforeUrl = await up(phBeforeFile, "before");
+      const afterUrl = await up(phAfterFile, "after");
+      const { data, error } = await supabase.from("portfolio").insert({ contractor_id: userId, before_url: beforeUrl, after_url: afterUrl, job_type: phJobType, caption: phCaption }).select().single();
+      if (error) throw error;
+      if (data) setDbPhotos(prev => [data, ...prev]);
+      setPhBefore(null); setPhAfter(null); setPhBeforeFile(null); setPhAfterFile(null); setPhCaption(""); setPhJobType("other");
+      setPhotoView("gallery");
+    } catch (err: any) { setPhErr(err.message || "Upload failed. Please try again."); toastErr("Couldn't save photos", err); }
+    finally { setPhUploading(false); }
+  };
+
+  const shareToSocial = async (platform: string, photo: any) => {
+    const url = photo.after_url || photo.before_url;
+    const caption = photo.caption || "Check out this project!";
+    if (platform === "facebook") {
+      window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`, "_blank");
+    } else {
+      // Instagram & TikTok: use Web Share API on mobile, else download
+      if (typeof navigator !== "undefined" && navigator.share) {
+        try {
+          const resp = await fetch(url);
+          const blob = await resp.blob();
+          const file = new File([blob], "stackedwork-photo.jpg", { type: blob.type });
+          await navigator.share({ files: [file], title: "StackedWork", text: caption });
+        } catch { /* user cancelled or not supported */ }
+      } else {
+        const a = document.createElement("a");
+        a.href = url; a.download = "stackedwork-photo.jpg"; a.click();
+      }
+    }
+  };
+
+  // Public URL -> object path inside stackedwork-images, only if it is in the caller's own folder
+  // (sw_images_delete_own_folder allows deleting only "<uid>/..."; legacy shared-prefix files are skipped).
+  const ownStoragePath = (url: string | null | undefined): string | null => {
+    if (!url || !userId) return null;
+    const marker = "/storage/v1/object/public/stackedwork-images/";
+    const i = url.indexOf(marker);
+    if (i < 0) return null;
+    const path = decodeURIComponent(url.slice(i + marker.length).split("?")[0]);
+    return path.startsWith(`${userId}/`) && !path.includes("..") ? path : null;
+  };
+  const removeOwnFiles = async (urls: (string | null | undefined)[]): Promise<string | null> => {
+    const paths = urls.map(ownStoragePath).filter((p): p is string => !!p);
+    if (!paths.length) return null;
+    const { error } = await supabase.storage.from("stackedwork-images").remove(paths);
+    return error ? error.message : null;
+  };
+  const deletePhoto = async (photo: any) => {
+    if (!confirm("Delete this photo?")) return;
+    const { error } = await supabase.from("portfolio").delete().eq("id", photo.id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't delete photo", error); return; }
+    setDbPhotos(prev => prev.filter(p => p.id !== photo.id));
+    const fileErr = await removeOwnFiles([photo.before_url, photo.after_url]);
+    if (fileErr) showToast(`Photo removed from your portfolio, but the image files couldn't be deleted: ${fileErr}`, "error");
+    else showToast("Photo deleted.", "success");
+  };
+
+  const handleReceiptScan = async (file: File) => {
+    if (!userId) { needAccount("scan receipts with AI"); return; }
+    if (!file.type.startsWith("image/")) { setRcErr("AI scan only works on image files."); return; }
+    setRcScanning(true); setRcErr(null);
+    try {
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => res(ev.target?.result as string);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      const base64 = dataUrl.split(",")[1];
+      const response = await fetch("/api/scan-receipt", {
+        method: "POST",
+        headers: await authJsonHeaders(),
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type }),
+      });
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+      if (data.usd_total) setRcAmount(String(data.usd_total));
+      else if (data.total) setRcAmount(String(data.total));
+      if (data.date) setRcDate(data.date);
+      if (data.category) setRcCategory(data.category);
+      const desc = [data.vendor, data.description].filter(Boolean).join(" — ");
+      if (desc) setRcDesc(desc.slice(0, 120));
+    } catch (err: any) {
+      setRcErr("Scan failed — please fill in manually.");
+      toastErr("Receipt scan failed", err);
+    } finally {
+      setRcScanning(false);
+    }
+  };
+
+  const handleReceiptFile = (file: File) => {
+    setRcFile(file);
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setRcPreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    } else {
+      setRcPreview(null);
+    }
+  };
+
+  const handleReceiptUpload = async () => {
+    if (!userId || !rcFile || !rcAmount) return;
+    setRcUploading(true); setRcErr(null);
+    try {
+      const path = `${userId}/receipts/${uniqueName(rcFile, "receipt")}`;
+      const bytes = await rcFile.arrayBuffer();
+      const { error: upErr } = await supabase.storage.from("stackedwork-images").upload(path, bytes, { contentType: rcFile.type || "application/octet-stream", upsert: false });
+      if (upErr) throw upErr;
+      const fileUrl = supabase.storage.from("stackedwork-images").getPublicUrl(path).data.publicUrl;
+      const { data, error } = await supabase.from("receipts").insert({
+        contractor_id: userId,
+        file_url: fileUrl,
+        amount: parseFloat(rcAmount),
+        category: rcCategory,
+        date: rcDate,
+        description: rcDesc.trim() || null,
+      }).select().single();
+      if (error) throw error;
+      if (data) setDbReceipts(prev => [data, ...prev]);
+      setRcFile(null); setRcPreview(null); setRcAmount(""); setRcCategory("Materials");
+      setRcDate(todayNY()); setRcDesc("");
+      setRcView("list");
+    } catch (err: any) { setRcErr(err.message || "Upload failed. Please try again."); toastErr("Couldn't save receipt", err); }
+    finally { setRcUploading(false); }
+  };
+
+  const deleteReceipt = async (rc: any) => {
+    if (!confirm("Delete this receipt?")) return;
+    const { error } = await supabase.from("receipts").delete().eq("id", rc.id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't delete receipt", error); return; }
+    setDbReceipts(prev => prev.filter(r => r.id !== rc.id));
+    const fileErr = await removeOwnFiles([rc.file_url]);
+    if (fileErr) showToast(`Receipt deleted, but its file couldn't be removed: ${fileErr}`, "error");
+    else showToast("Receipt deleted.", "success");
+  };
+
+  const withTimeout = <T,>(promise: Promise<T>, ms = 10000): Promise<T> =>
+    Promise.race([promise, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Request timed out. Check your connection and try again.")), ms))]);
+
+  const handleAuth = async () => {
+    setAuthLoading(true); setAuthError(null); setAuthSuccess(null);
+    try {
+      if (authMode === "forgot") {
+        const { error } = await withTimeout(supabase.auth.resetPasswordForEmail(authEmail, { redirectTo: window.location.origin + "/reset-password" }));
+        if (error) throw error;
+        setAuthSuccess("Password reset email sent! Check your inbox.");
+      } else if (authMode === "signup") {
+        window.location.href = `/login?mode=signup${authEmail ? `&email=${encodeURIComponent(authEmail)}` : ""}`;
+        return;
+      } else {
+        const { data: signInData, error } = await withTimeout(supabase.auth.signInWithPassword({ email: authEmail, password: authPassword }));
+        if (error) throw error;
+        if (signInData?.user) { setUserId(signInData.user.id); setUserEmail(signInData.user.email ?? null); checkSub(signInData.user.email ?? null, signInData.user.id).catch(() => {}); loadProfile(signInData.user.id, signInData.user.user_metadata || {}); }
+        setAuthMode(null); setPage("app");
+      }
+    } catch (err: any) { setAuthError(err.message || "Something went wrong. Please try again."); }
+    finally { setAuthLoading(false); }
+  };
+
+  useEffect(() => { captureFirstTouch(); }, []);
+  // Never leave the mic running: stop recognition when the New Job modal closes or the page unmounts.
+  useEffect(() => { if (!newJobOpen) abortVoiceEntry(); }, [newJobOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => abortVoiceEntry(), []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (firstRun && newJobOpen) setTimeout(() => voiceBtnRef.current?.focus(), 50); }, [firstRun, newJobOpen]);
+  useEffect(() => { const h = () => setScrollY(window.scrollY); window.addEventListener("scroll",h); return () => window.removeEventListener("scroll",h); }, []);
+  useEffect(() => { const i = setInterval(() => setAf(p=>(p+1)%FEATURES.length),4000); return () => clearInterval(i); }, []);
+  useEffect(() => { /* demo toast removed */ }, [page,vw,td]);
+  useEffect(() => {
+    // onAuthStateChange fires INITIAL_SESSION on mount and catches redirects from /login
+    const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Token refreshes / profile updates don't need the full re-init (and would re-trigger first-run).
+      if (event !== "INITIAL_SESSION" && event !== "SIGNED_IN") return;
+      if (!session && event === "INITIAL_SESSION" && LANDING_AUTH_ERROR && !landingFirstRunConsumed) {
+        landingFirstRunConsumed = true;
+        setTimeout(() => showToast(`Couldn't confirm your email: ${LANDING_AUTH_ERROR}. Sign in, or sign up again to get a new link.`, "error"), 0);
+        try { window.history.replaceState(null, "", window.location.pathname); } catch { /* ignore */ }
+      }
+      if (session) {
+        setPage("app");
+        setUserId(session.user.id);
+        setUserEmail(session.user.email ?? null);
+        checkSub(session.user.email ?? null, session.user.id);
+        loadProfile(session.user.id, session.user.user_metadata || {});
+        // First-run: email-confirm link / welcome redirect (/?firstrun=1, any device) or same-device flag.
+        let fr = false;
+        try {
+          const fromUrl = !landingFirstRunConsumed && LANDING_FIRSTRUN;
+          landingFirstRunConsumed = true;
+          fr = (fromUrl || window.localStorage.getItem("sw_firstrun") === "1") && !session.user.user_metadata?.first_run_done;
+          if (window.location.search.includes("firstrun")) window.history.replaceState(null, "", window.location.pathname);
+        } catch { /* ignore */ }
+        if (fr) { setVw("dashboard"); setFirstRun(true); setNewJobOpen(true); }
+      }
+    });
+    return () => authSub.unsubscribe();
+  }, []);
+  const resetNewJobForm = () => {
+    setTypedJob(""); setVoiceTranscript(""); setVoiceError(null); setParsedReview(null);
+    setNjCustomer(""); setNjPhone(""); setNjAddress(""); setNjTime(""); setNjType("General"); setNjValue(""); setNjStatus("quoted"); setNjDate(todayNY()); setNjNotes(""); setNjHours(""); setNjMaterialCost(""); setNjError(null);
+  };
+  const closeNewJob = () => {
+    abortVoiceEntry();
+    setNewJobOpen(false);
+    resetNewJobForm();
+    if (firstRun) endFirstRun();
+  };
+  // Every open AND every close of the New Job form starts from a blank form (QA: the previous job's
+  // phone/address/notes were carried over). Covers every opener: Jobs, Clients + Add, first run, Profit.
+  const newJobOpenPrev = useRef(false);
+  useEffect(() => {
+    if (newJobOpen !== newJobOpenPrev.current) { newJobOpenPrev.current = newJobOpen; resetNewJobForm(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newJobOpen]);
+
+  const handleNewJob = async () => {
+    if (!userId || !njCustomer.trim()) return;
+    setNjLoading(true); setNjError(null);
+    // jobs has no address/time columns: keep them at the top of the notes.
+    const noteParts = [
+      njAddress.trim() ? `Address: ${njAddress.trim()}` : "",
+      njTime ? `Time: ${new Date(`2000-01-01T${njTime}`).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "",
+      njNotes.trim(),
+    ].filter(Boolean);
+    const row: any = {
+      contractor_id: userId,
+      customer: njCustomer.trim(),
+      phone: njPhone.trim() || null,
+      type: njType,
+      value: njValue ? parseFloat(njValue) : null, // price is optional
+      status: njStatus,
+      date: njDate,
+      notes: noteParts.length ? noteParts.join("\n") : null,
+      hours_worked: njHours ? parseFloat(njHours) : null,
+      material_cost: njMaterialCost ? parseFloat(njMaterialCost) : 0,
+    };
+    let { data, error } = await supabase.from("jobs").insert(row).select().single();
+    // If jobs.value is still NOT NULL in the DB, store 0 for "no price yet".
+    if (error && error.code === "23502" && row.value === null) {
+      ({ data, error } = await supabase.from("jobs").insert({ ...row, value: 0 }).select().single());
+    }
+    setNjLoading(false);
+    if (error) { setNjError(`Couldn't save the job: ${error.message}`); toastErr("Couldn't save job", error); return; }
+    setDbJobs(prev => [data, ...prev]);
+    showToast("Job saved.", "success");
+    abortVoiceEntry();
+    setNewJobOpen(false);
+    if (firstRun) { endFirstRun(); setVw("jobs"); }
+    resetNewJobForm();
+  };
+
+  const deleteJob = async (job: any) => {
+    if (!userId) { needAccount("manage real jobs"); return; }
+    if (!confirm(`Delete the job for ${job.customer || "this customer"}? This can't be undone.`)) return;
+    setDeletingJobId(job.id);
+    // RLS (jobs_delete_own) only allows deleting rows where contractor_id = auth.uid(); the extra filter keeps it explicit.
+    const { data, error } = await supabase.from("jobs").delete().eq("id", job.id).eq("contractor_id", userId).select("id");
+    setDeletingJobId(null);
+    if (error) { toastErr("Couldn't delete job", error); return; }
+    if (!data || data.length === 0) { showToast("That job was already deleted or isn't yours.", "error"); }
+    else showToast("Job deleted.", "success");
+    setDbJobs(prev => prev.filter(j => j.id !== job.id));
+  };
+
+  const updateJobStatus = async (id: string, status: string) => {
+    const updates: any = { status };
+    if (status === "complete") updates.completed = todayNY();
+    const { error } = await supabase.from("jobs").update(updates).eq("id", id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't update job", error); return; }
+    setDbJobs(prev => prev.map(j => j.id === id ? { ...j, ...updates } : j));
+  };
+
+  useEffect(() => {
+    if (!userId) return;
+    supabase.from("leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load leads", error); else if (data) setDbLeads(data); });
+    supabase.from("jobs").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load jobs", error); else if (data) setDbJobs(data); });
+    // homeowner_leads is service-role only under RLS (no client policies). Scope by contractor anyway so this
+    // can never list other contractors' requests; 42703 = contractor_id column not added yet (see migration).
+    supabase.from("homeowner_leads").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).limit(50).then(({ data, error }) => {
+      if (error) { if (error.code !== "42703") console.warn("homeowner_leads:", error.message); setDbHomeownerLeads([]); return; }
+      setDbHomeownerLeads(data || []);
+    });
+    supabase.from("portfolio").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load photos", error); else if (data) setDbPhotos(data); });
+    supabase.from("receipts").select("*").eq("contractor_id", userId).order("date", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load receipts", error); else if (data) setDbReceipts(data); });
+    supabase.from("estimates").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => { if (error) toastErr("Couldn't load estimates", error); else if (data) setDbEstimates(data); });
+    // Until 20261003210000_invoices.sql is applied the table doesn't exist: show "almost ready", no error toast.
+    supabase.from("invoices").select("*").eq("contractor_id", userId).order("created_at", { ascending: false }).then(({ data, error }) => {
+      if (error) { if (["42P01","PGRST205","PGRST204"].includes((error as any).code) || /does not exist|schema cache/i.test(error.message||"")) setInvoicesUnavailable(true); else toastErr("Couldn't load invoices", error); }
+      else if (data) { setInvoicesUnavailable(false); setDbInvoices(data); }
+    });
+    const ch = supabase.channel("leads_" + userId)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "leads", filter: `contractor_id=eq.${userId}` }, (payload) => {
+        setDbLeads(prev => [payload.new as any, ...prev]);
+        setTst({ name: (payload.new as any).name, msg: (payload.new as any).message || "New lead received" });
+        setTd(false);
+      }).subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [userId]);
+
+  const activeJobs = userId ? dbJobs : JOBS;
+  // Revenue buckets by America/New_York calendar date (YYYY-MM-DD string compare, no UTC shift).
+  const todayKey = todayNY();
+  const wkAgoKey = daysAgoNY(6); // today + previous 6 days
+  const done = activeJobs.filter((j:any)=>j.status==="complete");
+  const doneKey = (j:any) => toDateKeyNY(j.completed);
+  const sumVal = (arr:any[]) => arr.reduce((a:number,j:any)=>a+(Number(j.value)||0),0);
+  const doneToday = done.filter((j:any)=>doneKey(j)===todayKey);
+  const tdR = sumVal(doneToday);
+  const moR = sumVal(done.filter((j:any)=>doneKey(j)?.slice(0,7)===todayKey.slice(0,7)));
+  const wkR = sumVal(done.filter((j:any)=>{const k=doneKey(j);return !!k&&k>=wkAgoKey&&k<=todayKey;}));
+  const ytd = sumVal(done.filter((j:any)=>doneKey(j)?.slice(0,4)===todayKey.slice(0,4)));
+  const gl = 12000;
+  const fJ = jf==="all"?activeJobs:activeJobs.filter((j:any)=>j.status===jf);
+  const activeLeads = userId ? dbLeads : LEADS;
+  const unreadLeads = activeLeads.filter((l:any)=>!l.read).length;
+  const lMsg = (l: any) => l.msg || l.message || "";
+  const lTs = (l: any) => l.ts || (l.created_at ? new Date(l.created_at).toLocaleString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "");
+  const markRead = async (id: any) => {
+    if (userId) {
+      const { error } = await supabase.from("leads").update({ read: true }).eq("id", id).eq("contractor_id", userId);
+      if (error) { toastErr("Couldn't update lead", error); return; }
+    }
+    setDbLeads(prev => prev.map(l => l.id === id ? { ...l, read: true } : l));
+  };
+
+  const calcEstimateTotals = (items: any[], taxRate: number) => {
+    const subtotal = items.reduce((a: number, it: any) => a + (Number(it.total) || 0), 0);
+    const taxAmount = subtotal * (taxRate / 100);
+    return { subtotal, taxAmount, total: subtotal + taxAmount };
+  };
+
+  const updateLineItem = (id: number, field: string, value: any) => {
+    setNeLineItems(prev => prev.map(it => {
+      if (it.id !== id) return it;
+      const updated = { ...it, [field]: value };
+      if (field === "quantity" || field === "unit_price") {
+        updated.total = parseFloat((Number(updated.quantity) * Number(updated.unit_price)).toFixed(2));
+      }
+      return updated;
+    }));
+  };
+
+  const addLineItem = () => {
+    setNeLineItems(prev => [...prev, { id: Date.now(), description: "", quantity: 1, unit: "hours", unit_price: 0, total: 0 }]);
+  };
+
+  const removeLineItem = (id: number) => {
+    setNeLineItems(prev => prev.filter(it => it.id !== id));
+  };
+
+  const handleAiPricing = async () => {
+    if (!neJobType) return;
+    if (!userId) { needAccount("get AI price suggestions"); return; }
+    setAiLoading(true);
+    try {
+      const res = await fetch("/api/estimate-ai-price", {
+        method: "POST",
+        headers: await authJsonHeaders(),
+        body: JSON.stringify({ jobType: neJobType, description: neDesc }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.line_items) throw new Error(data.error || "no suggestions returned");
+      setNeLineItems(data.line_items.map((it: any, i: number) => ({ ...it, id: Date.now() + i })));
+      if (data.notes && !neNotes) setNeNotes(data.notes);
+    } catch (err: any) { toastErr("AI price suggestions failed", err); }
+    finally { setAiLoading(false); }
+  };
+
+  const resetNewEstimate = () => {
+    setNeStep(1); setNeCustomer(""); setNeEmail(""); setNePhone(""); setNeJobType("General");
+    setNeDesc(""); setNeValidUntil(""); setNeNotes(""); setNeTaxRate("0");
+    setNeLineItems([{ id: 1, description: "", quantity: 1, unit: "hours", unit_price: 0, total: 0 }]);
+    setNeLoading(false); setNeError(null); setNewEstimateOpen(false);
+  };
+
+  // Calls the email API and returns true only when it reports a real send.
+  // The server loads the saved estimate by id (own rows only) and builds the email from it; it also
+  // marks the estimate sent. markEstimateSent() then just syncs local state (the DB update is a no-op).
+  const postEstimateEmail = async (est: any): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const res = await fetch("/api/estimate-email", {
+        method: "POST",
+        headers: await authJsonHeaders(),
+        body: JSON.stringify({ estimateId: est.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.ok) return { ok: false, error: data?.error || `Email failed (HTTP ${res.status})` };
+      if (data.warning) console.warn("estimate-email:", data.warning);
+      return { ok: true };
+    } catch (err: any) {
+      return { ok: false, error: err?.message || "Network error" };
+    }
+  };
+
+  const markEstimateSent = async (est: any) => {
+    const { error } = await supabase.from("estimates").update({ status: "sent" }).eq("id", est.id).eq("contractor_id", userId);
+    if (error) { toastErr("Email sent, but couldn't mark the estimate as sent", error); return false; }
+    setDbEstimates(prev => prev.map(e => e.id === est.id ? { ...e, status: "sent" } : e));
+    if (estimateDetail?.id === est.id) setEstimateDetail((e: any) => ({ ...e, status: "sent" }));
+    return true;
+  };
+
+  const handleSaveEstimate = async (sendEmail = false) => {
+    if (!userId || !neCustomer.trim()) return;
+    setNeLoading(true); setNeError(null);
+    const taxRate = parseFloat(neTaxRate) || 0;
+    const { subtotal, taxAmount, total } = calcEstimateTotals(neLineItems, taxRate);
+    // Always save as draft first; only mark "sent" after the email API confirms.
+    const { data, error } = await supabase.from("estimates").insert({
+      contractor_id: userId,
+      customer_name: neCustomer.trim(),
+      customer_email: neEmail.trim() || null,
+      customer_phone: nePhone.trim() || null,
+      job_type: neJobType,
+      line_items: neLineItems.filter(it => it.description.trim()),
+      subtotal,
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      total,
+      notes: neNotes.trim() || null,
+      status: "draft",
+      valid_until: neValidUntil || null,
+    }).select().single();
+    if (error) { setNeLoading(false); setNeError(error.message); toastErr("Couldn't save estimate", error); return; }
+    if (data) {
+      setDbEstimates(prev => [data, ...prev]);
+      if (sendEmail && data.customer_email) {
+        const r = await postEstimateEmail(data);
+        if (r.ok) { await markEstimateSent(data); showToast(`Estimate emailed to ${data.customer_email}.`, "success"); }
+        else showToast(`Estimate saved as draft, but the email was NOT sent: ${r.error}`, "error");
+      } else {
+        showToast("Estimate saved as draft.", "success");
+      }
+    }
+    setNeLoading(false);
+    resetNewEstimate();
+  };
+
+  const setEstimateStatus = async (est: any, status: "accepted"|"declined"|"sent"|"draft") => {
+    const { error } = await supabase.from("estimates").update({ status }).eq("id", est.id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't update the estimate", error); return; }
+    setDbEstimates(prev => prev.map(e => e.id === est.id ? { ...e, status } : e));
+    if (estimateDetail?.id === est.id) setEstimateDetail((e: any) => ({ ...e, status }));
+    showToast(status === "accepted" ? "Estimate marked accepted." : "Estimate updated.", "success");
+  };
+
+  const deleteEstimate = async (est: any) => {
+    if (!confirm("Delete this estimate?")) return;
+    const { error } = await supabase.from("estimates").delete().eq("id", est.id).eq("contractor_id", userId);
+    if (error) { toastErr("Couldn't delete estimate", error); return; }
+    setDbEstimates(prev => prev.filter(e => e.id !== est.id));
+    if (estimateDetail?.id === est.id) setEstimateDetail(null);
+    showToast("Estimate deleted.", "success");
+  };
+
+  const sendEstimateEmail = async (est: any) => {
+    if (!est.customer_email || sendingEmail) return;
+    setSendingEmail(true);
+    const r = await postEstimateEmail(est);
+    if (r.ok) {
+      await markEstimateSent(est);
+      setEmailSent(true);
+      setTimeout(() => setEmailSent(false), 3000);
+    } else {
+      showToast(`Estimate email was NOT sent: ${r.error}`, "error");
+    }
+    setSendingEmail(false);
+  };
+
+  const openEditEstimate = (est: any) => {
+    setEditCustomer(est.customer_name || "");
+    setEditEmail(est.customer_email || "");
+    setEditPhone(est.customer_phone || "");
+    setEditJobType(est.job_type || "General");
+    setEditValidUntil(est.valid_until || "");
+    setEditNotes(est.notes || "");
+    setEditTaxRate(String(est.tax_rate || 0));
+    setEditLineItems((est.line_items || []).map((it: any, i: number) => ({ ...it, id: Date.now() + i })));
+    setEditingEstimate(true);
+    setEditError(null);
+  };
+
+  const updateEditLineItem = (id: number, field: string, value: any) => {
+    setEditLineItems(prev => prev.map(it => {
+      if (it.id !== id) return it;
+      const updated = { ...it, [field]: value };
+      if (field === "quantity" || field === "unit_price") {
+        updated.total = parseFloat((Number(updated.quantity) * Number(updated.unit_price)).toFixed(2));
+      }
+      return updated;
+    }));
+  };
+
+  const handleUpdateEstimate = async () => {
+    if (!estimateDetail || !editCustomer.trim()) return;
+    setEditLoading(true); setEditError(null);
+    const taxRate = parseFloat(editTaxRate) || 0;
+    const { subtotal, taxAmount, total } = calcEstimateTotals(editLineItems, taxRate);
+    const updates = {
+      customer_name: editCustomer.trim(),
+      customer_email: editEmail.trim() || null,
+      customer_phone: editPhone.trim() || null,
+      job_type: editJobType,
+      line_items: editLineItems.filter((it: any) => it.description.trim()),
+      subtotal,
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      total,
+      notes: editNotes.trim() || null,
+      valid_until: editValidUntil || null,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from("estimates").update(updates).eq("id", estimateDetail.id).eq("contractor_id", userId).select().single();
+    setEditLoading(false);
+    if (error) { setEditError(error.message); toastErr("Couldn't save estimate changes", error); return; }
+    if (data) {
+      setDbEstimates(prev => prev.map(e => e.id === data.id ? data : e));
+      setEstimateDetail(data);
+    }
+    setEditingEstimate(false);
+  };
+
+  const handleSubscribe = () => {
+    window.location.href = "/login?mode=signup";
+  };
+  const toastStack = (toasts.length>0&&<div role="status" aria-live="assertive" style={{position:"fixed",bottom:84,left:"50%",transform:"translateX(-50%)",zIndex:200,display:"flex",flexDirection:"column",gap:8,width:"calc(100% - 32px)",maxWidth:420}}>
+          {toasts.map(t=><div key={t.id} style={{padding:"12px 14px",borderRadius:10,fontSize:13,fontWeight:600,boxShadow:"0 8px 30px rgba(0,0,0,0.25)",display:"flex",gap:10,alignItems:"flex-start",justifyContent:"space-between",background:t.kind==="error"?"#FEE2E2":t.kind==="success"?"#D1FAE5":"#F1F5F9",color:t.kind==="error"?"#991B1B":t.kind==="success"?"#065F46":"#334155",border:`1px solid ${t.kind==="error"?"#FECACA":t.kind==="success"?"#6EE7B7":"#E2E8F0"}`}}>
+            <span>{t.msg}</span>
+            <button onClick={()=>setToasts(prev=>prev.filter(x=>x.id!==t.id))} aria-label="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"inherit",fontSize:16,lineHeight:1,padding:0}}>×</button>
+          </div>)}
+        </div>);
+  // Allow-list: only an active or trialing Stripe subscription gets in. "none" (no row: signed up but never
+  // started the trial), canceled/cancelled, past_due, unpaid, incomplete*, paused all land on this screen.
+  // "unknown" = lookup failed (network/DB); we don't lock people out for our own errors.
+  const ACTIVE_SUB = ["active","trialing","unknown"];
+  if(page==="app" && userId && subStatus===null){
+    return(
+      <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:"rgba(245,240,235,0.6)",fontSize:14}}>Checking your subscription...</div>
+    );
+  }
+  if(page==="app" && userId && subStatus && !ACTIVE_SUB.includes(subStatus)){
+    const noSub = subStatus === "none";
+    return(
+      <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center",color:"#F5F0EB"}}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&display=swap');*{margin:0;padding:0;box-sizing:border-box}`}</style>
+        <div style={{fontSize:48,marginBottom:24}}>🔒</div>
+        <h1 style={{fontSize:28,fontWeight:700,marginBottom:12}}>{noSub ? "Start your free trial" : `Subscription ${subStatus === "cancelled" || subStatus === "canceled" ? "Cancelled" : "Inactive"}`}</h1>
+        <p style={{fontSize:15,color:"rgba(245,240,235,0.5)",maxWidth:420,marginBottom:32,lineHeight:1.7}}>
+          {noSub
+            ? `Your account is set up, but your ${TD}-day free trial hasn't started yet. No credit card required.`
+            : subStatus === "past_due"
+            ? "Your last payment failed. Please update your billing info to continue."
+            : "Your StackedWork subscription is no longer active. Reactivate to get back in."}
+        </p>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center"}}>
+          <button onClick={subStatus === "past_due" && stripeCustomerId ? handleManageBilling : startTrialCheckout} disabled={trialStarting} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 32px",fontSize:15,fontWeight:700,borderRadius:6,cursor:trialStarting?"wait":"pointer",fontFamily:"'DM Sans'",opacity:trialStarting?0.7:1}}>{trialStarting ? "Opening..." : noSub ? "Start Free Trial" : "Reactivate Subscription"}</button>
+          {stripeCustomerId && !noSub && (
+            <button onClick={handleManageBilling} disabled={billingLoading} style={{background:"transparent",color:"#F5F0EB",border:"1px solid rgba(255,255,255,0.25)",padding:"14px 32px",fontSize:15,fontWeight:600,borderRadius:6,cursor:billingLoading?"wait":"pointer",fontFamily:"'DM Sans'",opacity:billingLoading?0.6:1}}>{billingLoading?"Opening...":"Manage Billing"}</button>
+          )}
+          <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);setSubDetail(null);}} style={{background:"transparent",color:"rgba(245,240,235,0.5)",border:"1px solid rgba(255,255,255,0.15)",padding:"14px 32px",fontSize:15,fontWeight:600,borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
+        </div>
+      </div>
+    );
+  }
+
+  if(page==="app"){
+    const nv=[{id:"dashboard",ic:"📊",lb:"Home"},{id:"jobs",ic:"🔨",lb:"Jobs"},{id:"estimates",ic:"📋",lb:"Estimates"},{id:"leads",ic:"📥",lb:"Leads"},{id:"photos",ic:"📸",lb:"Photos"},{id:"customers",ic:"👥",lb:"Clients"},{id:"receipts",ic:"🧾",lb:"Receipts"},{id:"profit",ic:"💰",lb:"Profit"},{id:"followups",ic:"🔔",lb:"Alerts"},{id:"settings",ic:"⚙️",lb:"Settings"}];
+    return(
+      <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",minHeight:"100vh"}}>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Space+Mono:wght@400;700&display=swap');
+          *{margin:0;padding:0;box-sizing:border-box}
+          @keyframes toastSlide{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+          @keyframes pulseMk{0%,100%{transform:scale(1)}50%{transform:scale(1.15)}}
+          @keyframes spin{to{transform:rotate(360deg)}}
+          @keyframes barLoad{from{width:0}to{width:100%}}
+          @keyframes tickerScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+          .sw-bn{position:fixed;bottom:0;left:0;right:0;background:#0F1D32;border-top:1px solid rgba(255,255,255,0.08);display:flex;z-index:50;padding:4px 0 env(safe-area-inset-bottom,6px)}
+          .sw-bi{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 2px;cursor:pointer;border:none;background:none;font-family:'DM Sans'}
+          .sw-bi .sw-ic{font-size:18px}.sw-bi .sw-lb{font-size:9px;font-weight:500;color:#94A3B8}
+          .sw-bi.sw-a .sw-lb{color:${GD};font-weight:700}
+          .sw-sd{display:none}
+          @media(min-width:768px){.sw-sd{display:flex;flex-direction:column;gap:4px;width:220px;background:#0F1D32;border-right:1px solid rgba(255,255,255,0.08);padding:24px 12px;flex-shrink:0}.sw-bn{display:none}
+          .sw-sl{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;transition:all .2s;color:#94A3B8}
+          .sw-sl:hover{background:rgba(255,255,255,0.08);color:#fff}.sw-sl.sw-a{background:${G};color:#132440;font-weight:700}}
+          .sw-li{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,.7fr) minmax(0,.8fr) minmax(0,.8fr) minmax(0,.9fr) auto;grid-template-areas:"d q u p t x";gap:6px;align-items:center}
+          .sw-li>*{min-width:0;width:100%;box-sizing:border-box}.sw-li>.sw-li-x{width:auto}
+          .sw-li-d{grid-area:d}.sw-li-q{grid-area:q}.sw-li-u{grid-area:u}.sw-li-p{grid-area:p}.sw-li-t{grid-area:t}.sw-li-x{grid-area:x}
+          @media(max-width:560px){.sw-li{grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr) minmax(0,1fr) minmax(0,1.2fr) auto;grid-template-areas:"d d d d x" "q u p t .";padding-bottom:8px;border-bottom:1px dashed #E2E8F0}.sw-li input,.sw-li select{font-size:16px !important}}
+          @media(max-width:360px){.sw-li{grid-template-columns:minmax(0,.8fr) minmax(0,1.3fr) minmax(0,1.2fr) auto;grid-template-areas:"d d d x" "q u p ." "t t t ."}.sw-li>.sw-li-t{background:none !important;border:none !important;padding:0 2px !important;font-size:13px !important}.sw-li-t::before{content:"Amount  ";font-weight:500;color:#64748B}}
+          @media(max-width:360px){.sw-hw{display:none}.sw-ha{gap:6px !important}}
+          .sw-sg{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+          @media(min-width:768px){.sw-sg{grid-template-columns:repeat(4,1fr)}}
+          .sw-jm{padding:14px 16px;border-bottom:1px solid #F1F5F9}.sw-jd,.sw-jh{display:none}
+          @media(min-width:768px){.sw-jm{display:none}.sw-jd,.sw-jh{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1.1fr) minmax(0,.8fr) minmax(0,.9fr) minmax(0,1.4fr);gap:12px;padding:14px 20px;border-bottom:1px solid #F1F5F9;align-items:center;font-size:14px}.sw-jd:hover{background:#FAFBFC}
+          .sw-jh{padding:10px 20px;background:#F8FAFC;font-size:11px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:.04em;font-family:'Space Mono'}}
+          .sw-fb{padding:6px 14px;border-radius:100px;border:1px solid #E2E8F0;background:#fff;font-size:12px;cursor:pointer;font-family:'DM Sans';color:#64748B;transition:all .2s}
+          .sw-fb:hover{border-color:${G};color:${GD}}.sw-fb.sw-a{background:${G};color:#132440;border-color:${G};font-weight:600}
+        `}</style>
+        <div style={{background:"#0F1D32",borderBottom:"1px solid rgba(255,255,255,0.08)",padding:"10px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,zIndex:40}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div style={{width:30,height:30,background:"#4A82C4",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:11,color:"#fff",fontFamily:"'DM Sans'",letterSpacing:"-0.03em"}}>SW</div>
+            <span className="sw-hw" style={{fontWeight:700,fontSize:15,color:"#fff"}}>StackedWork</span>
+            {!userId&&<span style={{background:"#FEF3C7",color:"#92400E",fontSize:9,fontWeight:700,padding:"2px 7px",borderRadius:100,fontFamily:"'Space Mono'"}}>DEMO</span>}
+          </div>
+          <div className="sw-ha" style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{position:"relative"}}>
+              <button onClick={()=>setNtf(!ntf)} aria-label={unreadLeads>0?`Notifications: ${unreadLeads} unread lead${unreadLeads!==1?"s":""}`:"Notifications"} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>🔔{unreadLeads>0&&<span style={{position:"absolute",top:-4,right:-4,width:18,height:18,background:"#EF4444",borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",border:"2px solid #0F1D32"}}>{unreadLeads>99?"99+":unreadLeads}</span>}</button>
+              {ntf&&<div style={{position:"absolute",top:50,right:0,width:360,maxWidth:"calc(100vw - 32px)",background:"#fff",border:"1px solid #E2E8F0",borderRadius:12,boxShadow:"0 12px 40px rgba(0,0,0,0.15)",zIndex:60,overflow:"hidden"}}>
+                <div style={{padding:"12px 16px",borderBottom:"2px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontWeight:700,fontSize:14,color:"#0F172A"}}>New Leads</span><span style={{fontSize:12,color:GD,fontWeight:600,cursor:"pointer"}} onClick={()=>{setNtf(false);setVw("leads")}}>View All</span></div>
+                {activeLeads.slice(0,3).map((l:any,i:number)=><div key={i} style={{padding:"14px 16px",borderBottom:i<2?"1px solid #F1F5F9":"none",cursor:"pointer"}} onClick={()=>{setNtf(false);setVw("leads")}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{l.name}</span><span style={{fontSize:11,color:"#94A3B8"}}>{lTs(l)}</span></div>
+                  <div style={{fontSize:12,color:"#64748B"}}>{lMsg(l).slice(0,55)}{lMsg(l).length>55?"...":""}</div>
+                  {l.urgent&&<span style={{display:"inline-block",marginTop:4,fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEE2E2",padding:"2px 8px",borderRadius:100}}>URGENT</span>}
+                </div>)}
+              </div>}
+            </div>
+            <button onClick={()=>setSms(true)} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>📱</button>
+            {userId && (
+              <button onClick={()=>setVw("settings")} title="Settings & subscription" style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",borderRadius:8,padding:"6px 9px",cursor:"pointer",fontSize:16,lineHeight:1}}>⚙️</button>
+            )}
+            {userId
+              ? <button onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);setSubDetail(null);}} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>Sign Out</button>
+              : <button onClick={()=>setPage("landing")} style={{background:"none",border:"1px solid rgba(255,255,255,0.15)",color:"#94A3B8",padding:"5px 12px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>Back</button>
+            }
+          </div>
+        </div>
+        {tst&&!td&&<div style={{position:"fixed",top:70,right:16,zIndex:60,background:"#fff",border:"1px solid #E2E8F0",borderLeft:`4px solid ${G}`,borderRadius:12,padding:16,boxShadow:"0 8px 30px rgba(0,0,0,0.12)",maxWidth:340,width:"calc(100% - 32px)",animation:"toastSlide .5s ease forwards"}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:"50%",background:G}}/><span style={{fontWeight:700,fontSize:14,color:"#0F172A"}}>New Lead!</span></div><button onClick={()=>{setTd(true);setTst(null)}} style={{background:"none",border:"none",color:"#94A3B8",cursor:"pointer",fontSize:18,padding:0}}>x</button></div>
+          <div style={{fontWeight:600,fontSize:13,color:"#0F172A",marginBottom:2}}>{tst.name}</div><div style={{fontSize:12,color:"#64748B",marginBottom:10}}>{tst.msg}</div>
+          <div style={{display:"flex",gap:8}}><Btn onClick={()=>{setTd(true);setTst(null);setVw("leads")}} style={{flex:1,fontSize:11,padding:6}}>View Lead</Btn><BtnO onClick={()=>{setTd(true);setSms(true)}} style={{flex:1,fontSize:11,padding:6}}>SMS Alert</BtnO></div>
+        </div>}
+        {toastStack}
+        {demoGate&&<div role="dialog" aria-modal="true" aria-labelledby="sw-demo-gate-title" style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:210,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setDemoGate(null)}>
+          <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:380,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)",textAlign:"center"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+            <div style={{fontSize:34,marginBottom:10}}>🔒</div>
+            <h2 id="sw-demo-gate-title" style={{fontSize:19,fontWeight:700,color:"#0F172A",marginBottom:6}}>You&apos;re in the demo</h2>
+            <p style={{fontSize:14,color:"#64748B",marginBottom:20,lineHeight:1.5}}>Start your free {TD}-day trial to {demoGate}. The demo data here is sample data and isn&apos;t saved.</p>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <Btn onClick={handleSubscribe} style={{padding:12,fontSize:14}}>Start free trial</Btn>
+              <BtnO onClick={()=>{window.location.href="/login?mode=signin";}} style={{padding:12,fontSize:14}}>I already have an account</BtnO>
+              <span onClick={()=>setDemoGate(null)} style={{fontSize:13,color:"#64748B",cursor:"pointer",marginTop:4}}>Keep exploring the demo</span>
+            </div>
+          </div>
+        </div>}
+        {newJobOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={closeNewJob}>
+          <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:440,width:"100%",maxHeight:"90vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <h2 style={{fontSize:18,fontWeight:700,color:"#0F172A"}}>{firstRun?"Log your first job by voice":"New Job"}</h2>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                {voiceListening
+                  ? <>
+                      <span style={{display:"flex",alignItems:"center",gap:6,padding:"7px 10px",background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",borderRadius:8,fontSize:12,fontWeight:700,fontFamily:"'DM Sans'"}} aria-live="polite"><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#132440",animation:"pulseMk 1s infinite"}}/>Listening...</span>
+                      <button onClick={stopVoiceEntry} title="Stop listening" aria-label="Stop listening" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 12px",background:"#132440",color:"#fff",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'"}}>■ Stop</button>
+                    </>
+                  : <button ref={voiceBtnRef} onClick={startVoiceEntry} disabled={voiceParsing} title="Speak job details" style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:"#F1F5F9",color:"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:voiceParsing?"wait":"pointer",fontFamily:"'DM Sans'",transition:"all .2s",opacity:voiceParsing?0.6:1}}>🎤 Voice Entry</button>}
+                <button onClick={closeNewJob} aria-label="Close" style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button>
+              </div>
+            </div>
+            {voiceTranscript&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534"}}>
+              <span style={{fontWeight:700}}>Heard: </span>{voiceTranscript}
+            </div>}
+            {voiceError&&<div role="alert" style={{marginBottom:14,padding:"10px 14px",background:"#FEF3C7",border:"1px solid #FDE68A",borderRadius:8,fontSize:12,color:"#92400E"}}>{voiceError}</div>}
+            {voiceParsing&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F1F5F9",borderRadius:8,fontSize:12,color:"#475569"}}>Reading your job details...</div>}
+            {!voiceTranscript&&!voiceError&&<p style={{fontSize:firstRun?13:11,color:firstRun?"#475569":"#94A3B8",marginBottom:14}}>Tap <strong>Voice Entry</strong> and say something like: <em>&quot;Jane Doe, 12 Oak Street, water heater replacement, next Tuesday at 9, $1,200&quot;</em></p>}
+            {parsedReview&&!voiceParsing&&<div style={{marginBottom:14,padding:"12px 14px",background:"#EFF6FF",border:"1px solid #BFDBFE",borderRadius:8,fontSize:12,color:"#1E3A8A"}}>
+              <div style={{fontWeight:700,marginBottom:6}}>Check these details before saving{parsedReview.source==="basic"?" (basic parsing)":""}</div>
+              <div style={{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:10,rowGap:2}}>
+                <span style={{color:"#64748B"}}>Customer</span><span>{parsedReview.customer_name||"—"}</span>
+                <span style={{color:"#64748B"}}>Address</span><span>{parsedReview.address||"—"}</span>
+                <span style={{color:"#64748B"}}>Phone</span><span>{parsedReview.phone||"—"}</span>
+                <span style={{color:"#64748B"}}>Service</span><span>{parsedReview.service||"—"}</span>
+                <span style={{color:"#64748B"}}>When</span><span title={parsedReview.scheduled_at||undefined}>{fmtWhenNY(parsedReview.scheduled_at)||"—"}</span>
+                <span style={{color:"#64748B"}}>Price</span><span>{typeof parsedReview.price==="number"?`$${parsedReview.price.toLocaleString()}`:"not stated (optional)"}</span>
+                <span style={{color:"#64748B"}}>Status</span><span>{STC[parsedReview.status]?.label||parsedReview.status}</span>
+              </div>
+              <div style={{marginTop:6,color:"#475569"}}>Edit anything below, then tap <strong>Confirm &amp; Save Job</strong>. Nothing is saved until you do.</div>
+            </div>}
+            <div style={{display:"flex",gap:8,marginBottom:14}}>
+              <input ref={typedRef} value={typedJob} onChange={e=>setTypedJob(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&typedJob.trim()&&!voiceParsing){e.preventDefault();applyParsedJob(typedJob);}}} placeholder="Or type it: Jane Doe, plumbing, Friday 10am" aria-label="Type the job instead of speaking" style={{flex:1,padding:"9px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+              <button type="button" onClick={()=>typedJob.trim()&&!voiceParsing&&applyParsedJob(typedJob)} disabled={!typedJob.trim()||voiceParsing} style={{padding:"9px 14px",background:"#F1F5F9",color:"#374151",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:typedJob.trim()?"pointer":"not-allowed",fontFamily:"'DM Sans'",opacity:typedJob.trim()?1:0.6}}>Fill in</button>
+            </div>
+            {[
+              {label:"Customer Name *",val:njCustomer,set:setNjCustomer,placeholder:"John Smith",type:"text"},
+              {label:"Phone",val:njPhone,set:setNjPhone,placeholder:"(410) 555-0100",type:"tel"},
+              {label:"Address (saved in notes)",val:njAddress,set:setNjAddress,placeholder:"Street, city",type:"text"},
+            ].map((f,i)=><div key={i} style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>{f.label}</label><input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.placeholder} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>)}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Job Type</label><select value={njType} onChange={e=>setNjType(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>{JOB_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Status</label><select value={njStatus} onChange={e=>setNjStatus(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}><option value="quoted">Quoted</option><option value="scheduled">Scheduled</option><option value="in-progress">In Progress</option><option value="complete">Complete</option></select></div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Price ($, optional)</label><input type="number" min="0" step="0.01" value={njValue} onChange={e=>setNjValue(e.target.value)} placeholder="0.00" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+              <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Date</label><input type="date" value={njDate} onChange={e=>setNjDate(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+            </div>
+            <div style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Time (optional, saved in notes)</label><input type="time" value={njTime} onChange={e=>setNjTime(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+            <div style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Notes</label><textarea value={njNotes} onChange={e=>setNjNotes(e.target.value)} placeholder="Job details..." rows={3} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",resize:"vertical",boxSizing:"border-box"}}/></div>
+            <div style={{background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:10,padding:"12px 14px",marginBottom:20}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:10}}>Profitability (optional)</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+                <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Hours Worked</label><input type="number" min="0" step="0.5" value={njHours} onChange={e=>setNjHours(e.target.value)} placeholder="e.g. 8" style={{width:"100%",padding:"9px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box",background:"#fff"}}/></div>
+                <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Material Cost ($)</label><input type="number" min="0" step="0.01" value={njMaterialCost} onChange={e=>setNjMaterialCost(e.target.value)} placeholder="e.g. 320" style={{width:"100%",padding:"9px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box",background:"#fff"}}/></div>
+              </div>
+              {njValue&&njHours&&njMaterialCost!==undefined&&<div style={{marginTop:10,padding:"8px 10px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534",fontWeight:600}}>
+                Est. profit: ${(parseFloat(njValue||"0")-parseFloat(njMaterialCost||"0")).toFixed(0)} · ${njHours?((parseFloat(njValue||"0")-parseFloat(njMaterialCost||"0"))/parseFloat(njHours)).toFixed(0):"-"}/hr
+              </div>}
+            </div>
+            {njError&&<div style={{marginBottom:14,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:13,color:"#991B1B"}}>{njError}</div>}
+            <button onClick={handleNewJob} disabled={njLoading||voiceParsing||voiceListening||!njCustomer.trim()} style={{width:"100%",padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:njLoading||voiceParsing||voiceListening||!njCustomer.trim()?"not-allowed":"pointer",opacity:njLoading||voiceParsing||voiceListening||!njCustomer.trim()?0.6:1,fontFamily:"'DM Sans'"}}>{njLoading?"Saving...":parsedReview?"Confirm & Save Job":"Save Job"}</button>
+          </div>
+        </div>}
+        {newEstimateOpen&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={resetNewEstimate}>
+          <div style={{background:"#fff",borderRadius:16,padding:28,maxWidth:560,width:"100%",maxHeight:"92vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <div>
+                <h2 style={{fontSize:18,fontWeight:700,color:"#0F172A"}}>New Estimate</h2>
+                <div style={{display:"flex",gap:8,marginTop:6}}>
+                  {[{n:1,l:"Client Info"},{n:2,l:"Line Items"}].map(s=>(
+                    <button key={s.n} onClick={()=>setNeStep(s.n as 1|2)} style={{fontSize:11,fontWeight:700,padding:"3px 12px",borderRadius:100,border:`1.5px solid ${neStep===s.n?"#C8E64A":"#E2E8F0"}`,background:neStep===s.n?"#C8E64A":"transparent",color:neStep===s.n?"#132440":"#94A3B8",cursor:"pointer",fontFamily:"'DM Sans'"}}>{s.n}. {s.l}</button>
+                  ))}
+                </div>
+              </div>
+              <button onClick={resetNewEstimate} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:"#94A3B8"}}>×</button>
+            </div>
+
+            {neStep===1&&<>
+              {[{label:"Customer Name *",val:neCustomer,set:setNeCustomer,placeholder:"John Smith",type:"text"},{label:"Customer Email",val:neEmail,set:setNeEmail,placeholder:"john@email.com",type:"email"},{label:"Phone",val:nePhone,set:setNePhone,placeholder:"(410) 555-0100",type:"tel"}].map((f,i)=>(
+                <div key={i} style={{marginBottom:14}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>{f.label}</label><input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} placeholder={f.placeholder} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+              ))}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Job Type</label><select value={neJobType} onChange={e=>setNeJobType(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>{["General","Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","Other"].map(t=><option key={t}>{t}</option>)}</select></div>
+                <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Valid Until</label><input type="date" value={neValidUntil} onChange={e=>setNeValidUntil(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+              </div>
+              <div style={{marginBottom:20}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Project Description (for AI pricing)</label><textarea value={neDesc} onChange={e=>setNeDesc(e.target.value)} placeholder="e.g. Replace water heater, 50 gallon, existing hookups..." rows={2} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",resize:"vertical",boxSizing:"border-box"}}/></div>
+              <button onClick={()=>setNeStep(2)} disabled={!neCustomer.trim()} style={{width:"100%",padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:!neCustomer.trim()?"not-allowed":"pointer",opacity:!neCustomer.trim()?0.6:1,fontFamily:"'DM Sans'"}}>Next: Line Items →</button>
+            </>}
+
+            {neStep===2&&<>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <span style={{fontSize:13,fontWeight:600,color:"#374151"}}>Line Items</span>
+                <button onClick={handleAiPricing} disabled={aiLoading} style={{display:"flex",alignItems:"center",gap:6,padding:"7px 14px",background:aiLoading?"#F1F5F9":`linear-gradient(135deg,${G},${GD})`,color:aiLoading?"#94A3B8":"#132440",border:"none",borderRadius:8,fontSize:12,fontWeight:700,cursor:aiLoading?"not-allowed":"pointer",fontFamily:"'DM Sans'"}}>
+                  {aiLoading?<><span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#94A3B8",animation:"pulseMk 1s infinite"}}/>Getting prices...</>:<>🤖 AI Price Suggestions</>}
+                </button>
+              </div>
+              {aiLoading&&<div style={{marginBottom:14,padding:"10px 14px",background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:8,fontSize:12,color:"#166534"}}>Analyzing {neJobType} pricing for {yearNY()}...</div>}
+              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+                {neLineItems.map((it,i)=>(
+                  <div key={it.id} className="sw-li">
+                    <input className="sw-li-d" aria-label="Description" value={it.description} onChange={e=>updateLineItem(it.id,"description",e.target.value)} placeholder="Description" style={{padding:"8px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none"}}/>
+                    <input className="sw-li-q" aria-label="Quantity" type="number" min="0" value={it.quantity} onChange={e=>updateLineItem(it.id,"quantity",e.target.value)} placeholder="Qty" style={{padding:"8px 8px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"center"}}/>
+                    <select className="sw-li-u" aria-label="Unit" value={it.unit} onChange={e=>updateLineItem(it.id,"unit",e.target.value)} style={{padding:"8px 6px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:11,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>
+                      {unitOptions(it.unit).map(u=><option key={u.value} value={u.value}>{u.label}</option>)}
+                    </select>
+                    <input className="sw-li-p" aria-label="Price per unit" type="number" min="0" step="0.01" value={it.unit_price} onChange={e=>updateLineItem(it.id,"unit_price",e.target.value)} placeholder="$/unit" style={{padding:"8px 8px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"right"}}/>
+                    <div className="sw-li-t" aria-label="Amount" style={{padding:"8px 8px",background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:7,fontSize:12,fontWeight:600,color:"#374151",textAlign:"right",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>${Number(it.total).toFixed(2)}</div>
+                    <button className="sw-li-x" aria-label="Remove line item" onClick={()=>removeLineItem(it.id)} style={{background:"none",border:"none",color:"#CBD5E1",cursor:"pointer",fontSize:16,padding:"0 2px"}} title="Remove">×</button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={addLineItem} style={{fontSize:12,color:GD,fontWeight:600,background:"none",border:`1px dashed ${G}`,borderRadius:7,padding:"7px 16px",cursor:"pointer",fontFamily:"'DM Sans'",width:"100%",marginBottom:16}}>+ Add Line Item</button>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                <div><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Tax Rate (%)</label><input type="number" min="0" max="30" step="0.1" value={neTaxRate} onChange={e=>setNeTaxRate(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+                <div style={{display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+                  {(()=>{const{subtotal,taxAmount,total}=calcEstimateTotals(neLineItems,parseFloat(neTaxRate)||0);return<div style={{padding:"10px 12px",background:"#F0FDF4",borderRadius:8,textAlign:"right"}}><div style={{fontSize:11,color:"#64748B"}}>Subtotal: ${subtotal.toFixed(2)}{taxAmount>0?` · Tax: $${taxAmount.toFixed(2)}`:""}</div><div style={{fontSize:17,fontWeight:800,color:"#132440"}}>Total: ${total.toFixed(2)}</div></div>})()}
+                </div>
+              </div>
+              <div style={{marginBottom:20}}><label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Notes (optional)</label><textarea value={neNotes} onChange={e=>setNeNotes(e.target.value)} placeholder="Payment terms, scope notes, disclaimers..." rows={3} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",resize:"vertical",boxSizing:"border-box"}}/></div>
+              {neError&&<div style={{marginBottom:14,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:13,color:"#991B1B"}}>{neError}</div>}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                <button onClick={()=>handleSaveEstimate(false)} disabled={neLoading||!neCustomer.trim()} style={{padding:13,background:"#F1F5F9",color:"#374151",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:neLoading||!neCustomer.trim()?"not-allowed":"pointer",opacity:neLoading||!neCustomer.trim()?0.6:1,fontFamily:"'DM Sans'"}}>{neLoading?"Saving...":"💾 Save Draft"}</button>
+                <button onClick={()=>handleSaveEstimate(true)} disabled={neLoading||!neCustomer.trim()||!neEmail.trim()} style={{padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:neLoading||!neCustomer.trim()||!neEmail.trim()?"not-allowed":"pointer",opacity:neLoading||!neCustomer.trim()||!neEmail.trim()?0.6:1,fontFamily:"'DM Sans'"}} title={!neEmail.trim()?"Add customer email to send":""}>{neLoading?"Sending...":"📧 Save & Email Client"}</button>
+              </div>
+              {!neEmail.trim()&&<div style={{fontSize:11,color:"#94A3B8",textAlign:"center",marginTop:8}}>Add customer email on step 1 to enable email sending</div>}
+            </>}
+          </div>
+        </div>}
+        {sms&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>setSms(false)}>
+          <div style={{background:"#1A1A1A",borderRadius:32,padding:12,maxWidth:320,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.4)"}} onClick={(e: React.MouseEvent)=>e.stopPropagation()}>
+            <div style={{background:"#fff",borderRadius:24,overflow:"hidden"}}>
+              <div style={{background:"#F2F2F7",padding:"12px 20px 8px",display:"flex",justifyContent:"space-between"}}><span style={{fontSize:13,fontWeight:600}}>9:41 AM</span><span style={{fontSize:12}}>📶 🔋</span></div>
+              <div style={{background:"#F2F2F7",padding:"8px 20px 12px",borderBottom:"1px solid #D1D1D6",textAlign:"center"}}><div style={{fontWeight:700,fontSize:16}}>StackedWork</div><div style={{fontSize:11,color:"#8E8E93"}}>Text Message</div></div>
+              <div style={{padding:16,minHeight:280,display:"flex",flexDirection:"column",gap:12}}>
+                <div style={{background:"#E9E9EB",borderRadius:18,padding:"10px 14px",maxWidth:"85%",fontSize:14,lineHeight:1.5}}><div style={{fontWeight:600,marginBottom:4}}>🔔 New Lead!</div><div>When a new lead comes in, you&apos;ll get a text like this with their name, number, and message.</div><div style={{marginTop:8,fontSize:12,color:"#666"}}>Reply CALL to auto-schedule</div></div>
+                <div style={{background:"#34C759",color:"#fff",borderRadius:18,padding:"10px 14px",maxWidth:"85%",fontSize:14,marginLeft:"auto",textAlign:"right"}}>CALL</div>
+                <div style={{background:"#E9E9EB",borderRadius:18,padding:"10px 14px",maxWidth:"85%",fontSize:14,lineHeight:1.5}}>Callback scheduled!</div>
+              </div>
+              <div style={{padding:12,background:"#F2F2F7",textAlign:"center",borderTop:"1px solid #D1D1D6"}}><span style={{fontSize:12,color:"#8E8E93"}}>Tap outside to close</span></div>
+            </div>
+          </div>
+        </div>}
+        {sharePhoto&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.75)",zIndex:80,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:16}} onClick={()=>setSharePhoto(null)}>
+          <div style={{background:"#fff",borderRadius:20,width:"100%",maxWidth:480,overflow:"hidden",marginBottom:8}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+            <div style={{position:"relative",background:"#000"}}>
+              {sharePhoto.after_url
+                ? <img src={sharePhoto.after_url} alt="After" style={{width:"100%",maxHeight:260,objectFit:"cover",display:"block"}}/>
+                : <div style={{height:180,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48}}>📸</div>}
+              <div style={{position:"absolute",bottom:10,left:12,background:"rgba(0,0,0,0.55)",borderRadius:100,padding:"3px 12px",fontSize:11,fontWeight:700,color:"#fff"}}>
+                {sharePhoto.job_type?.toUpperCase()||"PROJECT"}
+              </div>
+            </div>
+            <div style={{padding:"18px 20px"}}>
+              <div style={{fontWeight:700,fontSize:15,color:"#0F172A",marginBottom:4}}>Share to Social Media</div>
+              {sharePhoto.caption&&<div style={{fontSize:13,color:"#64748B",marginBottom:16}}>{sharePhoto.caption}</div>}
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <button onClick={()=>shareToSocial("facebook",sharePhoto)} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 16px",background:"#1877F2",color:"#fff",border:"none",borderRadius:12,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.27h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+                  Share on Facebook
+                </button>
+                <button onClick={()=>shareToSocial("instagram",sharePhoto)} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 16px",background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",color:"#fff",border:"none",borderRadius:12,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+                  Share to Instagram
+                </button>
+                <button onClick={()=>shareToSocial("tiktok",sharePhoto)} style={{display:"flex",alignItems:"center",gap:14,padding:"13px 16px",background:"#000",color:"#fff",border:"none",borderRadius:12,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans'"}}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.34 6.34 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.76a4.85 4.85 0 01-1.01-.07z"/></svg>
+                  Share to TikTok
+                </button>
+              </div>
+              <div style={{fontSize:11,color:"#94A3B8",marginTop:12,textAlign:"center"}}>Instagram & TikTok: saves photo to your device to upload</div>
+              <button onClick={()=>setSharePhoto(null)} style={{marginTop:14,width:"100%",padding:"11px",background:"#F1F5F9",border:"none",borderRadius:10,fontSize:14,fontWeight:600,color:"#64748B",cursor:"pointer",fontFamily:"'DM Sans'"}}>Cancel</button>
+            </div>
+          </div>
+        </div>}
+        <div style={{display:"flex",minHeight:"calc(100vh - 53px)"}}>
+          <aside className="sw-sd"><div style={{marginBottom:20}}/>{nv.map(n=><div key={n.id} className={`sw-sl ${vw===n.id?"sw-a":""}`} onClick={()=>setVw(n.id)}><span>{n.ic}</span> {n.lb}</div>)}</aside>
+          <main style={{flex:1,padding:"20px 16px 100px",maxWidth:960,overflow:"auto"}}>
+            {vw==="dashboard"&&<>
+              {(()=>{
+                // Real leads only (this contractor's own leads + scoped homeowner requests). No sample data.
+                const tickerLeads = userId ? [...activeLeads, ...dbHomeownerLeads].slice(0, 10) : [];
+                if (tickerLeads.length === 0) {
+                  return (
+                    <div style={{background:"rgba(200,230,74,0.05)",border:"1px dashed rgba(200,230,74,0.25)",borderRadius:10,marginBottom:20,padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}}>
+                      <span style={{fontSize:12,color:"rgba(245,240,235,0.7)"}}>📥 No leads yet. Share your lead form link and new requests will show up here.</span>
+                      {userId&&<button onClick={copyLeadLink} style={{fontSize:11,fontWeight:700,padding:"5px 12px",borderRadius:6,border:"none",background:G,color:"#132440",cursor:"pointer",fontFamily:"'DM Sans'"}}>{linkCopied?"Copied!":"Copy lead link"}</button>}
+                    </div>
+                  );
+                }
+                const items = [...tickerLeads, ...tickerLeads];
+                return (
+                  <div style={{background:"rgba(200,230,74,0.07)",border:"1px solid rgba(200,230,74,0.2)",borderRadius:10,marginBottom:20,overflow:"hidden",position:"relative",height:38}}>
+                    <div style={{position:"absolute",left:0,top:0,bottom:0,width:90,background:`linear-gradient(90deg,#0F172A 60%,transparent)`,zIndex:2,display:"flex",alignItems:"center",paddingLeft:12,gap:6}}>
+                      <span style={{width:7,height:7,borderRadius:"50%",background:"#C8E64A",display:"inline-block",flexShrink:0,boxShadow:"0 0 6px #C8E64A"}} />
+                      <span style={{fontSize:9,fontWeight:700,color:G,fontFamily:"'Space Mono'",letterSpacing:"0.08em",whiteSpace:"nowrap"}}>LIVE LEADS</span>
+                    </div>
+                    <div style={{position:"absolute",right:0,top:0,bottom:0,width:40,background:`linear-gradient(270deg,#0F172A 60%,transparent)`,zIndex:2}} />
+                    <div style={{display:"flex",animation:"tickerScroll 28s linear infinite",whiteSpace:"nowrap",alignItems:"center",height:"100%",paddingLeft:"100%"}}>
+                      {items.map((lead:any,i:number)=>(
+                        <span key={i} style={{fontSize:12,color:"rgba(245,240,235,0.85)",padding:"0 28px",display:"inline-flex",alignItems:"center",gap:7,flexShrink:0}}>
+                          <span style={{fontSize:14}}>🏡</span>
+                          <strong style={{color:"#fff"}}>{lead.name?.split(" ")[0] || "Someone"}</strong>
+                          {lead.zip_code&&<><span style={{color:"rgba(245,240,235,0.45)"}}>from</span><span>{lead.zip_code}</span></>}
+                          <span style={{color:"rgba(245,240,235,0.45)"}}>{lead.job_type?"wants an estimate for":"sent a request"}</span>
+                          {lead.job_type&&<strong style={{color:G}}>{lead.job_type}</strong>}
+                          {lead.email && <span style={{color:"rgba(245,240,235,0.5)"}}>· {lead.email}</span>}
+                          {lead.phone && <span style={{color:"rgba(245,240,235,0.5)"}}>· {lead.phone}</span>}
+                          <span style={{color:"rgba(245,240,235,0.15)",padding:"0 4px"}}>|</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+              <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:18}}>Revenue Dashboard</h1>
+              <div className="sw-sg">{[{l:"Today",v:`$${tdR.toLocaleString()}`,s:`${doneToday.length} job${doneToday.length!==1?"s":""} completed`},{l:"This Week",v:`$${wkR.toLocaleString()}`,s:"last 7 days"},{l:"This Month",v:`$${moR.toLocaleString()}`,s:`$${gl.toLocaleString()} goal`},{l:`YTD ${todayKey.slice(0,4)}`,v:`$${ytd.toLocaleString()}`,s:`${done.filter((j:any)=>doneKey(j)?.slice(0,4)===todayKey.slice(0,4)).length} jobs`}].map((s,i)=>
+                <div key={i} style={{background:"linear-gradient(135deg,#0F172A,#1E293B)",borderRadius:12,padding:16,color:"#fff"}}><div style={{fontSize:10,color:"#94A3B8",fontFamily:"'Space Mono'",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:6}}>{s.l}</div><div style={{fontSize:22,fontWeight:700,marginBottom:2}}>{s.v}</div><div style={{fontSize:11,color:"#94A3B8"}}>{s.s}</div></div>
+              )}</div>
+              <Card style={{padding:20,marginBottom:20}}>
+                <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><span style={{fontSize:14,fontWeight:600,color:"#0F172A"}}>Monthly Goal</span><span style={{fontSize:13,fontWeight:600,color:GD}}>{Math.round((moR/gl)*100)}%</span></div>
+                <div style={{height:8,background:"#1E293B",borderRadius:100,overflow:"hidden"}}><div style={{height:"100%",background:`linear-gradient(90deg,${G},${GD})`,borderRadius:100,width:`${Math.min((moR/gl)*100,100)}%`,transition:"width .6s"}}/></div>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}><span style={{fontSize:11,color:"#94A3B8"}}>${moR.toLocaleString()} earned</span><span style={{fontSize:11,color:"#94A3B8"}}>${(gl-moR).toLocaleString()} to go</span></div>
+              </Card>
+              <Card style={{overflow:"hidden",marginBottom:20}}>
+                <div style={{padding:"14px 18px",borderBottom:"1px solid #E2E8F0",display:"flex",justifyContent:"space-between",alignItems:"center"}}><span style={{fontSize:14,fontWeight:600,color:"#0F172A"}}>Recent Jobs</span><Btn onClick={()=>setVw("jobs")} style={{fontSize:11,padding:"5px 12px"}}>View All</Btn></div>
+                {activeJobs.length===0?<div style={{padding:"28px 18px",textAlign:"center",color:"#94A3B8",fontSize:13}}>No jobs yet — <span style={{color:GD,cursor:"pointer",fontWeight:600}} onClick={()=>setVw("jobs")}>add your first job</span></div>:activeJobs.slice(0,4).map((j:any,i:number)=><div key={j.id||i} style={{padding:"12px 18px",borderBottom:i<3?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {fmtDateNY(j.date)}</div></div><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontWeight:600,fontSize:13}}>{j.value==null||j.value===""?"No price":`$${Number(j.value).toLocaleString()}`}</span><Badge s={j.status}/></div></div>)}
+              </Card>
+            </>}
+            {vw==="jobs"&&<>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Jobs</h1><Btn onClick={()=>userId?setNewJobOpen(true):needAccount("log real jobs")}>+ New Job</Btn></div>
+              <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>{["all","quoted","scheduled","in-progress","complete"].map(f=><button key={f} className={`sw-fb ${jf===f?"sw-a":""}`} onClick={()=>setJf(f)}>{f==="all"?"All":STC[f]?.label||f}</button>)}</div>
+              {fJ.length===0?<Card style={{padding:40,textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>🔨</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No jobs yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Add your first job to start tracking revenue.</div><Btn onClick={()=>userId?setNewJobOpen(true):needAccount("log real jobs")}>+ Add First Job</Btn></Card>
+              :<Card style={{overflow:"hidden"}}>
+                <div className="sw-jh" role="row"><span>Customer</span><span>Type · Date</span><span>Value</span><span>Status</span><span style={{textAlign:"right"}}>Actions</span></div>
+                {fJ.map((j:any)=>{
+                  const price = j.value==null||j.value===""?null:Number(j.value);
+                  const statusSel = userId&&j.status!=="complete"&&<select aria-label={`Change status for ${j.customer}`} value={j.status} onChange={e=>updateJobStatus(j.id,e.target.value)} style={{fontSize:11,padding:"3px 8px",borderRadius:6,border:"1px solid #E2E8F0",background:"#fff",color:"#475569",cursor:"pointer",fontFamily:"'DM Sans'"}}><option value="quoted">→ Quoted</option><option value="scheduled">→ Scheduled</option><option value="in-progress">→ In Progress</option><option value="complete">→ Complete</option></select>;
+                  const delBtn = userId&&<button onClick={()=>deleteJob(j)} disabled={deletingJobId===j.id} aria-label={`Delete job for ${j.customer}`} style={{fontSize:11,padding:"3px 10px",borderRadius:6,border:"1px solid #FECACA",background:"#fff",color:"#EF4444",cursor:deletingJobId===j.id?"wait":"pointer",fontFamily:"'DM Sans'",fontWeight:600}}>{deletingJobId===j.id?"Deleting…":"Delete"}</button>;
+                  return <div key={j.id}>
+                  <div className="sw-jm"><div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}><div><div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {fmtDateNY(j.date)}{j.phone?` · ${j.phone}`:""}</div></div><div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>{price==null?<span style={{fontSize:12,color:"#94A3B8",fontWeight:600}}>No price</span>:`$${price.toLocaleString()}`}</div></div><div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}><Badge s={j.status}/>{statusSel}<span style={{marginLeft:"auto"}}>{delBtn}</span></div></div>
+                  <div className="sw-jd" role="row">
+                    <div style={{minWidth:0}}><div style={{fontWeight:600,color:"#0F172A",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{j.customer}</div>{j.phone&&<div style={{fontSize:12,color:"#94A3B8"}}>{j.phone}</div>}</div>
+                    <div style={{color:"#475569"}}>{j.type}<div style={{fontSize:12,color:"#94A3B8"}}>{fmtDateNY(j.date)}</div></div>
+                    <div style={{fontWeight:700,color:"#0F172A"}}>{price==null?<span style={{fontSize:12,color:"#94A3B8",fontWeight:600}}>No price</span>:`$${price.toLocaleString()}`}</div>
+                    <div><Badge s={j.status}/></div>
+                    <div style={{display:"flex",gap:8,justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap"}}>{statusSel}{delBtn}{!userId&&<span style={{fontSize:11,color:"#94A3B8"}}>Demo</span>}</div>
+                  </div>
+                  </div>;
+                })}
+              </Card>}
+            </>}
+            {vw==="photos"&&<>
+              <input ref={beforeRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handlePhotoFile(f,"before");e.target.value="";}}/>
+              <input ref={afterRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handlePhotoFile(f,"after");e.target.value="";}}/>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,flexWrap:"wrap",gap:10}}>
+                <div><h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:2}}>Before & After Photos</h1><p style={{fontSize:13,color:"#94A3B8"}}>Document your work. Share it anywhere.</p></div>
+                {userId&&<Btn onClick={()=>{setPhotoView("upload");setPhBefore(null);setPhAfter(null);setPhBeforeFile(null);setPhAfterFile(null);setPhCaption("");setPhJobType("other");setPhErr(null);}}>+ Add Photos</Btn>}
+              </div>
+              {photoView==="upload"&&<Card style={{padding:24,marginBottom:20}}>
+                <div style={{fontWeight:700,fontSize:15,color:"#0F172A",marginBottom:16}}>Upload Before & After</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}}>
+                  <div onClick={()=>beforeRef.current?.click()} style={{border:phBefore?`2px solid ${G}`:"2px dashed #D1D5DB",borderRadius:14,overflow:"hidden",background:phBefore?"#000":"#FAFBFC",cursor:"pointer",minHeight:140,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",position:"relative"}}>
+                    {phBefore
+                      ? <><img src={phBefore} alt="Before" style={{width:"100%",height:140,objectFit:"cover"}}/><div style={{position:"absolute",bottom:6,left:"50%",transform:"translateX(-50%)",background:"rgba(0,0,0,0.6)",color:"#fff",fontSize:10,fontWeight:700,padding:"2px 10px",borderRadius:100,whiteSpace:"nowrap"}}>BEFORE</div></>
+                      : <><div style={{fontSize:30,marginBottom:6}}>📷</div><div style={{fontSize:12,fontWeight:600,color:"#475569"}}>Before</div><div style={{fontSize:10,color:"#94A3B8"}}>tap to add</div></>}
+                  </div>
+                  <div onClick={()=>afterRef.current?.click()} style={{border:phAfter?`2px solid ${G}`:"2px dashed #D1D5DB",borderRadius:14,overflow:"hidden",background:phAfter?"#000":"#FAFBFC",cursor:"pointer",minHeight:140,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",position:"relative"}}>
+                    {phAfter
+                      ? <><img src={phAfter} alt="After" style={{width:"100%",height:140,objectFit:"cover"}}/><div style={{position:"absolute",bottom:6,left:"50%",transform:"translateX(-50%)",background:`${G}dd`,color:"#132440",fontSize:10,fontWeight:700,padding:"2px 10px",borderRadius:100,whiteSpace:"nowrap"}}>AFTER ✨</div></>
+                      : <><div style={{fontSize:30,marginBottom:6}}>✨</div><div style={{fontSize:12,fontWeight:600,color:"#475569"}}>After</div><div style={{fontSize:10,color:"#94A3B8"}}>tap to add</div></>}
+                  </div>
+                </div>
+                <div style={{marginBottom:14}}><div style={{fontWeight:600,fontSize:12,color:"#374151",marginBottom:8}}>Job Type</div><div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}}>{[["🚿 Bath","bathroom"],["🍳 Kitchen","kitchen"],["🎨 Paint","paint"],["🏡 Exterior","exterior"],["🪵 Deck","deck"],["🔧 Other","other"]].map(([lb,k],i)=><div key={i} onClick={()=>setPhJobType(k)} style={{padding:"8px 4px",textAlign:"center",border:phJobType===k?`2px solid ${G}`:"1px solid #E2E8F0",borderRadius:8,fontSize:11,fontWeight:500,color:phJobType===k?"#132440":"#475569",background:phJobType===k?"rgba(200,230,74,0.1)":"#fff",cursor:"pointer"}}>{lb}</div>)}</div></div>
+                <div style={{marginBottom:16}}><div style={{fontWeight:600,fontSize:12,color:"#374151",marginBottom:6}}>Caption (optional)</div><input value={phCaption} onChange={e=>setPhCaption(e.target.value)} placeholder="Bathroom gut remodel — Owings Mills, MD" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+                {phErr&&<div style={{marginBottom:12,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:12,color:"#991B1B"}}>{phErr}</div>}
+                <div style={{display:"flex",gap:10}}>
+                  <Btn onClick={handlePhotoUpload} style={{flex:1,padding:13,fontSize:14,opacity:(phBeforeFile&&phAfterFile&&!phUploading)?1:0.5,cursor:(phBeforeFile&&phAfterFile&&!phUploading)?"pointer":"not-allowed"}}>{phUploading?"Uploading...":"Save Photos"}</Btn>
+                  <BtnO onClick={()=>setPhotoView("gallery")} style={{padding:13}}>Cancel</BtnO>
+                </div>
+              </Card>}
+              {dbPhotos.length===0&&photoView==="gallery"
+                ? <Card style={{padding:"48px 20px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>📸</div><div style={{fontWeight:700,fontSize:16,color:"#0F172A",marginBottom:6}}>No photos yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Upload before & after photos to build your portfolio and share to social media.</div>{userId&&<Btn onClick={()=>setPhotoView("upload")}>+ Add First Photos</Btn>}</Card>
+                : <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                    {dbPhotos.map((p,i)=>{
+                      const d=p.created_at?new Date(p.created_at).toLocaleDateString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",year:"numeric"}):"";
+                      const jtEmoji:any={"bathroom":"🚿","kitchen":"🍳","paint":"🎨","exterior":"🏡","deck":"🪵","other":"🔧"};
+                      return<Card key={p.id||i} style={{overflow:"hidden"}}>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr"}}>
+                          <div style={{position:"relative",background:"#000",minHeight:160}}>
+                            {p.before_url?<img src={p.before_url} alt="Before" style={{width:"100%",height:160,objectFit:"cover",display:"block"}}/>:<div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,background:"#E2E8F0"}}>{jtEmoji[p.job_type]||"🔧"}</div>}
+                            <div style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,0.6)",color:"#fff",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:100}}>BEFORE</div>
+                          </div>
+                          <div style={{position:"relative",background:"#000",minHeight:160}}>
+                            {p.after_url?<img src={p.after_url} alt="After" style={{width:"100%",height:160,objectFit:"cover",display:"block"}}/>:<div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",fontSize:36,background:"#F0FDF4"}}>{jtEmoji[p.job_type]||"🔧"}</div>}
+                            <div style={{position:"absolute",top:8,left:8,background:`${G}ee`,color:"#132440",fontSize:10,fontWeight:700,padding:"2px 8px",borderRadius:100}}>AFTER ✨</div>
+                          </div>
+                        </div>
+                        <div style={{padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+                          <div><div style={{fontWeight:600,fontSize:13,color:"#0F172A",textTransform:"capitalize"}}>{jtEmoji[p.job_type]||"🔧"} {p.job_type}{p.caption?` — ${p.caption}`:""}</div><div style={{fontSize:11,color:"#94A3B8"}}>{d}</div></div>
+                          <div style={{display:"flex",gap:8}}>
+                            <Btn onClick={()=>setSharePhoto(p)} style={{fontSize:12,padding:"7px 16px"}}>Share ↗</Btn>
+                            <BtnO onClick={()=>deletePhoto(p)} style={{fontSize:12,padding:"7px 14px",color:"#EF4444",borderColor:"#FECACA"}}>Delete</BtnO>
+                          </div>
+                        </div>
+                      </Card>;
+                    })}
+                  </div>}
+            </>}
+            {vw==="customers"&&<>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}><h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Customers</h1><Btn onClick={()=>{if(!userId){needAccount("add clients");return;}resetNewJobForm();setNewJobOpen(true);}} title="Clients are created from jobs: add a job for the new client">+ Add</Btn></div>
+              {activeJobs.length===0
+                ? <Card style={{padding:"40px 20px",textAlign:"center"}}><div style={{fontSize:36,marginBottom:12}}>👥</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No clients yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Clients will appear here once you add jobs.</div>{userId&&<Btn onClick={()=>{resetNewJobForm();setNewJobOpen(true);}}>+ Add a client job</Btn>}</Card>
+                : <Card style={{overflow:"hidden"}}>{[...new Map(activeJobs.map((j:any)=>[j.customer,j])).values()].map((job:any,i:number)=>{const cj=activeJobs.filter((j:any)=>j.customer===job.customer);const tot=cj.reduce((a:number,j:any)=>a+(Number(j.value)||0),0);return<div key={i} style={{padding:"14px 18px",borderBottom:"1px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{width:36,height:36,borderRadius:"50%",background:`hsl(${i*45},60%,90%)`,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:14,color:`hsl(${i*45},60%,35%)`}}>{job.customer.charAt(0)}</div><div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{job.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{job.phone||"—"}</div></div></div><div style={{textAlign:"right"}}><div style={{fontWeight:600,fontSize:13}}>${tot.toLocaleString()}</div><div style={{fontSize:11,color:"#94A3B8"}}>{cj.length} job{cj.length!==1?"s":""}</div></div></div>})}</Card>}
+            </>}
+            {vw==="leads"&&<>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                <h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Leads</h1>
+              </div>
+              <p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>{activeLeads.filter((l:any)=>!l.read).length} unread · share your form link to get more</p>
+              {activeLeads.length===0?<Card style={{padding:40,textAlign:"center",marginBottom:24}}><div style={{fontSize:36,marginBottom:12}}>📥</div><div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No leads yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:16,maxWidth:360,marginLeft:"auto",marginRight:"auto"}}>Share your personal lead form. Submissions appear here in real time — no website needed.</div><div style={{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap"}}><Btn onClick={copyLeadLink} style={{fontSize:13,padding:"10px 18px"}}>{linkCopied?"Copied!":"Copy link"}</Btn><BtnO onClick={shareLeadLink} style={{fontSize:13,padding:"10px 18px"}}>Share</BtnO></div>{userId&&<div style={{fontSize:11,color:"#94A3B8",marginTop:12,wordBreak:"break-all",fontFamily:"'Space Mono'"}}>{typeof window!=="undefined"?`${window.location.origin}/l/${userId}`:""}</div>}</Card>
+              :<div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:24}}>
+                {activeLeads.map((l:any,i:number)=>(
+                  <Card key={l.id||i} style={{padding:16,borderLeft:l.urgent?`4px solid #EF4444`:`4px solid ${G}`,opacity:l.read?0.6:1}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                      <div>
+                        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                          <div style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>{l.name}</div>
+                          {l.job_type&&<span style={{fontSize:10,fontWeight:700,color:"#64748B",background:"#F1F5F9",padding:"2px 8px",borderRadius:100,textTransform:"uppercase"}}>{l.job_type}</span>}
+                        </div>
+                        <div style={{fontSize:12,color:"#64748B",marginTop:2}}>{[l.phone,l.email].filter(Boolean).join(" · ")}</div>
+                      </div>
+                      <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
+                        <span style={{fontSize:11,color:"#94A3B8"}}>{lTs(l)}</span>
+                        {l.urgent&&<span style={{fontSize:10,fontWeight:700,color:"#EF4444",background:"#FEE2E2",padding:"2px 8px",borderRadius:100}}>URGENT</span>}
+                      </div>
+                    </div>
+                    {lMsg(l)&&<div style={{fontSize:13,color:"#475569",lineHeight:1.6,marginBottom:12,background:"#F8FAFC",borderRadius:8,padding:"8px 12px"}}>{lMsg(l)}</div>}
+                    <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                      {l.phone&&<a href={`tel:${l.phone}`} style={{textDecoration:"none"}}><Btn style={{fontSize:12,padding:"7px 16px"}}>Call</Btn></a>}
+                      {l.email&&<a href={`mailto:${l.email}`} style={{textDecoration:"none"}}><BtnO style={{fontSize:12,padding:"7px 16px"}}>Email</BtnO></a>}
+                      {!l.read&&<BtnO onClick={()=>markRead(l.id)} style={{fontSize:12,padding:"7px 16px"}}>Mark Read</BtnO>}
+                    </div>
+                  </Card>
+                ))}
+              </div>}
+              {/* Homeowner requests from /find-contractor */}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                <div>
+                  <h2 style={{fontSize:17,fontWeight:700,color:"#fff",marginBottom:2}}>Looking for a Licensed Contractor?</h2>
+                  <p style={{fontSize:12,color:"#94A3B8"}}>Project requests submitted by homeowners (marketplace coming soon)</p>
+                </div>
+                {/* View Page hidden while marketplace /find-contractor is off */}
+              </div>
+              {dbHomeownerLeads.length===0
+                ? <Card style={{padding:"28px 20px",textAlign:"center"}}><div style={{fontSize:32,marginBottom:10}}>🏡</div><div style={{fontWeight:600,fontSize:14,color:"#0F172A",marginBottom:4}}>No homeowner requests yet</div><div style={{fontSize:12,color:"#94A3B8"}}>Homeowner project requests will show here when the marketplace is available.</div></Card>
+                : <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {dbHomeownerLeads.map((l:any,i:number)=>{
+                      const d=l.created_at?new Date(l.created_at).toLocaleDateString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
+                      const jtEmoji:any={"bathroom":"🚿","kitchen":"🍳","paint":"🎨","exterior":"🏡","deck":"🪵","electrical":"⚡","plumbing":"🔧","hvac":"❄️","general":"🏗️","other":"🛠️"};
+                      return(
+                        <Card key={l.id||i} style={{padding:16,borderLeft:`4px solid #4A82C4`}}>
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                            <div>
+                              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                                <span style={{fontSize:16}}>{jtEmoji[l.job_type]||"🛠️"}</span>
+                                <span style={{fontWeight:700,fontSize:15,color:"#0F172A"}}>{l.name}</span>
+                                <span style={{fontSize:10,fontWeight:700,color:"#4A82C4",background:"#EFF6FF",padding:"2px 8px",borderRadius:100,textTransform:"uppercase"}}>{l.job_type}</span>
+                              </div>
+                              <div style={{fontSize:12,color:"#64748B"}}>{[l.phone,l.email].filter(Boolean).join(" · ")}{l.zip_code?` · ${l.zip_code}`:""}</div>
+                            </div>
+                            <span style={{fontSize:11,color:"#94A3B8",whiteSpace:"nowrap"}}>{d}</span>
+                          </div>
+                          {l.description&&<div style={{fontSize:13,color:"#475569",lineHeight:1.6,marginBottom:12,background:"#F8FAFC",borderRadius:8,padding:"8px 12px"}}>{l.description}</div>}
+                          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                            {l.phone&&<a href={`tel:${l.phone}`} style={{textDecoration:"none"}}><Btn style={{fontSize:12,padding:"7px 16px"}}>Call</Btn></a>}
+                            {l.email&&<a href={`mailto:${l.email}`} style={{textDecoration:"none"}}><BtnO style={{fontSize:12,padding:"7px 16px"}}>Email</BtnO></a>}
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>}
+            </>}
+            {vw==="receipts"&&(()=>{
+              const RC_CATS = ["Materials","Fuel/Gas","Equipment","Tools","Subcontractor","Insurance","Office/Software","Other"];
+              const nowKey = todayNY();
+              const nowY = yearNY();
+              const ytdR = dbReceipts.filter((r:any)=>toDateKeyNY(r.date)?.slice(0,4)===nowKey.slice(0,4)).reduce((a:number,r:any)=>a+Number(r.amount),0);
+              const moR2 = dbReceipts.filter((r:any)=>toDateKeyNY(r.date)?.slice(0,7)===nowKey.slice(0,7)).reduce((a:number,r:any)=>a+Number(r.amount),0);
+              const filtered = rcFilter==="all" ? dbReceipts : dbReceipts.filter((r:any)=>r.category===rcFilter);
+              return(<>
+                <input ref={rcFileRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)handleReceiptFile(f);e.target.value="";}}/>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <div>
+                    <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:2}}>Receipts</h1>
+                    <p style={{fontSize:12,color:"#94A3B8"}}>Track expenses for tax time</p>
+                  </div>
+                  <Btn onClick={()=>{setRcView(rcView==="upload"?"list":"upload");setRcErr(null);}}>
+                    {rcView==="upload"?"← Back":"+ Upload"}
+                  </Btn>
+                </div>
+
+                {rcView==="list"&&<>
+                  {/* Summary cards */}
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:12,marginBottom:20}}>
+                    {[
+                      {l:"YTD Expenses",v:`$${ytdR.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`,s:`${nowY} total`},
+                      {l:"This Month",v:`$${moR2.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`,s:"current month"},
+                      {l:"Receipts",v:String(dbReceipts.length),s:"uploaded"},
+                    ].map((s,i)=>(
+                      <div key={i} style={{background:"linear-gradient(135deg,#0F172A,#1E293B)",borderRadius:12,padding:"14px 12px",color:"#fff"}}>
+                        <div style={{fontSize:9,color:"#94A3B8",fontFamily:"'Space Mono'",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:5}}>{s.l}</div>
+                        <div style={{fontSize:18,fontWeight:700,marginBottom:2}}>{s.v}</div>
+                        <div style={{fontSize:10,color:"#94A3B8"}}>{s.s}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Category filter */}
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:16}}>
+                    {["all",...RC_CATS].map(c=>(
+                      <button key={c} className={`sw-fb ${rcFilter===c?"sw-a":""}`} onClick={()=>setRcFilter(c)}>
+                        {c==="all"?"All":c}
+                      </button>
+                    ))}
+                  </div>
+
+                  {filtered.length===0
+                    ? <Card style={{padding:"40px 20px",textAlign:"center"}}>
+                        <div style={{fontSize:36,marginBottom:12}}>🧾</div>
+                        <div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>No receipts yet</div>
+                        <div style={{fontSize:12,color:"#94A3B8",marginBottom:16}}>Upload receipts to track deductible expenses</div>
+                        <Btn onClick={()=>setRcView("upload")}>Upload First Receipt</Btn>
+                      </Card>
+                    : <Card>
+                        {filtered.map((rc:any,i:number)=>(
+                          <div key={rc.id} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",borderBottom:i<filtered.length-1?"1px solid #F1F5F9":"none"}}>
+                            <div
+                              onClick={()=>window.open(rc.file_url,"_blank")}
+                              style={{width:44,height:44,borderRadius:8,background:"#F1F5F9",flexShrink:0,overflow:"hidden",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}
+                            >
+                              {rc.file_url.match(/\.(jpg|jpeg|png|webp|gif)$/i)
+                                ? <img src={rc.file_url} alt="receipt" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                                : <span style={{fontSize:20}}>📄</span>}
+                            </div>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                                <div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>${Number(rc.amount).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
+                                <div style={{fontSize:11,color:"#94A3B8"}}>{fmtDateNY(rc.date)}</div>
+                              </div>
+                              <div style={{display:"flex",gap:6,alignItems:"center",marginTop:3}}>
+                                <span style={{fontSize:10,fontWeight:700,background:"#EEF2FF",color:"#3730A3",padding:"2px 8px",borderRadius:100}}>{rc.category}</span>
+                                {rc.description&&<span style={{fontSize:11,color:"#64748B",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{rc.description}</span>}
+                              </div>
+                            </div>
+                            <button onClick={()=>deleteReceipt(rc)} style={{background:"none",border:"none",color:"#CBD5E1",cursor:"pointer",fontSize:16,padding:"4px",flexShrink:0}}>×</button>
+                          </div>
+                        ))}
+                      </Card>
+                  }
+                </>}
+
+                {rcView==="upload"&&(
+                  <Card style={{padding:24,maxWidth:480}}>
+                    <h2 style={{fontSize:16,fontWeight:700,color:"#0F172A",marginBottom:18}}>Upload Receipt</h2>
+
+                    {/* File picker */}
+                    <div
+                      onClick={()=>rcFileRef.current?.click()}
+                      style={{border:`2px dashed ${rcFile?G:"#E2E8F0"}`,borderRadius:10,padding:"20px",textAlign:"center",cursor:"pointer",marginBottom:16,background:rcFile?"rgba(200,230,74,0.04)":"#FAFBFC",transition:"all .2s"}}
+                    >
+                      {rcPreview
+                        ? <img src={rcPreview} alt="preview" style={{maxHeight:140,maxWidth:"100%",borderRadius:8,objectFit:"contain"}}/>
+                        : rcFile
+                          ? <div style={{fontSize:13,color:"#64748B"}}>📄 {rcFile.name}</div>
+                          : <><div style={{fontSize:28,marginBottom:8}}>📸</div><div style={{fontSize:13,fontWeight:600,color:"#374151"}}>Tap to upload receipt</div><div style={{fontSize:11,color:"#94A3B8",marginTop:4}}>Photo or PDF</div></>
+                      }
+                    </div>
+
+                    {/* AI Scan button */}
+                    {rcFile&&rcFile.type.startsWith("image/")&&<button
+                      onClick={()=>handleReceiptScan(rcFile)}
+                      disabled={rcScanning}
+                      style={{width:"100%",marginBottom:14,padding:"10px",background:rcScanning?"#F1F5F9":`linear-gradient(135deg,${G},${GD})`,color:rcScanning?"#94A3B8":"#132440",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:rcScanning?"not-allowed":"pointer",fontFamily:"'DM Sans'",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}
+                    >
+                      {rcScanning?<><span style={{display:"inline-block",width:12,height:12,border:"2px solid #94A3B8",borderTopColor:"transparent",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>Scanning receipt...</>:<>✨ Scan with AI — auto-fill form</>}
+                    </button>}
+
+                    {/* Amount + Date */}
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+                      <div>
+                        <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Amount ($) *</label>
+                        <input type="number" min="0" step="0.01" value={rcAmount} onChange={e=>setRcAmount(e.target.value)} placeholder="0.00" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                      </div>
+                      <div>
+                        <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Date *</label>
+                        <input type="date" value={rcDate} onChange={e=>setRcDate(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                      </div>
+                    </div>
+
+                    {/* Category */}
+                    <div style={{marginBottom:14}}>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Category</label>
+                      <select value={rcCategory} onChange={e=>setRcCategory(e.target.value)} style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>
+                        {RC_CATS.map(c=><option key={c}>{c}</option>)}
+                      </select>
+                    </div>
+
+                    {/* Description */}
+                    <div style={{marginBottom:20}}>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:5}}>Description (optional)</label>
+                      <input value={rcDesc} onChange={e=>setRcDesc(e.target.value)} placeholder="e.g. Lumber from Home Depot" style={{width:"100%",padding:"10px 12px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+
+                    {rcErr&&<div style={{marginBottom:14,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:13,color:"#991B1B"}}>{rcErr}</div>}
+                    <button
+                      onClick={handleReceiptUpload}
+                      disabled={rcUploading||!rcFile||!rcAmount}
+                      style={{width:"100%",padding:13,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:rcUploading||!rcFile||!rcAmount?"not-allowed":"pointer",opacity:rcUploading||!rcFile||!rcAmount?0.6:1,fontFamily:"'DM Sans'"}}
+                    >{rcUploading?"Saving...":"Save Receipt"}</button>
+                  </Card>
+                )}
+              </>);
+            })()}
+            {vw==="estimates"&&(()=>{
+              const EST_STC: Record<string,{bg:string;text:string;label:string}> = { draft:{bg:"#F1F5F9",text:"#64748B",label:"Draft"}, sent:{bg:"#DBEAFE",text:"#1E40AF",label:"Sent"}, accepted:{bg:"#D1FAE5",text:"#065F46",label:"Accepted"}, declined:{bg:"#FEE2E2",text:"#991B1B",label:"Declined"} };
+              const EstBadge = ({s}:{s:string}) => { const c=EST_STC[s]||EST_STC.draft; return <span style={{display:"inline-block",padding:"3px 10px",borderRadius:100,fontSize:11,fontWeight:600,background:c.bg,color:c.text}}>{c.label}</span>; };
+              const sectionSwitch = <div role="tablist" aria-label="Estimates or invoices" style={{display:"inline-flex",background:"rgba(255,255,255,0.08)",borderRadius:10,padding:3,marginBottom:14,gap:2}}>
+                {([["estimates","📋 Estimates"],["invoices","🧾 Invoices"]] as const).map(([k,l])=><button key={k} role="tab" aria-selected={estSection===k} data-testid={`sec-${k}`} onClick={()=>setEstSection(k)} style={{padding:"7px 14px",borderRadius:8,border:"none",cursor:"pointer",fontFamily:"'DM Sans'",fontSize:13,fontWeight:700,background:estSection===k?G:"transparent",color:estSection===k?"#132440":"rgba(255,255,255,0.75)"}}>{l}{k==="invoices"&&dbInvoices.length>0?` (${dbInvoices.length})`:""}</button>)}
+              </div>;
+              if (estSection==="invoices") return (<>
+                {sectionSwitch}
+                <InvoicesPanel supabase={supabase} userId={userId} invoices={dbInvoices} setInvoices={setDbInvoices} unavailable={invoicesUnavailable}
+                  fromEstimate={invFromEstimate} onFromEstimateDone={()=>setInvFromEstimate(null)} openInvoiceId={openInvoiceId} onOpenInvoiceDone={()=>setOpenInvoiceId(null)}
+                  showToast={showToast} toastErr={toastErr} authJsonHeaders={authJsonHeaders} needAccount={needAccount}/>
+              </>);
+              return (<>
+                {sectionSwitch}
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <h1 style={{fontSize:22,fontWeight:700,color:"#fff"}}>Estimates</h1>
+                  <Btn onClick={()=>userId?setNewEstimateOpen(true):needAccount("create and send estimates")}>+ New Estimate</Btn>
+                </div>
+                <p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Create and send professional estimates to clients.</p>
+                {dbEstimates.length===0
+                  ? <Card style={{padding:40,textAlign:"center"}}>
+                      <div style={{fontSize:36,marginBottom:12}}>📋</div>
+                      <div style={{fontWeight:600,fontSize:16,color:"#0F172A",marginBottom:6}}>No estimates yet</div>
+                      <div style={{fontSize:13,color:"#94A3B8",marginBottom:16}}>Build a professional estimate and send it to a client in minutes.</div>
+                      <Btn onClick={()=>userId?setNewEstimateOpen(true):needAccount("create and send estimates")}>Create First Estimate</Btn>
+                    </Card>
+                  : <Card style={{overflow:"hidden"}}>
+                      {dbEstimates.map((est:any, i:number)=>(
+                        <div key={est.id} style={{padding:"14px 18px",borderBottom:i<dbEstimates.length-1?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer"}} onClick={()=>setEstimateDetail(est)}>
+                          <div>
+                            <div style={{fontWeight:600,fontSize:14,color:"#0F172A"}}>{est.customer_name}</div>
+                            <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{est.job_type} · {new Date(est.created_at).toLocaleDateString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",year:"numeric"})}{est.customer_email?` · ${est.customer_email}`:""}</div>
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <span style={{fontWeight:700,fontSize:14}}>${Number(est.total).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+                            <EstBadge s={est.status}/>
+                          </div>
+                        </div>
+                      ))}
+                    </Card>
+                }
+                {/* Estimate detail / edit modal */}
+                {estimateDetail&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:70,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>{if(!editingEstimate){setEstimateDetail(null);setEmailSent(false);}}}>
+                  <div style={{background:"#fff",borderRadius:16,maxWidth:560,width:"100%",maxHeight:"92vh",overflowY:"auto"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+                    {/* Header */}
+                    <div style={{background:"linear-gradient(135deg,#132440,#1E3A5F)",borderRadius:"16px 16px 0 0",padding:"20px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <div>
+                        <div style={{fontWeight:700,fontSize:16,color:"#fff"}}>{estimateDetail.customer_name}</div>
+                        <div style={{fontSize:12,color:"rgba(255,255,255,0.55)",marginTop:2}}>{estimateDetail.job_type} · {new Date(estimateDetail.created_at).toLocaleDateString("en-US",{timeZone:APP_TZ,month:"short",day:"numeric",year:"numeric"})}</div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        {!editingEstimate&&<EstBadge s={estimateDetail.status}/>}
+                        {!editingEstimate&&<button onClick={()=>openEditEstimate(estimateDetail)} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",fontSize:12,fontWeight:700,padding:"5px 12px",borderRadius:7,cursor:"pointer",fontFamily:"'DM Sans'"}}>✏️ Edit</button>}
+                        <button onClick={()=>{if(editingEstimate){setEditingEstimate(false);}else{setEstimateDetail(null);setEmailSent(false);}}} style={{background:"none",border:"none",color:"rgba(255,255,255,0.6)",fontSize:20,cursor:"pointer",padding:0,lineHeight:1}}>×</button>
+                      </div>
+                    </div>
+
+                    <div style={{padding:"20px 24px"}}>
+                      {!editingEstimate ? <>
+                        {/* VIEW MODE */}
+                        <table style={{width:"100%",borderCollapse:"collapse",marginBottom:16}}>
+                          <thead><tr style={{background:"#F8FAFC"}}>
+                            <th style={{padding:"8px 10px",textAlign:"left",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Item</th>
+                            <th style={{padding:"8px 10px",textAlign:"center",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Qty</th>
+                            <th style={{padding:"8px 10px",textAlign:"right",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Unit $</th>
+                            <th style={{padding:"8px 10px",textAlign:"right",fontSize:11,fontWeight:700,color:"#94A3B8",textTransform:"uppercase",letterSpacing:"0.05em",borderBottom:"2px solid #E2E8F0"}}>Total</th>
+                          </tr></thead>
+                          <tbody>
+                            {(estimateDetail.line_items||[]).map((it:any,i:number)=>(
+                              <tr key={i}>
+                                <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,color:"#374151"}}>{it.description}</td>
+                                <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,color:"#374151",textAlign:"center"}}>{it.quantity} {it.unit}</td>
+                                <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,color:"#374151",textAlign:"right"}}>${Number(it.unit_price).toFixed(2)}</td>
+                                <td style={{padding:"10px",borderBottom:"1px solid #F1F5F9",fontSize:13,fontWeight:600,color:"#0F172A",textAlign:"right"}}>${Number(it.total).toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr><td colSpan={3} style={{padding:"8px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>Subtotal</td><td style={{padding:"8px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>${Number(estimateDetail.subtotal).toFixed(2)}</td></tr>
+                            {estimateDetail.tax_rate>0&&<tr><td colSpan={3} style={{padding:"6px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>Tax ({estimateDetail.tax_rate}%)</td><td style={{padding:"6px 10px",textAlign:"right",fontSize:12,color:"#64748B"}}>${Number(estimateDetail.tax_amount).toFixed(2)}</td></tr>}
+                            <tr style={{background:"#F0FDF4"}}><td colSpan={3} style={{padding:"10px",textAlign:"right",fontSize:14,fontWeight:700,color:"#0F172A"}}>Total</td><td style={{padding:"10px",textAlign:"right",fontSize:18,fontWeight:800,color:"#132440"}}>${Number(estimateDetail.total).toFixed(2)}</td></tr>
+                          </tfoot>
+                        </table>
+                        {estimateDetail.notes&&<div style={{padding:"10px 14px",background:"#F8FAFC",borderLeft:"3px solid #C8E64A",borderRadius:4,marginBottom:16}}><p style={{fontSize:12,color:"#374151",lineHeight:1.6,margin:0}}>{estimateDetail.notes}</p></div>}
+                        {emailSent&&<div style={{padding:"10px 14px",background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:8,marginBottom:14,fontSize:13,color:"#065F46",fontWeight:600,textAlign:"center"}}>✅ Estimate sent to {estimateDetail.customer_email}</div>}
+                        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                          <Btn onClick={()=>window.open(`/estimate/${estimateDetail.share_token}`,"_blank")} style={{fontSize:12,padding:"8px 14px"}}>🔗 Share Link</Btn>
+                          {estimateDetail.customer_email&&<Btn onClick={()=>sendEstimateEmail(estimateDetail)} style={{fontSize:12,padding:"8px 14px",opacity:sendingEmail?0.6:1}}>{sendingEmail?"Sending...":"📧 Send Email"}</Btn>}
+                          <BtnO onClick={()=>{ navigator.clipboard?.writeText(`${window.location.origin}/estimate/${estimateDetail.share_token}`); }} style={{fontSize:12,padding:"8px 14px"}}>📋 Copy Link</BtnO>
+                          <BtnO onClick={()=>deleteEstimate(estimateDetail)} style={{fontSize:12,padding:"8px 14px",color:"#EF4444"}}>Delete</BtnO>
+                        </div>
+                        {/* Invoicing: accepted estimates are the usual starting point */}
+                        {(()=>{
+                          const linked = dbInvoices.filter((iv:any)=>iv.estimate_id===estimateDetail.id);
+                          const accepted = estimateDetail.status==="accepted";
+                          return <div data-testid="est-invoice-box" style={{marginTop:14,padding:"12px 14px",background:accepted?"#F0FDF4":"#F8FAFC",border:`1px solid ${accepted?"#BBF7D0":"#E2E8F0"}`,borderRadius:10}}>
+                            <div style={{fontSize:12,color:"#374151",marginBottom:8}}>{linked.length>0?<>Invoiced: {linked.map((iv:any,i:number)=><button key={iv.id} onClick={()=>{setOpenInvoiceId(iv.id);setEstSection("invoices");setEstimateDetail(null);}} style={{background:"none",border:"none",padding:0,marginRight:8,color:"#1E40AF",fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",fontSize:12,textDecoration:"underline"}}>{iv.invoice_number||formatInvoiceNumber(iv.number)}{i<linked.length-1?",":""}</button>)}</>:accepted?"Accepted. Ready to bill?":"Bill this job when the work is done."}</div>
+                            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                              <Btn data-testid="est-create-invoice" disabled={invoicesUnavailable} onClick={()=>{ if(!userId){needAccount("create invoices");return;} setInvFromEstimate(estimateDetail); setEstSection("invoices"); setEstimateDetail(null); }} style={{fontSize:12,padding:"8px 14px"}}>🧾 {linked.length>0?"Create another invoice":"Create Invoice"}</Btn>
+                              {!accepted&&estimateDetail.status!=="declined"&&<BtnO onClick={()=>setEstimateStatus(estimateDetail,"accepted")} style={{fontSize:12,padding:"8px 14px"}}>✓ Mark Accepted</BtnO>}
+                            </div>
+                            {invoicesUnavailable&&<div style={{fontSize:11,color:"#94A3B8",marginTop:6}}>Invoicing will be available after the latest update finishes rolling out.</div>}
+                          </div>;
+                        })()}
+                      </> : <>
+                        {/* EDIT MODE */}
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                          {[{label:"Customer Name *",val:editCustomer,set:setEditCustomer,type:"text"},{label:"Email",val:editEmail,set:setEditEmail,type:"email"},{label:"Phone",val:editPhone,set:setEditPhone,type:"tel"}].map((f,i)=>(
+                            <div key={i} style={{gridColumn:i===0?"1/3":"auto"}}><label style={{fontSize:11,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>{f.label}</label><input type={f.type} value={f.val} onChange={e=>f.set(e.target.value)} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+                          ))}
+                          <div><label style={{fontSize:11,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>Job Type</label><select value={editJobType} onChange={e=>setEditJobType(e.target.value)} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:13,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>{["General","Plumbing","Electrical","HVAC","Roofing","Drywall","Painting","Deck","Flooring","Other"].map(t=><option key={t}>{t}</option>)}</select></div>
+                          <div><label style={{fontSize:11,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>Valid Until</label><input type="date" value={editValidUntil} onChange={e=>setEditValidUntil(e.target.value)} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+                        </div>
+                        <div style={{fontSize:12,fontWeight:600,color:"#374151",marginBottom:8}}>Line Items</div>
+                        <div style={{display:"flex",flexDirection:"column",gap:7,marginBottom:10}}>
+                          {editLineItems.map((it)=>(
+                            <div key={it.id} className="sw-li" style={{gap:5}}>
+                              <input className="sw-li-d" aria-label="Description" value={it.description} onChange={e=>updateEditLineItem(it.id,"description",e.target.value)} placeholder="Description" style={{padding:"7px 8px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none"}}/>
+                              <input className="sw-li-q" aria-label="Quantity" type="number" min="0" value={it.quantity} onChange={e=>updateEditLineItem(it.id,"quantity",e.target.value)} style={{padding:"7px 6px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"center"}}/>
+                              <select className="sw-li-u" aria-label="Unit" value={it.unit} onChange={e=>updateEditLineItem(it.id,"unit",e.target.value)} style={{padding:"7px 4px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:11,fontFamily:"'DM Sans'",outline:"none",background:"#fff"}}>
+                                {unitOptions(it.unit).map(u=><option key={u.value} value={u.value}>{u.label}</option>)}
+                              </select>
+                              <input className="sw-li-p" aria-label="Price per unit" type="number" min="0" step="0.01" value={it.unit_price} onChange={e=>updateEditLineItem(it.id,"unit_price",e.target.value)} style={{padding:"7px 6px",border:"1.5px solid #E2E8F0",borderRadius:6,fontSize:12,fontFamily:"'DM Sans'",outline:"none",textAlign:"right"}}/>
+                              <div className="sw-li-t" aria-label="Amount" style={{padding:"7px 6px",background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:6,fontSize:12,fontWeight:600,color:"#374151",textAlign:"right",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>${Number(it.total).toFixed(2)}</div>
+                              <button className="sw-li-x" aria-label="Remove line item" onClick={()=>setEditLineItems(prev=>prev.filter(x=>x.id!==it.id))} style={{background:"none",border:"none",color:"#CBD5E1",cursor:"pointer",fontSize:16,padding:"0 2px"}}>×</button>
+                            </div>
+                          ))}
+                        </div>
+                        <button onClick={()=>setEditLineItems(prev=>[...prev,{id:Date.now(),description:"",quantity:1,unit:"hours",unit_price:0,total:0}])} style={{fontSize:12,color:GD,fontWeight:600,background:"none",border:`1px dashed ${G}`,borderRadius:6,padding:"6px 14px",cursor:"pointer",fontFamily:"'DM Sans'",width:"100%",marginBottom:14}}>+ Add Line Item</button>
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                          <div><label style={{fontSize:11,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>Tax Rate (%)</label><input type="number" min="0" max="30" step="0.1" value={editTaxRate} onChange={e=>setEditTaxRate(e.target.value)} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:13,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/></div>
+                          <div style={{display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+                            {(()=>{const{subtotal,taxAmount,total}=calcEstimateTotals(editLineItems,parseFloat(editTaxRate)||0);return<div style={{padding:"9px 10px",background:"#F0FDF4",borderRadius:7,textAlign:"right"}}><div style={{fontSize:11,color:"#64748B"}}>Subtotal: ${subtotal.toFixed(2)}{taxAmount>0?` · Tax: $${taxAmount.toFixed(2)}`:""}</div><div style={{fontSize:16,fontWeight:800,color:"#132440"}}>Total: ${total.toFixed(2)}</div></div>})()}
+                          </div>
+                        </div>
+                        <div style={{marginBottom:16}}><label style={{fontSize:11,fontWeight:600,color:"#374151",display:"block",marginBottom:4}}>Notes</label><textarea value={editNotes} onChange={e=>setEditNotes(e.target.value)} rows={3} style={{width:"100%",padding:"9px 10px",border:"1.5px solid #E2E8F0",borderRadius:7,fontSize:13,fontFamily:"'DM Sans'",outline:"none",resize:"vertical",boxSizing:"border-box"}}/></div>
+                        {editError&&<div style={{marginBottom:12,padding:"10px 14px",background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,fontSize:13,color:"#991B1B"}}>{editError}</div>}
+                        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                          <BtnO onClick={()=>setEditingEstimate(false)} style={{fontSize:13,padding:11}}>Cancel</BtnO>
+                          <button onClick={handleUpdateEstimate} disabled={editLoading||!editCustomer.trim()} style={{padding:11,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:13,fontWeight:700,cursor:editLoading||!editCustomer.trim()?"not-allowed":"pointer",opacity:editLoading||!editCustomer.trim()?0.6:1,fontFamily:"'DM Sans'"}}>{editLoading?"Saving...":"Save Changes"}</button>
+                        </div>
+                      </>}
+                    </div>
+                  </div>
+                </div>}
+              </>);
+            })()}
+            {vw==="profit"&&(()=>{
+              // Revenue needs a price; jobs saved without one (value null, allowed since schema_align) are counted separately.
+              const allJobs = activeJobs;
+              const jobsWithData = allJobs.filter((j:any) => Number(j.value) > 0);
+              const unpriced = allJobs.filter((j:any) => !(Number(j.value) > 0));
+              const jobsWithHours = jobsWithData.filter((j:any) => j.hours_worked > 0);
+              const totalRevenue = jobsWithData.reduce((a:number,j:any)=>a+Number(j.value),0);
+              const totalCost = jobsWithData.reduce((a:number,j:any)=>a+Number(j.material_cost||0),0);
+              const totalProfit = totalRevenue - totalCost;
+              const avgMargin = totalRevenue > 0 ? Math.round((totalProfit/totalRevenue)*100) : 0;
+              const avgPPH = jobsWithHours.length > 0
+                ? Math.round(jobsWithHours.reduce((a:number,j:any)=>a+((Number(j.value)-Number(j.material_cost||0))/Number(j.hours_worked)),0)/jobsWithHours.length)
+                : null;
+              // Per job-type breakdown
+              const typesPresent = [...new Set(jobsWithData.map((j:any)=>j.type||"General"))] as string[];
+              const byType = typesPresent.map(t=>{
+                const jt = jobsWithData.filter((j:any)=>(j.type||"General")===t);
+                if(!jt.length) return null;
+                const rev = jt.reduce((a:number,j:any)=>a+Number(j.value),0);
+                const cost = jt.reduce((a:number,j:any)=>a+Number(j.material_cost||0),0);
+                const profit = rev - cost;
+                const margin = rev>0?Math.round((profit/rev)*100):0;
+                const withHrs = jt.filter((j:any)=>j.hours_worked>0);
+                const pph = withHrs.length>0?Math.round(withHrs.reduce((a:number,j:any)=>a+((Number(j.value)-Number(j.material_cost||0))/Number(j.hours_worked)),0)/withHrs.length):null;
+                return { type:t, count:jt.length, rev, profit, margin, pph };
+              }).filter(Boolean).sort((a:any,b:any)=>b.margin-a.margin);
+              // Best/worst job types
+              const typesWithMargin = byType.filter((t:any)=>t.count>=1);
+              const best = typesWithMargin[0];
+              const worst = typesWithMargin[typesWithMargin.length-1];
+              // Top jobs by profit/hr
+              const rankedJobs = [...jobsWithHours].map((j:any)=>({...j, pph:Math.round((Number(j.value)-Number(j.material_cost||0))/Number(j.hours_worked))})).sort((a:any,b:any)=>b.pph-a.pph).slice(0,5);
+              return <>
+                <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Profit Intelligence</h1>
+                <p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Know which jobs actually make you money.</p>
+                {jobsWithData.length===0
+                  ? (allJobs.length===0
+                    ? <Card style={{padding:"48px 20px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>💰</div><div style={{fontWeight:700,fontSize:16,color:"#0F172A",marginBottom:6}}>No job data yet</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>Add jobs with a price, material costs and hours to see your profitability breakdown.</div><Btn onClick={()=>{if(!userId){needAccount("log real jobs");return;}resetNewJobForm();setVw("jobs");setNewJobOpen(true)}}>+ Add First Job</Btn></Card>
+                    : <Card style={{padding:"48px 20px",textAlign:"center"}}><div style={{fontSize:44,marginBottom:14}}>🏷️</div><div style={{fontWeight:700,fontSize:16,color:"#0F172A",marginBottom:6}}>Add a price to see profit</div><div style={{fontSize:13,color:"#94A3B8",marginBottom:20}}>You have {allJobs.length} job{allJobs.length!==1?"s":""}, but none has a price yet. Profit is the job price minus material costs: fill in Price (and Materials and Hours, if you track them) when you add a job.</div><Btn onClick={()=>{if(!userId){needAccount("log real jobs");return;}resetNewJobForm();setVw("jobs");setNewJobOpen(true)}}>+ Add a priced job</Btn></Card>)
+                  : <>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+                      {[
+                        {l:"Total Profit",v:`$${totalProfit.toLocaleString()}`,s:`from ${jobsWithData.length} jobs`},
+                        {l:"Avg Margin",v:`${avgMargin}%`,s:"revenue minus materials"},
+                        {l:"Best Profit/Hr",v:avgPPH?`$${avgPPH}/hr`:"—",s:avgPPH?`avg across ${jobsWithHours.length} jobs`:"add hours to jobs"},
+                        {l:"Top Job Type",v:best?best.type:"—",s:best?`${best.margin}% margin`:"need more data"},
+                      ].map((s,i)=><div key={i} style={{background:"linear-gradient(135deg,#0F172A,#1E293B)",borderRadius:12,padding:16,color:"#fff"}}>
+                        <div style={{fontSize:10,color:"#94A3B8",fontFamily:"'Space Mono'",letterSpacing:"0.05em",textTransform:"uppercase",marginBottom:6}}>{s.l}</div>
+                        <div style={{fontSize:20,fontWeight:700,marginBottom:2}}>{s.v}</div>
+                        <div style={{fontSize:11,color:"#94A3B8"}}>{s.s}</div>
+                      </div>)}
+                    </div>
+                    {unpriced.length>0&&<div style={{fontSize:12,color:"#94A3B8",marginBottom:12}}>{unpriced.length} job{unpriced.length!==1?"s":""} without a price {unpriced.length!==1?"aren't":"isn't"} counted.</div>}
+                    {best&&worst&&best.type!==worst.type&&<Card style={{padding:"14px 16px",marginBottom:16,background:"#FFFBEB",border:"1px solid #FDE68A"}}>
+                      <div style={{fontSize:12,fontWeight:700,color:"#92400E",marginBottom:4}}>AI Insight</div>
+                      <div style={{fontSize:13,color:"#78350F"}}>Your <strong>{best.type}</strong> jobs have a {best.margin}% margin — your best. <strong>{worst.type}</strong> jobs are your lowest at {worst.margin}%. Consider whether low-margin jobs are worth your time.</div>
+                    </Card>}
+                    {byType.length>0&&<Card style={{overflow:"hidden",marginBottom:16}}>
+                      <div style={{padding:"14px 18px",borderBottom:"1px solid #E2E8F0"}}><span style={{fontSize:14,fontWeight:700,color:"#0F172A"}}>Breakdown by Job Type</span></div>
+                      {byType.map((t:any,i:number)=><div key={t.type} style={{padding:"12px 18px",borderBottom:i<byType.length-1?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{t.type}</div><div style={{fontSize:11,color:"#94A3B8"}}>{t.count} job{t.count!==1?"s":""} · ${t.rev.toLocaleString()} revenue</div></div>
+                        <div style={{textAlign:"right",display:"flex",gap:10,alignItems:"center"}}>
+                          {t.pph&&<span style={{fontSize:11,color:"#64748B",fontWeight:600}}>${t.pph}/hr</span>}
+                          <span style={{fontWeight:700,fontSize:13,padding:"3px 10px",borderRadius:20,background:t.margin>=40?"#DCFCE7":t.margin>=20?"#FEF9C3":"#FEE2E2",color:t.margin>=40?"#166534":t.margin>=20?"#92400E":"#991B1B"}}>{t.margin}%</span>
+                        </div>
+                      </div>)}
+                    </Card>}
+                    {rankedJobs.length>0&&<Card style={{overflow:"hidden"}}>
+                      <div style={{padding:"14px 18px",borderBottom:"1px solid #E2E8F0"}}><span style={{fontSize:14,fontWeight:700,color:"#0F172A"}}>Top Jobs by Profit/Hr</span></div>
+                      {rankedJobs.map((j:any,i:number)=><div key={j.id} style={{padding:"12px 18px",borderBottom:i<rankedJobs.length-1?"1px solid #F1F5F9":"none",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <div><div style={{fontWeight:600,fontSize:13,color:"#0F172A"}}>{j.customer}</div><div style={{fontSize:11,color:"#94A3B8"}}>{j.type} · {j.hours_worked}hrs · ${Number(j.material_cost||0).toLocaleString()} materials</div></div>
+                        <div style={{fontWeight:700,fontSize:14,color:G}}>${j.pph}/hr</div>
+                      </div>)}
+                    </Card>}
+                  </>}
+              </>;
+            })()}
+            {vw==="followups"&&<>
+              <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Follow-up Reminders</h1><p style={{fontSize:13,color:"#94A3B8",marginBottom:18}}>Don&apos;t leave money on the table.</p>
+              <div style={{padding:"40px 20px",textAlign:"center",color:"#94A3B8"}}><div style={{fontSize:36,marginBottom:12}}>🔔</div><div style={{fontWeight:600,fontSize:15,color:"#0F172A",marginBottom:4}}>No follow-ups yet</div><div style={{fontSize:12}}>Completed jobs will appear here as reminders to re-engage past clients.</div></div>
+            </>}
+            {vw==="settings"&&(()=>{
+              const fmtDate = (iso?: string|null) => iso ? fmtDateNY(iso,{month:"long",day:"numeric",year:"numeric"}) : null;
+              const statusLabel = subStatus==="trialing" ? "Free Trial" : subStatus==="active" ? "Active" : subStatus==="past_due" ? "Past Due" : (subStatus==="cancelled"||subStatus==="canceled") ? "Cancelled" : subStatus==="incomplete" || subStatus==="incomplete_expired" ? "Incomplete" : subStatus==="unpaid" ? "Unpaid" : "No active subscription";
+              const statusColor = subStatus==="active"||subStatus==="trialing" ? "#22C55E" : subStatus==="past_due"||subStatus==="unpaid" ? "#F59E0B" : subStatus==="cancelled" ? "#EF4444" : "#94A3B8";
+              const trialEnd = fmtDate(subDetail?.trial_end);
+              const periodEnd = fmtDate(subDetail?.current_period_end);
+              const cancelAt = fmtDate(subDetail?.cancel_at);
+              const cancelledAt = fmtDate(subDetail?.cancelled_at);
+              return <>
+                <h1 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:4}}>Settings</h1>
+                <p style={{fontSize:13,color:"#94A3B8",marginBottom:22}}>Manage your profile, password, subscription, and lead form.</p>
+
+                <Card style={{padding:22,marginBottom:16}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:14}}>Profile</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Name</label>
+                      <input value={profileName} onChange={e=>setProfileName(e.target.value)} placeholder="Your name or business name" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Trade</label>
+                      <input value={profileTrade} onChange={e=>setProfileTrade(e.target.value)} placeholder="e.g. Plumbing, HVAC, Remodeling" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Service area / zip</label>
+                      <input value={profileArea} onChange={e=>setProfileArea(e.target.value)} placeholder="e.g. Baltimore · 21201" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Phone</label>
+                      <input value={profilePhone} onChange={e=>setProfilePhone(e.target.value)} placeholder="(410) 555-0100" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Email</label>
+                      <input value={userEmail || ""} readOnly style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box",background:"#F8FAFC",color:"#64748B"}}/>
+                      <div style={{fontSize:11,color:"#94A3B8",marginTop:4}}>Email is tied to your login and can&apos;t be changed here.</div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                      <Btn onClick={saveProfile} disabled={profileSaving} style={{padding:"11px 20px",fontSize:13}}>{profileSaving?"Saving…":"Save Profile"}</Btn>
+                      {profileMsg&&<span style={{fontSize:13,color:profileMsg.includes("saved")?"#065F46":"#B91C1C"}}>{profileMsg}</span>}
+                    </div>
+                  </div>
+                </Card>
+
+                <Card style={{padding:22,marginBottom:16}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8}}>Get leads</div>
+                  <p style={{fontSize:13,color:"#64748B",lineHeight:1.6,marginBottom:12}}>Share your personal form link. Submissions show up in your Leads tab in real time — no website required.</p>
+                  <div style={{padding:"10px 12px",background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:8,fontSize:12,color:"#475569",wordBreak:"break-all",marginBottom:12,fontFamily:"'Space Mono'"}}>{leadFormUrl()||"Sign in to see your link"}</div>
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                    <Btn onClick={copyLeadLink} style={{padding:"11px 20px",fontSize:13}}>{linkCopied?"Copied!":"Copy link"}</Btn>
+                    <BtnO onClick={shareLeadLink} style={{padding:"11px 20px",fontSize:13}}>Share</BtnO>
+                  </div>
+                </Card>
+
+                <Card style={{padding:22,marginBottom:16}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:14}}>Login</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:16}}>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>New password</label>
+                      <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="••••••••" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    <div>
+                      <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Confirm password</label>
+                      <input type="password" value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="••••••••" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                    </div>
+                    {pwError&&<div style={{background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#991B1B"}}>{pwError}</div>}
+                    <Btn onClick={handleChangePassword} disabled={pwLoading} style={{padding:"11px 20px",fontSize:13,alignSelf:"flex-start"}}>{pwLoading?"Updating…":"Change password"}</Btn>
+                    <div style={{fontSize:11,color:"#94A3B8"}}>You&apos;ll be signed out after changing your password.</div>
+                  </div>
+                  <div style={{borderTop:"1px solid #F1F5F9",paddingTop:14}}>
+                    <BtnO onClick={async()=>{await supabase.auth.signOut();setPage("landing");setUserId(null);setUserEmail(null);setSubStatus(null);setStripeCustomerId(null);setSubDetail(null);}} style={{padding:"11px 22px",fontSize:13}}>Log out</BtnO>
+                  </div>
+                </Card>
+
+                <Card style={{padding:22,marginBottom:16}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,gap:12,flexWrap:"wrap"}}>
+                    <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase"}}>Membership</div>
+                    <span style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 10px",background:`${statusColor}18`,color:statusColor,fontSize:11,fontWeight:700,borderRadius:100,textTransform:"uppercase",letterSpacing:"0.04em"}}>
+                      <span style={{width:6,height:6,borderRadius:"50%",background:statusColor}}/>{statusLabel}
+                    </span>
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"140px 1fr",rowGap:10,fontSize:14,marginBottom:16}}>
+                    <div style={{color:"#64748B"}}>Plan</div><div style={{color:"#0F172A",fontWeight:600}}>StackedWork {subDetail?.plan==="base" || !subDetail?.plan ? "Base" : subDetail.plan} — $49.99 / month</div>
+                    {trialEnd && subStatus==="trialing" && (<>
+                      <div style={{color:"#64748B"}}>Trial ends</div><div style={{color:"#0F172A",fontWeight:600}}>{trialEnd}</div>
+                    </>)}
+                    {periodEnd && subStatus!=="cancelled" && (<>
+                      <div style={{color:"#64748B"}}>Next renewal</div><div style={{color:"#0F172A",fontWeight:600}}>{periodEnd}</div>
+                    </>)}
+                    {cancelAt && (<>
+                      <div style={{color:"#64748B"}}>Ends on</div><div style={{color:"#EF4444",fontWeight:600}}>{cancelAt}</div>
+                    </>)}
+                    {cancelledAt && subStatus==="cancelled" && (<>
+                      <div style={{color:"#64748B"}}>Cancelled on</div><div style={{color:"#0F172A",fontWeight:600}}>{cancelledAt}</div>
+                    </>)}
+                  </div>
+                  {stripeCustomerId ? (
+                    <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                      <Btn onClick={handleManageBilling} disabled={billingLoading} style={{padding:"11px 20px",fontSize:13}}>{billingLoading?"Opening…":"Manage billing"}</Btn>
+                      <BtnO onClick={handleManageBilling} disabled={billingLoading} style={{padding:"11px 20px",fontSize:13}}>{billingLoading?"Opening…":"Update payment"}</BtnO>
+                    </div>
+                  ) : (
+                    <div style={{padding:"12px 14px",background:"#FEF3C7",border:"1px solid #FDE68A",borderRadius:8,fontSize:12,color:"#92400E"}}>
+                      We couldn&apos;t find your billing account. If this looks wrong, email <a href="mailto:ryan@remventures.tech" style={{color:"#92400E",fontWeight:700}}>ryan@remventures.tech</a>.
+                    </div>
+                  )}
+                </Card>
+
+                <Card style={{padding:22,marginBottom:16,border:"1px solid #FECACA",background:"#FFF5F5"}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#B91C1C",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:8}}>Cancel</div>
+                  <div style={{fontWeight:700,fontSize:15,color:"#0F172A",marginBottom:4}}>Cancel Membership</div>
+                  <p style={{fontSize:13,color:"#64748B",lineHeight:1.6,marginBottom:14}}>
+                    Cancel any time via Stripe. You&apos;ll keep access until <strong>{periodEnd || "the end of your current billing period"}</strong>, then your account will be closed.
+                  </p>
+                  {subStatus==="cancelled" ? (
+                    <div style={{padding:"10px 14px",background:"#fff",border:"1px solid #E2E8F0",borderRadius:8,fontSize:13,color:"#64748B"}}>
+                      Your membership is already cancelled{cancelledAt?` (${cancelledAt})`:""}.
+                    </div>
+                  ) : cancelAt ? (
+                    <div style={{padding:"10px 14px",background:"#fff",border:"1px solid #FCA5A5",borderRadius:8,fontSize:13,color:"#B91C1C"}}>
+                      Cancellation scheduled — access ends {cancelAt}. Change your mind? Click <strong>Manage billing</strong> to resume.
+                    </div>
+                  ) : null}
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap",marginTop:14}}>
+                    <button
+                      onClick={()=>{
+                        if(!stripeCustomerId){alert("We couldn't find your billing account. Please contact ryan@remventures.tech.");return;}
+                        if(confirm("Open the Stripe billing portal to cancel your StackedWork membership? You'll still have access until the end of your current billing period.")){
+                          handleManageBilling();
+                        }
+                      }}
+                      disabled={billingLoading || !stripeCustomerId}
+                      style={{background:"#B91C1C",color:"#fff",border:"none",padding:"12px 22px",borderRadius:8,fontSize:13,fontWeight:700,cursor:(billingLoading||!stripeCustomerId)?"not-allowed":"pointer",fontFamily:"'DM Sans'",opacity:(billingLoading||!stripeCustomerId)?0.5:1}}
+                    >{billingLoading?"Opening…":"Cancel Membership"}</button>
+                    <BtnO onClick={handleManageBilling} disabled={billingLoading || !stripeCustomerId} style={{padding:"12px 22px",fontSize:13}}>Manage billing</BtnO>
+                  </div>
+                </Card>
+
+                <Card style={{padding:22}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94A3B8",letterSpacing:"0.06em",textTransform:"uppercase",marginBottom:10}}>Support</div>
+                  <p style={{fontSize:14,color:"#0F172A",lineHeight:1.7,marginBottom:0}}>
+                    <a href="mailto:ryan@remventures.tech" style={{color:GD,fontWeight:700,textDecoration:"none"}}>ryan@remventures.tech</a>
+                    <span style={{color:"#94A3B8"}}> · </span>
+                    <a href="tel:+14105306456" style={{color:"#0F172A",fontWeight:600,textDecoration:"none"}}>(410) 530-6456</a>
+                  </p>
+                </Card>
+              </>;
+            })()}
+          </main>
+        </div>
+        <div className="sw-bn">{nv.map(n=><button key={n.id} className={`sw-bi ${vw===n.id?"sw-a":""}`} onClick={()=>setVw(n.id)}><span className="sw-ic">{n.ic}</span><span className="sw-lb">{n.lb}</span></button>)}</div>
+        <ChatWidget mode="contractor" getAccessToken={getAccessToken} />
+      </div>
+    );
+  }
+  const es = (lang as string)==="es"; // homepage lock: always false
+  const t = {
+    navDemo: es?"Demo":"Demo",
+    navFind: es?"Encontrar Contratista":"Find a Contractor",
+    navSignIn: es?"Iniciar sesión":"Sign In",
+    navStart: es?"Comenzar":"Get Started",
+    heroBadge: es?"Hecho para contratistas":"Built for contractors",
+    heroTitle: es?"Tu CRM. Tu IA.\nUn precio.":"Your CRM. Your AI.\nOne price.",
+    heroDesc: es?"Deja de hacer malabares con hojas de cálculo y apps que nunca usas. StackedWork administra tu negocio en un solo lugar — CRM, seguimiento de leads, portafolio de fotos y paneles de ingresos.":"Stop juggling spreadsheets and apps you never open. StackedWork runs your contracting business in one place — CRM, lead tracking, before & after portfolio, and revenue dashboards.",
+    pricingSub: es?"CRM + ENTRADA POR VOZ + GESTIÓN DE LEADS. SIN CARGOS DE INSTALACIÓN.":"CRM + VOICE-TO-JOB + LEAD TRACKING. NO SETUP FEES.",
+    pricingWebsite: es?"¿Necesitas un sitio web? Pregúntanos sobre nuestros servicios de sitios web con IA.":"Need a website? Ask us about our AI website building services.",
+    btnTrial: es?"Iniciar prueba gratis":"Start Free Trial",
+    btnDemo: es?"Ver demo en vivo":"See Live Demo",
+    signupLabel: es?"Empieza gratis hoy":"Start free today",
+    signupTitle: es?"Listo en":"Set up in",
+    signupTitleGreen: es?"5 minutos.":"5 minutes.",
+    signupSub: es?`Prueba gratuita de ${TD} días. Sin tarjeta de crédito.`:`${TD}-day free trial. No credit card required.`,
+    signupPlaceholder: es?"tu@email.com":"your@email.com",
+    signupBtn: es?"Comenzar →":"Get Started →",
+    signupSmall: es?`$49.99/MES · PRUEBA GRATIS ${TD} DÍAS · SIN TARJETA · SIN CARGO DE INSTALACIÓN · CANCELA CUANDO QUIERAS`:founder.active?`${(founder.headline||"").replace(/\.$/,"").toUpperCase()} · REGULAR ${LIST_PRICE}/MO · NO SETUP FEE · CANCEL ANYTIME`:`$49.99/MO · ${TD}-DAY FREE TRIAL · NO CREDIT CARD · NO SETUP FEE · CANCEL ANYTIME`,
+    videoLabel: es?"Míralo en acción":"See it in action",
+    videoTitle: es?"Administra tu negocio desde la camioneta.":"Run your business from the truck.",
+    featLabel: es?"Lo que obtienes":"What you get",
+    featTitle: es?"Todo lo que un contratista necesita.":"Everything a contractor needs.",
+    featSub: es?"Nada que no necesites.":"Nothing you don't.",
+    featClick: es?"PROBAR →":"CLICK TO TRY →",
+    aiLabel: es?"Nueva función":"New feature",
+    aiTitle: es?"Tu IA.":"Your AI.",
+    aiTitleGreen: es?"Siempre disponible.":"Always on call.",
+    aiDesc: es?"Haz preguntas sobre precios, obtén guiones de seguimiento, averigua si vale la pena tomar un trabajo. Tu asistente de negocios con IA está integrado en tu panel — sin apps adicionales, sin costo extra.":"Ask pricing questions, get follow-up scripts, figure out if a job is worth taking. Your AI business assistant is built right into your dashboard — no extra apps, no extra cost.",
+    aiPowered: es?"CON TECNOLOGÍA DE CLAUDE AI · INCLUIDO EN TU PLAN DE $49.99/MES":"POWERED BY CLAUDE AI · INCLUDED IN YOUR $49.99/MO PLAN",
+    mathLabel: es?"Hecho para equipos pequeños":"Built for small crews",
+    mathTitle: es?"Las herramientas empresariales cobran precios empresariales.":"Enterprise tools charge enterprise prices.",
+    mathDesc: es?"StackedWork da a los equipos pequeños las herramientas que necesitan — sin precios de empresa.":"StackedWork gives small crews the tools they need — without enterprise pricing.",
+    mathWithout: es?"Herramientas empresariales":"Enterprise tools",
+    fieldLabel: es?"Del campo":"From the field",
+    fieldTitle: es?"Hecho para los oficios.":"Built for the trades.",
+    fieldQuote: es?"Las herramientas construidas para cómo realmente trabajas — desde la camioneta, en el trabajo, cerrando tratos en el momento.":"The tools built for how you actually work — from the truck, on the job, closing deals on the spot.",
+    howLabel: es?"Cómo funciona":"How it works",
+    howTitle: es?"En línea en":"Live in",
+    howTitleGreen: es?"48 horas.":"48 hours.",
+    ctaTitle: es?"¿Listo para dejar de trabajar al revés?":"Ready to stop hustling backwards?",
+    ctaDesc: es?`$49.99/mes · Prueba gratis de ${TD} días · Sin tarjeta de crédito · Sin cargo de instalación · Cancela cuando quieras.`:founder.active?`${founder.headline} ${founder.sub} No setup fee, cancel anytime.`:`$49.99/mo · ${TD}-day free trial · no credit card required · no setup fee · cancel anytime.`,
+    ctaBtn: es?"Inicia tu prueba gratis":"Start Your Free Trial",
+    ctaSmall: es?`$49.99/MES · PRUEBA GRATIS ${TD} DÍAS · SIN TARJETA · SIN CARGO DE INSTALACIÓN · CANCELA CUANDO QUIERAS`:founder.active?`${(founder.headline||"").replace(/\.$/,"").toUpperCase()} · REGULAR ${LIST_PRICE}/MO · NO SETUP FEE · CANCEL ANYTIME`:`$49.99/MO · ${TD}-DAY FREE TRIAL · NO CREDIT CARD · NO SETUP FEE · CANCEL ANYTIME`,
+    homeTitle: es?"¿Buscas un contratista con licencia?":"Looking for a Licensed Contractor?",
+    homeDesc: es?"Describe tu proyecto y conéctate con contratistas con licencia estatal en tu área — gratis, rápido y sin compromiso. Los 50 estados.":"Describe your project and get connected with state-licensed contractors in your area — free, fast, and no obligation. All 50 states.",
+    homeBtn: es?"Encontrar un Contratista →":"Find a Licensed Contractor →",
+    shareLabel: es?"Corre la voz":"Spread the word",
+    shareTitle: es?"¿Conoces a un contratista que necesite esto?":"Know a contractor who needs this?",
+    shareDesc: es?"Comparte StackedWork y ayúdalos a administrar un negocio más eficiente.":"Share StackedWork and help them run a tighter business.",
+    shareFb: es?"Compartir en Facebook":"Share on Facebook",
+    shareIg: es?"Compartir en Instagram":"Share on Instagram",
+    privacy: es?"Privacidad":"Privacy",
+    terms: es?"Términos":"Terms",
+    features: es ? [
+      {icon:"🏗️",title:"CRM con IA",desc:"Rastrea cada trabajo, cliente y dólar. Entrada por voz para registrar trabajos desde la camioneta.",link:"dashboard"},
+      {icon:"🤖",title:"Asistente de Negocios IA",desc:"Pregúntale cualquier cosa — precios, consejos de seguimiento, consejos de negocios. Integrado en tu panel.",link:"dashboard"},
+      {icon:"🌐",title:"Servicio de Sitio Web IA",desc:"¿Necesitas un sitio web construido o actualizado? Ofrecemos servicios con IA para contratistas.",link:"https://REMVentures.Tech"},
+      {icon:"📸",title:"Portafolio Antes y Después",desc:"Sube fotos, construye tu portafolio y comparte imágenes antes y después en Facebook, Instagram y TikTok.",link:"photos"},
+      {icon:"📊",title:"Panel de Ingresos",desc:"Ve lo que ganaste esta semana, mes y año. Sabe qué trabajos son rentables.",link:"dashboard"},
+      {icon:"📲",title:"Gestión de Leads",desc:"Rastrea cada lead, haz seguimiento a tiempo y nunca pierdas un trabajo.",link:"leads"},
+      {icon:"💬",title:"Envíanos un Texto",desc:"¿Necesitas cambiar algo en tu sitio? Solo envíanos un texto. Nosotros lo manejamos.",link:"sms:+14105306456"},
+    ] : FEATURES,
+    comparisons: es ? [
+      {item:"Precio base mensual",them:"$398–$600+/mes",us:"$49.99/mes"},
+      {item:"Cargo de instalación",them:"$1,000–$5,000",us:"Gratis"},
+      {item:"Asistente IA de negocios",them:"No incluido",us:"Incluido"},
+      {item:"Portafolio antes y después",them:"No incluido",us:"Incluido"},
+      {item:"Compartir en redes sociales",them:"No incluido",us:"Incluido"},
+      {item:"Listo para usar",them:"Semanas de entrenamiento",us:"5 minutos"},
+      {item:"Costo total primer año",them:"$6,000–$12,000+",us:"$599/año"},
+    ] : COMPARISONS,
+    howSteps: es ? [
+      {s:"01",t:"Regístrate en 5 minutos",d:"Solo tu email y una contraseña. Sin tarjeta de crédito. Luego registra tu primer trabajo por voz."},
+      {s:"02",t:"Tu CRM está listo",d:"La IA configura tu panel, seguimiento de trabajos y gestión de leads al instante."},
+      {s:"03",t:"Empieza a cerrar trabajos",d:"CRM. Portafolio de fotos. Seguimiento de ingresos. Recordatorios. Todo en vivo."},
+    ] : [
+      {s:"01",t:"Sign up in 5 minutes",d:"Just your email and a password. No credit card. Then log your first job by voice."},
+      {s:"02",t:"Your CRM is ready",d:"AI sets up your dashboard, job tracking, and lead management instantly."},
+      {s:"03",t:"Start closing jobs",d:"CRM. Photo portfolio. Revenue tracking. Follow-up reminders. All live."},
+    ],
+    aiFeatures: es ? [
+      {icon:"💰",title:"Ayuda con Precios",desc:"\"¿Cuánto cobrar por un baño completo en Maryland?\" — solo pregunta."},
+      {icon:"📞",title:"Guiones de Seguimiento",desc:"Guiones palabra por palabra para volver a conectar con leads que se enfriaron."},
+      {icon:"📈",title:"Consejos de Negocios",desc:"Tips de rentabilidad, cuándo contratar, cómo crecer — a pedido."},
+      {icon:"🏡",title:"Asistente para Propietarios",desc:"Respuestas claras sobre alcance, tiempos y siguientes pasos — incluido en tu plan."},
+    ] : [
+      {icon:"💰",title:"Job Pricing Help",desc:"\"What should I charge for a 2-bathroom gut job in Maryland?\" — just ask."},
+      {icon:"📞",title:"Follow-Up Scripts",desc:"Get word-for-word scripts to re-engage leads that went cold."},
+      {icon:"📈",title:"Business Advice",desc:"Profitability tips, when to hire, how to grow — on demand."},
+      {icon:"🏡",title:"Homeowner Assistant",desc:"Give homeowners clear answers on scope, timing, and next steps — built into your plan."},
+    ],
+  };
+
+  return(
+    <div style={{fontFamily:"'DM Sans',sans-serif",background:"#132440",color:"#F5F0EB",minHeight:"100vh"}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Space+Mono:wght@400;700&display=swap');
+        *{margin:0;padding:0;box-sizing:border-box}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+        .sw-f0{animation:fadeUp .8s ease forwards}
+        .sw-f1{animation:fadeUp .8s ease .1s forwards;opacity:0}
+        .sw-f2{animation:fadeUp .8s ease .2s forwards;opacity:0}
+        .sw-f3{animation:fadeUp .8s ease .3s forwards;opacity:0}
+        .sw-f4{animation:fadeUp .8s ease .4s forwards;opacity:0}
+        @media(max-width:768px){.sw-price{font-size:56px !important}.sw-comp{grid-template-columns:1.5fr 1fr 1fr !important;padding:14px 16px !important;font-size:13px !important}}
+        .feature-box{cursor:pointer;transition:all .3s;}
+        .feature-box:hover{transform:translateY(-4px);box-shadow:0 8px 30px rgba(200,230,74,0.15);}
+      `}</style>
+      {authMode&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:16}} onClick={()=>{setAuthMode(null);setAuthError(null);setAuthSuccess(null)}}>
+        <div style={{background:"#fff",borderRadius:16,padding:36,maxWidth:400,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}} onClick={(e:React.MouseEvent)=>e.stopPropagation()}>
+          <div style={{textAlign:"center",marginBottom:24}}>
+            <div style={{width:40,height:40,background:"#4A82C4",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,color:"#fff",margin:"0 auto 12px"}}>SW</div>
+            <h2 style={{fontSize:22,fontWeight:700,color:"#0F172A",marginBottom:4}}>
+              {authMode==="login"?"Welcome back":authMode==="signup"?"Create your account":"Reset your password"}
+            </h2>
+            <p style={{fontSize:13,color:"#64748B"}}>
+              {authMode==="login"?"Sign in to your StackedWork account":authMode==="signup"?`Start your ${TD}-day free trial today`:"Enter your email and we'll send a reset link"}
+            </p>
+          </div>
+          {authSuccess ? (
+            <div style={{background:"#D1FAE5",border:"1px solid #6EE7B7",borderRadius:10,padding:16,textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:24,marginBottom:8}}>✅</div>
+              <p style={{fontSize:14,color:"#065F46",fontWeight:500}}>{authSuccess}</p>
+            </div>
+          ) : (
+            <>
+              <div style={{marginBottom:14}}>
+                <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Email address</label>
+                <input type="email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="you@example.com" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+              </div>
+              {authMode!=="forgot"&&(
+                <div style={{marginBottom:authMode==="login"?8:20}}>
+                  <label style={{fontSize:12,fontWeight:600,color:"#374151",display:"block",marginBottom:6}}>Password</label>
+                  <input type="password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} placeholder="••••••••" style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E2E8F0",borderRadius:8,fontSize:14,fontFamily:"'DM Sans'",outline:"none",boxSizing:"border-box"}}/>
+                </div>
+              )}
+              {authMode==="login"&&(
+                <div style={{textAlign:"right",marginBottom:20}}>
+                  <span onClick={()=>{setAuthMode("forgot");setAuthError(null);}} style={{fontSize:12,color:"#4A82C4",cursor:"pointer",fontWeight:500}}>Forgot password?</span>
+                </div>
+              )}
+              {authError&&<div style={{background:"#FEE2E2",border:"1px solid #FECACA",borderRadius:8,padding:"10px 14px",marginBottom:14,fontSize:13,color:"#991B1B"}}>{authError}</div>}
+              <button onClick={handleAuth} disabled={authLoading} style={{width:"100%",padding:"12px",background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",borderRadius:8,fontSize:15,fontWeight:700,cursor:authLoading?"not-allowed":"pointer",fontFamily:"'DM Sans'",opacity:authLoading?0.7:1}}>
+                {authLoading?"Please wait...":(authMode==="login"?"Sign In":authMode==="signup"?"Create Account":"Send Reset Link")}
+              </button>
+            </>
+          )}
+          <div style={{textAlign:"center",marginTop:20,fontSize:13,color:"#64748B"}}>
+            {authMode==="login"&&<>Don&apos;t have an account? <span onClick={()=>{setAuthMode("signup");setAuthError(null);setAuthSuccess(null);}} style={{color:"#4A82C4",cursor:"pointer",fontWeight:600}}>Sign up</span></>}
+            {authMode==="signup"&&<>Already have an account? <span onClick={()=>{setAuthMode("login");setAuthError(null);setAuthSuccess(null);}} style={{color:"#4A82C4",cursor:"pointer",fontWeight:600}}>Sign in</span></>}
+            {authMode==="forgot"&&<><span onClick={()=>{setAuthMode("login");setAuthError(null);setAuthSuccess(null);}} style={{color:"#4A82C4",cursor:"pointer",fontWeight:600}}>Back to sign in</span></>}
+          </div>
+        </div>
+      </div>}
+      <nav style={{position:"fixed",top:0,left:0,right:0,zIndex:100,padding:"18px 24px",display:"flex",alignItems:"center",justifyContent:"space-between",background:scrollY>50?"rgba(19,36,64,0.92)":"transparent",backdropFilter:scrollY>50?"blur(20px)":"none",transition:"all .3s",borderBottom:scrollY>50?"1px solid rgba(255,255,255,0.05)":"none"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:34,height:34,background:"#4A82C4",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:14,color:"#fff",fontFamily:"'DM Sans'",letterSpacing:"-0.03em"}}>SW</div><span style={{fontWeight:700,fontSize:17,letterSpacing:"-0.02em"}}>StackedWork</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <span onClick={()=>setPage("app")} style={{color:G,fontSize:14,fontWeight:500,cursor:"pointer"}}>{t.navDemo}</span>
+          <a href="/login?mode=signin" style={{background:"transparent",color:"#fff",border:"1px solid rgba(255,255,255,0.3)",padding:"8px 18px",fontSize:13,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer",textDecoration:"none",display:"inline-block"}}>{t.navSignIn}</a>
+          <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"10px 20px",fontSize:13,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>{t.navStart}</button>
+        </div>
+      </nav>
+      <EsWelcome />
+      <section style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",padding:"120px 24px 80px",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",inset:0,backgroundImage:"url(https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=1400&q=80)",backgroundSize:"cover",backgroundPosition:"center",filter:"brightness(0.3)"}} />
+        <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,rgba(19,36,64,0.7) 0%,rgba(19,36,64,0.9) 70%,#132440 100%)"}} />
+        <div className="sw-f0" style={{position:"relative",zIndex:1}}><div style={{display:"inline-flex",alignItems:"center",gap:8,background:"rgba(200,230,74,0.15)",border:"1px solid rgba(200,230,74,0.35)",borderRadius:100,padding:"8px 20px",fontSize:13,fontWeight:500,color:G,fontFamily:"'Space Mono'",marginBottom:32}}>{(!es&&founderBadge(founder))||t.heroBadge}</div></div>
+        <h1 className="sw-f1" style={{position:"relative",zIndex:1,fontSize:"clamp(38px,6vw,72px)",fontWeight:700,lineHeight:1.05,letterSpacing:"-0.03em",maxWidth:800,marginBottom:24,whiteSpace:"pre-line"}}>{t.heroTitle.split("\n")[0]} <span style={{color:G}}>{t.heroTitle.split("\n")[1]}</span></h1>
+        <p className="sw-f2" style={{position:"relative",zIndex:1,fontSize:18,lineHeight:1.7,color:"rgba(245,240,235,0.6)",maxWidth:560,marginBottom:16}}>{t.heroDesc}</p>
+        {!es&&founder.active&&<div style={{position:"relative",zIndex:1,maxWidth:560,marginBottom:20}}>
+          <p style={{fontSize:20,fontWeight:700,color:G,lineHeight:1.4,marginBottom:6}}>{founder.headline}</p>
+          <p style={{fontSize:14,color:"rgba(245,240,235,0.6)",lineHeight:1.6}}>{founder.sub}</p>
+        </div>}
+        <div className="sw-f3" style={{position:"relative",zIndex:1,marginBottom:48}}>
+          <div className="sw-price" style={{fontFamily:"'Space Mono'",fontSize:72,fontWeight:700,color:G,lineHeight:1,marginBottom:4}}>$49.99<span style={{fontSize:24,color:"rgba(245,240,235,0.4)"}}>/mo</span></div>
+          <p style={{fontFamily:"'Space Mono'",fontSize:13,color:"rgba(245,240,235,0.4)",letterSpacing:"0.05em"}}>{t.pricingSub}</p>
+          <p style={{fontFamily:"'DM Sans'",fontSize:13,color:"rgba(245,240,235,0.35)",marginTop:10}}>{t.pricingWebsite}</p>
+        </div>
+        <div className="sw-f4" style={{position:"relative",zIndex:1,display:"flex",gap:16,flexWrap:"wrap",justifyContent:"center"}}>
+          <button onClick={handleSubscribe} style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"18px 40px",fontSize:17,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>{t.btnTrial}</button>
+          <button onClick={()=>setPage("app")} style={{background:"transparent",color:G,border:"2px solid rgba(200,230,74,0.25)",padding:"16px 38px",fontSize:17,fontWeight:600,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>{t.btnDemo}</button>
+        </div>
+        <HeroDemoVideo />
+      </section>
+      <section style={{padding:"72px 24px 80px",maxWidth:600,margin:"0 auto",textAlign:"center"}}>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:14}}>{t.signupLabel}</div>
+        <h2 style={{fontSize:"clamp(26px,4vw,38px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:10}}>{t.signupTitle} <span style={{color:G}}>{t.signupTitleGreen}</span></h2>
+        <p style={{fontSize:15,color:"rgba(245,240,235,0.5)",marginBottom:32}}>{t.signupSub}</p>
+        <form onSubmit={(e)=>{e.preventDefault();const email=(e.currentTarget.elements.namedItem("email") as HTMLInputElement).value;window.location.href=`/login?mode=signup&email=${encodeURIComponent(email)}`;}} style={{display:"flex",gap:12,maxWidth:460,margin:"0 auto",flexWrap:"wrap",justifyContent:"center"}}>
+          <input name="email" type="email" placeholder={t.signupPlaceholder} required style={{flex:1,minWidth:220,padding:"14px 18px",borderRadius:8,border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.06)",color:"#fff",fontSize:15,fontFamily:"'DM Sans'",outline:"none"}} />
+          <button type="submit" style={{background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"14px 28px",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans'",whiteSpace:"nowrap"}}>{t.signupBtn}</button>
+        </form>
+        <p style={{marginTop:16,fontSize:12,color:"rgba(245,240,235,0.25)",fontFamily:"'Space Mono'"}}>{t.signupSmall}</p>
+      </section>
+      {AD_VIDEO_URL && (
+        <section style={{padding:"80px 24px",maxWidth:900,margin:"0 auto",textAlign:"center"}}>
+          <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.videoLabel}</div>
+          <h2 style={{fontSize:"clamp(26px,4vw,42px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:40}}>{t.videoTitle}</h2>
+          <div style={{borderRadius:16,overflow:"hidden",border:`1px solid rgba(200,230,74,0.2)`,boxShadow:`0 0 60px rgba(200,230,74,0.08)`}}>
+            <video src={AD_VIDEO_URL} autoPlay muted loop playsInline style={{width:"100%",display:"block"}} />
+          </div>
+        </section>
+      )}
+      <section style={{padding:"100px 24px",maxWidth:1100,margin:"0 auto",position:"relative"}}>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.featLabel}</div>
+        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:56,maxWidth:500}}>{t.featTitle} <span style={{color:"rgba(245,240,235,0.3)"}}>{t.featSub}</span></h2>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:20}}>
+          {t.features.map((f:any,i:number)=>(
+            <div key={i} className="feature-box" onMouseEnter={()=>setAf(i)} onClick={()=>{ if(f.link.startsWith("http")){window.open(f.link,"_blank");} else {setPage("app"); setVw(f.link);} }}
+              style={{background:i===af?"rgba(200,230,74,0.08)":"rgba(255,255,255,0.03)",border:i===af?"1px solid rgba(200,230,74,0.25)":"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:32,transition:"all .4s",position:"relative"}}>
+              <div style={{position:"absolute",top:12,right:12,fontSize:10,color:"rgba(200,230,74,0.5)",fontFamily:"'Space Mono'"}}>{t.featClick}</div>
+              <div style={{fontSize:30,marginBottom:14}}>{f.icon}</div>
+              <h3 style={{fontSize:18,fontWeight:600,marginBottom:8}}>{f.title}</h3>
+              <p style={{fontSize:14,lineHeight:1.7,color:"rgba(245,240,235,0.5)"}}>{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+      <Divider/>
+      <section style={{padding:"100px 24px",maxWidth:1000,margin:"0 auto",textAlign:"center"}}>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.aiLabel}</div>
+        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:16}}>{t.aiTitle} <span style={{color:G}}>{t.aiTitleGreen}</span></h2>
+        <p style={{fontSize:17,lineHeight:1.7,color:"rgba(245,240,235,0.55)",maxWidth:560,margin:"0 auto 56px"}}>{t.aiDesc}</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:20,textAlign:"left"}}>
+          {t.aiFeatures.map((item:any,i:number)=>(
+            <div key={i} style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.15)",borderRadius:12,padding:28}}>
+              <div style={{fontSize:28,marginBottom:12}}>{item.icon}</div>
+              <h3 style={{fontSize:16,fontWeight:700,marginBottom:6}}>{item.title}</h3>
+              <p style={{fontSize:13,lineHeight:1.65,color:"rgba(245,240,235,0.5)"}}>{item.desc}</p>
+            </div>
+          ))}
+        </div>
+        <p style={{marginTop:36,fontSize:13,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>{t.aiPowered}</p>
+      </section>
+      <Divider/>
+      <section style={{padding:"100px 24px",maxWidth:800,margin:"0 auto"}}>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.mathLabel}</div>
+        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:14}}>{t.mathTitle}</h2>
+        <p style={{fontSize:16,color:"rgba(245,240,235,0.5)",marginBottom:32,maxWidth:500}}>{t.mathDesc}</p>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12,marginBottom:44}}>
+          {[
+            {icon:"💸",label:es?"10x más barato":"10x Cheaper",sub:es?"$49.99/mes vs. $398–$600+":"$49.99/mo vs. $398–$600+/mo"},
+            {icon:"⚡",label:es?"Listo en 5 min":"Live in 5 Min",sub:es?"Sin semanas de configuración":"No weeks of training required"},
+            {icon:"🤖",label:es?"IA incluida":"AI Included",sub:es?"Sin asiento de IA adicional":"No add-on AI seat"},
+            {icon:"📸",label:es?"Portafolio incluido":"Portfolio Included",sub:es?"Comparte en redes directamente":"Share to social media directly"},
+          ].map((c,i)=>(
+            <div key={i} style={{background:"rgba(200,230,74,0.06)",border:"1px solid rgba(200,230,74,0.2)",borderRadius:12,padding:"18px 16px",textAlign:"center"}}>
+              <div style={{fontSize:28,marginBottom:8}}>{c.icon}</div>
+              <div style={{fontWeight:700,fontSize:14,color:G,marginBottom:4}}>{c.label}</div>
+              <div style={{fontSize:11,color:"rgba(245,240,235,0.45)",lineHeight:1.4}}>{c.sub}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,overflow:"hidden"}}>
+          <div className="sw-comp" style={{display:"grid",gridTemplateColumns:"2fr 1.2fr 1.2fr",padding:"18px 24px",background:"rgba(255,255,255,0.03)",fontFamily:"'Space Mono'",fontSize:11,letterSpacing:"0.1em",textTransform:"uppercase",color:"rgba(245,240,235,0.4)",fontWeight:700}}><div></div><div>{t.mathWithout}</div><div style={{color:G}}>StackedWork</div></div>
+          {t.comparisons.map((c:any,i:number)=><div key={i} className="sw-comp" style={{display:"grid",gridTemplateColumns:"2fr 1.2fr 1.2fr",padding:"18px 24px",borderBottom:i<t.comparisons.length-1?"1px solid rgba(255,255,255,0.06)":"none",...(i===t.comparisons.length-1?{background:"rgba(200,230,74,0.08)",fontSize:17,fontWeight:700}:{})}}><div style={{fontWeight:i===t.comparisons.length-1?700:400}}>{c.item}</div><div style={{color:"rgba(245,240,235,0.4)",textDecoration:i<t.comparisons.length-1?"line-through":"none"}}>{c.them}</div><div style={{color:G,fontWeight:600}}>{c.us}</div></div>)}
+        </div>
+      </section>
+      <Divider/>
+      <section style={{padding:"80px 24px",maxWidth:1100,margin:"0 auto",position:"relative"}}>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.fieldLabel}</div>
+        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:40}}>{t.fieldTitle}</h2>
+        <div style={{borderRadius:16,overflow:"hidden",maxHeight:500,position:"relative"}}>
+          <img src={AD_IMAGE_URL || "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80"} alt="Contractor on the job" style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} onError={(e)=>{(e.target as HTMLImageElement).style.display="none";}} />
+          <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,transparent 50%,rgba(19,36,64,0.85) 100%)"}}/>
+          <div style={{position:"absolute",bottom:32,left:32,right:32}}>
+            <p style={{fontSize:"clamp(16px,2.5vw,22px)",fontWeight:600,color:"#fff",lineHeight:1.5,maxWidth:600,textShadow:"0 2px 8px rgba(0,0,0,0.5)"}}>{t.fieldQuote}</p>
+          </div>
+        </div>
+      </section>
+      <Divider/>
+      <section style={{padding:"100px 24px",maxWidth:800,margin:"0 auto",textAlign:"center"}}>
+        <div style={{fontFamily:"'Space Mono'",fontSize:12,letterSpacing:"0.2em",textTransform:"uppercase",color:G,marginBottom:16}}>{t.howLabel}</div>
+        <h2 style={{fontSize:"clamp(30px,4vw,48px)",fontWeight:700,letterSpacing:"-0.02em",marginBottom:56}}>{t.howTitle} <span style={{color:G}}>{t.howTitleGreen}</span></h2>
+        <div style={{display:"flex",flexDirection:"column",gap:40,textAlign:"left"}}>
+          {t.howSteps.map((x:any,i:number)=>(
+            <div key={i} style={{display:"flex",gap:20,alignItems:"flex-start"}}>
+              <div style={{fontFamily:"'Space Mono'",fontSize:14,color:G,fontWeight:700,minWidth:36,paddingTop:3}}>{x.s}</div>
+              <div><h3 style={{fontSize:20,fontWeight:600,marginBottom:6}}>{x.t}</h3><p style={{fontSize:15,lineHeight:1.7,color:"rgba(245,240,235,0.5)"}}>{x.d}</p></div>
+            </div>
+          ))}
+        </div>
+      </section>
+      <Divider/>
+      <section style={{padding:"100px 24px 140px",textAlign:"center",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",inset:0,backgroundImage:"url(https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=1400&q=80)",backgroundSize:"cover",backgroundPosition:"center top",filter:"brightness(0.2)"}} />
+        <div style={{position:"absolute",inset:0,background:"linear-gradient(180deg,#132440 0%,rgba(19,36,64,0.85) 50%,#132440 100%)"}} />
+        <h2 style={{position:"relative",zIndex:1,fontSize:"clamp(34px,5vw,56px)",fontWeight:700,letterSpacing:"-0.03em",maxWidth:600,margin:"0 auto 16px"}}>{t.ctaTitle}</h2>
+        <p style={{position:"relative",zIndex:1,fontSize:17,color:"rgba(245,240,235,0.5)",maxWidth:480,margin:"0 auto 44px"}}>{t.ctaDesc}</p>
+        <button onClick={handleSubscribe} style={{position:"relative",zIndex:1,background:`linear-gradient(135deg,${G},${GD})`,color:"#132440",border:"none",padding:"20px 48px",fontSize:18,fontWeight:700,fontFamily:"'DM Sans'",borderRadius:6,cursor:"pointer"}}>{t.ctaBtn}</button>
+        <p style={{position:"relative",zIndex:1,marginTop:22,fontSize:12,color:"rgba(245,240,235,0.3)",fontFamily:"'Space Mono'"}}>{t.ctaSmall}</p>
+      </section>
+      <section style={{padding:"60px 24px",textAlign:"center",borderTop:"1px solid rgba(255,255,255,0.05)"}}>
+        <p style={{fontSize:11,fontFamily:"'Space Mono'",color:"rgba(245,240,235,0.3)",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>{t.shareLabel}</p>
+        <h3 style={{fontSize:22,fontWeight:700,color:"#fff",marginBottom:8}}>{t.shareTitle}</h3>
+        <p style={{fontSize:14,color:"rgba(245,240,235,0.45)",marginBottom:28}}>{t.shareDesc}</p>
+        <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap"}}>
+          <button
+            onClick={()=>{
+              const shareData={url:"https://letstaystacked.com",title:"StackedWork",text:"Just found StackedWork — a CRM built for contractors. Job tracking, lead management, before & after portfolio, and revenue dashboards. All for $49.99/mo."};
+              if(typeof navigator!=="undefined"&&navigator.share){navigator.share(shareData).catch(()=>{});}
+              else{window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent("https://letstaystacked.com")}`, "_blank", "width=600,height=400");}
+            }}
+            style={{display:"flex",alignItems:"center",gap:10,padding:"12px 22px",background:"#1877F2",color:"#fff",borderRadius:10,fontSize:14,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"'DM Sans'"}}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.886v2.27h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+            {t.shareFb}
+          </button>
+          <button
+            onClick={()=>{navigator.clipboard.writeText("https://letstaystacked.com").then(()=>{window.open("https://www.instagram.com/","_blank")});}}
+            style={{display:"flex",alignItems:"center",gap:10,padding:"12px 22px",background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",color:"#fff",borderRadius:10,fontSize:14,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"'DM Sans'"}}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
+            {t.shareIg}
+          </button>
+          <a
+            href={`https://twitter.com/intent/tweet?text=${encodeURIComponent("Just found StackedWork — a CRM built for contractors. Job tracking, lead management, before & after portfolio, and revenue dashboards. All for $49.99/mo. Check it out:")}&url=${encodeURIComponent("https://letstaystacked.com")}`}
+            target="_blank" rel="noopener noreferrer"
+            style={{display:"flex",alignItems:"center",gap:10,padding:"12px 22px",background:"#000",color:"#fff",borderRadius:10,fontSize:14,fontWeight:600,textDecoration:"none",fontFamily:"'DM Sans'"}}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.746l7.73-8.835L1.254 2.25H8.08l4.258 5.63zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            Share on X
+          </a>
+        </div>
+      </section>
+      <footer style={{padding:"40px 24px",borderTop:"1px solid rgba(255,255,255,0.05)",maxWidth:1100,margin:"0 auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:20,marginBottom:24}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:26,height:26,background:"#4A82C4",borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:9,color:"#fff",fontFamily:"'DM Sans'",letterSpacing:"-0.03em"}}>SW</div>
+            <span style={{fontSize:13,color:"rgba(245,240,235,0.3)"}}>StackedWork — A <span style={{color:"rgba(245,240,235,0.5)"}}>REM Ventures</span> product</span>
+          </div>
+          <div style={{display:"flex",gap:20,flexWrap:"wrap",alignItems:"center"}}>
+            <a href="mailto:ryan@remventures.tech" style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>Contact: ryan@remventures.tech</a>
+            <a href="tel:4105306456" style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>410-530-6456</a>
+            {[[t.privacy,"/privacy"],[t.terms,"/terms"]].map(([label,href])=><a key={href} href={href} style={{color:"rgba(245,240,235,0.6)",fontSize:12,cursor:"pointer",textDecoration:"none"}}>{label}</a>)}
+          </div>
+        </div>
+        <nav aria-label="Resources" style={{marginBottom:20}}>
+          <div style={{fontSize:12,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",color:"rgba(245,240,235,0.6)",marginBottom:8}}>Resources</div>
+          <div style={{display:"flex",gap:"8px 20px",flexWrap:"wrap"}}>
+            {RESOURCE_PAGES.map(p=><a key={p.path} href={p.path} style={{color:"rgba(245,240,235,0.75)",fontSize:13,textDecoration:"none",padding:"6px 0"}}>{p.title}</a>)}
+          </div>
+        </nav>
+        <div style={{borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:20}}>
+          <p style={{fontSize:11,color:"rgba(245,240,235,0.25)",lineHeight:1.7,maxWidth:800}}>
+            StackedWork is a REM Ventures product. We don&apos;t sell your data. Payments are handled by Stripe, and we never see or store card numbers. Read our <a href="/privacy" style={{color:"rgba(245,240,235,0.45)"}}>Privacy Policy</a> and <a href="/terms" style={{color:"rgba(245,240,235,0.45)"}}>Terms of Service</a>. Questions: <a href="mailto:ryan@remventures.tech" style={{color:"rgba(245,240,235,0.45)"}}>ryan@remventures.tech</a>.
+          </p>
+        </div>
+      </footer>
+      {toastStack}
+      <ChatWidget mode="contractor" getAccessToken={getAccessToken} />
+    </div>
+  );
+}

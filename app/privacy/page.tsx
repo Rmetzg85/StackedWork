@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import LegalPage from "../components/LegalPage";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy | StackedWork",
+  alternates: { canonical: "https://www.letstaystacked.com/privacy" },
+  title: "Privacy Policy",
   description: "What StackedWork collects, why, and who helps us run the service.",
 };
 

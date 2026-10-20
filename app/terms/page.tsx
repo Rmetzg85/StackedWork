@@ -4,7 +4,8 @@ import { founderCouponId, FOUNDER_PRICE, FOUNDER_TRIAL_DAYS } from "../lib/found
 import { FOUNDER_LIMIT, TRIAL_DAYS } from "../lib/offer";
 
 export const metadata: Metadata = {
-  title: "Terms of Service | StackedWork",
+  alternates: { canonical: "https://www.letstaystacked.com/terms" },
+  title: "Terms of Service",
   description: "The terms for using StackedWork.",
 };
 
