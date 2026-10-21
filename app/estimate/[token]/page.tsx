@@ -2,6 +2,9 @@ import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import PrintButton from "./PrintButton";
 
+// Private customer link: never in search results.
+export const metadata = { robots: { index: false, follow: false } };
+
 // Created per request (not at module load) so builds don't need Supabase env to be present.
 const getSupabase = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
